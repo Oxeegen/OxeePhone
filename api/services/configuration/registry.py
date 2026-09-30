@@ -1442,6 +1442,7 @@ class RimeTTSConfiguration(BaseTTSConfiguration):
 
 
 SPEACHES_TTS_MODELS = ["hexgrad/Kokoro-82M"]
+SPEACHES_TTS_LANGUAGES = ["fr", "en", "es", "de", "it", "nl", "pt"]
 
 
 @register_tts
@@ -1471,6 +1472,15 @@ class SpeachesTTSConfiguration(BaseTTSConfiguration):
     api_key: str | list[str] | None = Field(
         default=None,
         description="Usually not required for self-hosted TTS. Leave blank unless enforced.",
+    )
+    # OxeePhone: language hint forwarded to the endpoint (api/brand/tts.py).
+    language: str | None = Field(
+        default=None,
+        description="Language of the speech, sent to the TTS endpoint.",
+        json_schema_extra={
+            "examples": SPEACHES_TTS_LANGUAGES,
+            "allow_custom_input": True,
+        },
     )
 
 

@@ -386,3 +386,81 @@ def test_full_document_mode_returns_text_only(tmp_path):
     )
     assert result["chunks"] == []
     assert '"reponse": "9h-18h"' in result["full_text"]
+
+
+# ------------------------------------------------------------ voice
+
+
+def test_voice_tab_defaults_and_speed_range():
+    tts = local_models.restrict_provider_schemas(
+        ServiceType.TTS, _schemas(ServiceType.TTS)
+    )["speaches"]["properties"]
+    assert tts["voice"]["default"] == "fr_cedric"
+    assert tts["language"]["default"] == "fr"
+    assert "fr" in tts["language"]["examples"]
+    assert (tts["speed"]["minimum"], tts["speed"]["maximum"]) == (0.5, 2.0)
+
+
+def _tts_service(**kwargs):
+    from pipecat.services.speaches.tts import SpeachesTTSSettings
+
+    from api.brand.tts import LocalModelsTTSService
+
+    return LocalModelsTTSService(
+        base_url="http://tts/v1",
+        settings=SpeachesTTSSettings(model="voxee-tts-pro", voice="fr_cedric", speed=1.2),
+        **kwargs,
+    )
+
+
+def test_tts_forwards_language_hint():
+    params = _tts_service(language="fr").speech_params("Bonjour")
+    assert params == {
+        "input": "Bonjour",
+        "model": "voxee-tts-pro",
+        "voice": "fr_cedric",
+        "response_format": "pcm",
+        "speed": 1.2,
+        "extra_body": {"language": "fr"},
+    }
+
+
+def test_tts_without_language_sends_no_extra_body():
+    assert "extra_body" not in _tts_service(language="  ").speech_params("x")
+
+
+async def test_voice_preview_renders_mp3(mock_http):
+    mock_http["handler"] = lambda request: httpx.Response(
+        200, content=b"ID3fake", headers={"content-type": "audio/mpeg"}
+    )
+    audio = await local_models.synthesize_preview(
+        base_url="http://tts/v1/",
+        api_key="k",
+        model="voxee-tts-pro",
+        voice="fr_cedric",
+        speed=1.1,
+        language="fr",
+        text=None,
+    )
+    assert audio == b"ID3fake"
+    request = mock_http["requests"][0]
+    assert str(request.url) == "http://tts/v1/audio/speech"
+    assert json.loads(request.content) == {
+        "model": "voxee-tts-pro",
+        "voice": "fr_cedric",
+        "input": local_models.PREVIEW_TEXT,
+        "response_format": "mp3",
+        "speed": 1.1,
+        "language": "fr",
+    }
+
+
+async def test_voice_preview_surfaces_endpoint_errors(mock_http):
+    mock_http["handler"] = lambda request: httpx.Response(
+        400, json={"detail": "unknown voice 'x'. See GET /v1/audio/voices"}
+    )
+    with pytest.raises(local_models.LocalModelsError, match="unknown voice 'x'"):
+        await local_models.synthesize_preview(
+            base_url="http://tts/v1", api_key=None, model="m", voice="x",
+            speed=None, language=None, text="t",
+        )

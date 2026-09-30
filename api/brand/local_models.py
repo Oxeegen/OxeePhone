@@ -24,7 +24,12 @@ MODELS_TIMEOUT = httpx.Timeout(10.0)
 # Upstream Speaches defaults point at localhost Ollama/Kokoro; start blank so the
 # user fills in the Oxeegen endpoint. STT language defaults to French.
 _BLANK_DEFAULTS = ("model", "base_url")
-_DEFAULT_OVERRIDES = {ServiceType.STT: {"language": "fr"}}
+_DEFAULT_OVERRIDES = {
+    ServiceType.STT: {"language": "fr"},
+    ServiceType.TTS: {"language": "fr", "voice": "fr_cedric"},
+}
+# Speed range offered in the UI (the endpoint accepts 0.25-4.0).
+_TTS_SPEED_RANGE = (0.5, 2.0)
 
 
 def restrict_provider_schemas(
@@ -46,6 +51,11 @@ def restrict_provider_schemas(
     for name, value in _DEFAULT_OVERRIDES.get(service_type, {}).items():
         if name in properties:
             properties[name]["default"] = value
+    if service_type == ServiceType.TTS and "speed" in properties:
+        properties["speed"]["minimum"], properties["speed"]["maximum"] = (
+            _TTS_SPEED_RANGE
+        )
+        properties["speed"]["description"] = "Speech speed (0.5 to 2.0)."
     schema["properties"] = properties
     return {LOCAL_PROVIDER: schema}
 
@@ -207,3 +217,58 @@ async def transcribe_with_organization_stt(
     if response.status_code >= 400:
         raise LocalModelsError(f"{url} answered HTTP {response.status_code}.")
     return {"transcript": (response.json().get("text") or "").strip()}
+
+
+PREVIEW_TEXT = "Bonjour, je suis votre assistant vocal. Comment puis-je vous aider ?"
+PREVIEW_MAX_CHARS = 300
+
+
+async def synthesize_preview(
+    *,
+    base_url: str,
+    api_key: str | None,
+    model: str,
+    voice: str,
+    speed: float | None,
+    language: str | None,
+    text: str | None,
+) -> bytes:
+    """Render a short MP3 sample with the given voice settings (Listen button)."""
+    base_url = (base_url or "").strip().rstrip("/")
+    if not base_url or not model or not voice:
+        raise LocalModelsError("Fill in the base URL, model and voice first.")
+    try:
+        validate_user_configured_service_url(base_url, field_name="base_url")
+    except ValueError as e:
+        raise LocalModelsError(str(e)) from e
+
+    body = {
+        "model": model,
+        "voice": voice,
+        "input": (text or PREVIEW_TEXT).strip()[:PREVIEW_MAX_CHARS],
+        "response_format": "mp3",
+    }
+    if speed:
+        body["speed"] = speed
+    if language:
+        body["language"] = language
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    url = f"{base_url}/audio/speech"
+    try:
+        async with httpx.AsyncClient(timeout=TRANSCRIPTION_TIMEOUT) as client:
+            response = await client.post(url, headers=headers, json=body)
+    except httpx.HTTPError as e:
+        raise LocalModelsError(f"Could not reach {url} ({type(e).__name__}).") from e
+    if response.status_code in (401, 403):
+        raise LocalModelsError("The endpoint rejected the API key.")
+    if response.status_code >= 400:
+        detail = ""
+        try:
+            detail = response.json().get("detail") or ""
+        except ValueError:
+            pass
+        raise LocalModelsError(
+            f"{url} answered HTTP {response.status_code}"
+            + (f": {detail}" if isinstance(detail, str) and detail else ".")
+        )
+    return response.content

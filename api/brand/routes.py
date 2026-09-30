@@ -2,13 +2,14 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, Field
 
 from api.brand.local_models import (
     LocalModelsError,
     list_endpoint_models,
     resolve_api_key,
+    synthesize_preview,
 )
 from api.db.models import UserModel
 from api.services.auth.depends import get_user_with_selected_organization
@@ -48,3 +49,41 @@ async def list_models(
     except LocalModelsError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     return EndpointModelsResponse(models=models)
+
+
+class VoicePreviewRequest(BaseModel):
+    base_url: str
+    api_key: str | None = None
+    model: str
+    voice: str
+    speed: float | None = Field(default=None, ge=0.25, le=4.0)
+    language: str | None = None
+    text: str | None = None
+
+
+@router.post(
+    "/tts/preview",
+    response_class=Response,
+    responses={200: {"content": {"audio/mpeg": {}}}},
+)
+async def preview_voice(
+    request: VoicePreviewRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Render a short MP3 sample with the Voice tab's current settings."""
+    stored = await get_organization_ai_model_configuration_v2(
+        user.selected_organization_id
+    )
+    try:
+        audio = await synthesize_preview(
+            base_url=request.base_url,
+            api_key=resolve_api_key(request.api_key, stored, "tts"),
+            model=request.model,
+            voice=request.voice,
+            speed=request.speed,
+            language=request.language,
+            text=request.text,
+        )
+    except LocalModelsError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return Response(content=audio, media_type="audio/mpeg")

@@ -57,6 +57,8 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/posthog_client.py` — `get_posthog()` returns `None`
 - `api/requirements.txt` — `pypdf`, `python-docx` (local document parsing)
 - `api/services/configuration/registry.py` — new `SpeachesEmbeddingsConfiguration` (not gated: an extra provider, inert upstream)
+- `api/services/configuration/registry.py` — `language` field on `SpeachesTTSConfiguration` (not gated: inert upstream)
+- `api/services/pipecat/service_factory.py` — Speaches TTS built as `api/brand/tts.py` `LocalModelsTTSService` (forwards `language`)
 - `api/services/gen_ai/embedding/factory.py` — `speaches` → `api/brand/embeddings.py` (zero-padded to 1536)
 - `api/tasks/knowledge_base_processing.py` — local parsing/chunking (`api/brand/documents.py`) instead of MPS; no API key needed for Local Models
 - `api/services/workflow/tools/knowledge_base.py` — no API key needed for Local Models
@@ -79,7 +81,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/components/lead-forms/onboardingServiceClient.ts`, `HireExpertNudge.tsx`, `ui/src/context/LeadFormsContext.tsx` — no lead forms
 - `ui/src/hooks/useLatestReleaseVersion.ts` — no release check
 - `ui/src/components/AIModelConfigurationV2Editor.tsx` — BYOK only, no mode tabs, no third-party notice
-- `ui/src/components/ServiceConfigurationForm.tsx` — Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved
+- `ui/src/components/ServiceConfigurationForm.tsx` — Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved; Voice tab uses `@/brand/LocalVoiceControls` (voice + Listen preview, speed slider)
 - `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
 - `ui/src/context/OrgConfigContext.tsx` — registers `@/brand/sessionGuard` (local auth: log out on the first backend 401 instead of leaving every page failing)
 - `ui/next.config.ts` — aliases `@stripe/stripe-js` to `src/brand/stubs/stripe-js.ts` (Stack Auth would otherwise load js.stripe.com + fingerprinting on `/`, `/after-sign-in`, `/workflow`)

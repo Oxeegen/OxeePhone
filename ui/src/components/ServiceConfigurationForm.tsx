@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 
 import { localModelsOnly } from "@/brand/brand";
 import { LocalModelPicker } from "@/brand/LocalModelPicker";
+import { LocalSpeedSlider, LocalVoiceField } from "@/brand/LocalVoiceControls";
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -754,6 +755,33 @@ export function ServiceConfigurationForm({
             watch(`${service}_model`) as string | undefined,
         );
         const numberSchema = getNumberSchema(actualSchema);
+
+        if (localModelsOnly && service === "tts" && field === "voice") {
+            return (
+                <LocalVoiceField
+                    value={watch("tts_voice") as string || ""}
+                    onChange={(voice) => setValue("tts_voice", voice, { shouldDirty: true })}
+                    preview={{
+                        baseUrl: watch("tts_base_url") as string || "",
+                        apiKey: apiKeys.tts?.[0] || "",
+                        model: watch("tts_model") as string || "",
+                        speed: Number(watch("tts_speed")) || undefined,
+                        language: watch("tts_language") as string || undefined,
+                    }}
+                />
+            );
+        }
+
+        if (localModelsOnly && service === "tts" && field === "speed") {
+            return (
+                <LocalSpeedSlider
+                    value={Number(watch("tts_speed") ?? 1)}
+                    min={numberSchema?.minimum ?? 0.5}
+                    max={numberSchema?.maximum ?? 2}
+                    onChange={(speed) => setValue("tts_speed", speed, { shouldDirty: true })}
+                />
+            );
+        }
 
         if (localModelsOnly && field === "model" && service !== "realtime") {
             return (
