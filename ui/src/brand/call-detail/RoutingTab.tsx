@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 
 import {
   Background,
+  Controls,
   type Edge,
   Handle,
   MarkerType,
@@ -12,8 +13,19 @@ import {
   Position,
   ReactFlow,
 } from "@xyflow/react";
-import { ArrowRight, Flag, GitBranch, MessageSquareQuote, PhoneForwarded, PlayCircle, Quote } from "lucide-react";
-import { useMemo } from "react";
+import {
+  ArrowRight,
+  Flag,
+  GitBranch,
+  MessageSquareQuote,
+  MousePointerClick,
+  PhoneForwarded,
+  PlayCircle,
+  Quote,
+  X,
+} from "lucide-react";
+import { useTheme } from "next-themes";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -29,14 +41,15 @@ const NODE_TYPE_LABEL: Record<string, string> = {
   globalNode: "Global",
 };
 
-type RouteNodeData = { name: string; type: string; order: number[]; visited: boolean };
+type RouteNodeData = { name: string; type: string; order: number[]; visited: boolean; selected: boolean };
 
 function RouteNode({ data }: NodeProps<Node<RouteNodeData>>) {
   return (
     <div
       className={cn(
-        "min-w-40 rounded-lg border bg-card px-3 py-2 text-left shadow-sm",
+        "min-w-40 cursor-pointer rounded-lg border bg-card px-3 py-2 text-left shadow-sm transition-shadow",
         data.visited ? "border-[#8E80FF] ring-2 ring-[#8E80FF]/25" : "border-border opacity-55",
+        data.selected && "opacity-100 shadow-lg ring-4 ring-[#8E80FF]/70",
       )}
     >
       <Handle type="target" position={Position.Top} className="!h-1.5 !w-1.5 !border-0 !bg-muted-foreground/50" />
@@ -58,7 +71,19 @@ function RouteNode({ data }: NodeProps<Node<RouteNodeData>>) {
 
 const nodeTypes = { route: RouteNode };
 
-function AgentGraph({ graph, steps }: { graph: RoutingGraph; steps: RoutingStep[] }) {
+function AgentGraph({
+  graph,
+  steps,
+  selectedNodeId,
+  onSelectNode,
+}: {
+  graph: RoutingGraph;
+  steps: RoutingStep[];
+  selectedNodeId: string | null;
+  onSelectNode: (nodeId: string | null) => void;
+}) {
+  // The app themes with a class (next-themes), not the system preference.
+  const { resolvedTheme } = useTheme();
   const { nodes, edges } = useMemo(() => {
     const order = new Map<string, number[]>();
     steps.forEach((s, i) => order.set(s.nodeId, [...(order.get(s.nodeId) ?? []), i + 1]));
@@ -69,12 +94,19 @@ function AgentGraph({ graph, steps }: { graph: RoutingGraph; steps: RoutingStep[
         id: n.id,
         type: "route",
         position: n.position,
-        data: { name: n.name, type: n.type, order: order.get(n.id) ?? [], visited: order.has(n.id) },
+        data: {
+          name: n.name,
+          type: n.type,
+          order: order.get(n.id) ?? [],
+          visited: order.has(n.id),
+          selected: n.id === selectedNodeId,
+        },
         draggable: false,
         selectable: false,
       }));
     const flowEdges: Edge[] = graph.edges.map((e) => {
       const isTaken = taken.has(e.id);
+      const touchesSelection = selectedNodeId !== null && (e.source === selectedNodeId || e.target === selectedNodeId);
       return {
         id: e.id,
         source: e.source,
@@ -82,13 +114,18 @@ function AgentGraph({ graph, steps }: { graph: RoutingGraph; steps: RoutingStep[
         label: e.label,
         animated: isTaken,
         markerEnd: { type: MarkerType.ArrowClosed, color: isTaken ? VIOLET : "#71717a" },
-        style: { stroke: isTaken ? VIOLET : "#71717a", strokeWidth: isTaken ? 2.5 : 1, opacity: isTaken ? 1 : 0.5, strokeDasharray: isTaken ? undefined : "4 4" },
+        style: {
+          stroke: isTaken ? VIOLET : "#71717a",
+          strokeWidth: isTaken ? 2.5 : touchesSelection ? 1.5 : 1,
+          opacity: isTaken || touchesSelection ? 1 : 0.5,
+          strokeDasharray: isTaken ? undefined : "4 4",
+        },
         labelStyle: { fontSize: 11, fill: isTaken ? VIOLET : "#a1a1aa", fontWeight: isTaken ? 600 : 400 },
         labelBgStyle: { fill: "var(--card)" },
       };
     });
     return { nodes: flowNodes, edges: flowEdges };
-  }, [graph, steps]);
+  }, [graph, steps, selectedNodeId]);
 
   return (
     <div className="h-[440px] overflow-hidden rounded-xl border border-border/70 bg-muted/10">
@@ -103,25 +140,115 @@ function AgentGraph({ graph, steps }: { graph: RoutingGraph; steps: RoutingStep[
         elementsSelectable={false}
         zoomOnScroll={false}
         panOnScroll
+        minZoom={0.3}
+        maxZoom={2.5}
+        onNodeClick={(_event, node) => onSelectNode(node.id === selectedNodeId ? null : node.id)}
+        onPaneClick={() => onSelectNode(null)}
         proOptions={{ hideAttribution: true }}
-        colorMode="system"
+        colorMode={resolvedTheme === "light" ? "light" : "dark"}
       >
         <Background gap={20} size={1} />
+        <Controls
+          position="top-right"
+          showInteractive={false}
+          fitViewOptions={{ padding: 0.25 }}
+          className="overflow-hidden rounded-md border border-border !shadow-none [&>button]:!border-border [&>button]:!bg-card [&>button]:!text-foreground [&>button:hover]:!bg-muted [&>button_svg]:!fill-current"
+        />
       </ReactFlow>
     </div>
   );
 }
 
-function StepCard({ step, index, onSeek }: { step: RoutingStep; index: number; onSeek: (s: number) => void }) {
+function SelectionBanner({
+  graph,
+  steps,
+  nodeId,
+  onClear,
+}: {
+  graph: RoutingGraph;
+  steps: RoutingStep[];
+  nodeId: string | null;
+  onClear: () => void;
+}) {
+  if (!nodeId) {
+    return (
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <MousePointerClick className="h-3.5 w-3.5" /> Click a node to highlight its steps below.
+      </p>
+    );
+  }
+  const node = graph.nodes.find((n) => n.id === nodeId);
+  const visits = steps.filter((s) => s.nodeId === nodeId);
+  const outgoing = graph.edges.filter((e) => e.source === nodeId);
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-[#8E80FF]/40 bg-[#8E80FF]/10 px-3 py-2 text-sm">
+      <div className="min-w-0 flex-1 space-y-1">
+        <p>
+          <span className="font-semibold">{node?.name ?? nodeId}</span>{" "}
+          <span className="text-muted-foreground">
+            {visits.length
+              ? `· visited ${visits.length}× (step ${visits.map((s) => steps.indexOf(s) + 1).join(", ")})`
+              : "· not reached during this call"}
+          </span>
+        </p>
+        {outgoing.length > 0 && (
+          <ul className="space-y-0.5 text-xs text-muted-foreground">
+            {outgoing.map((e) => (
+              <li key={e.id}>
+                → <span className="text-foreground">{graph.nodes.find((n) => n.id === e.target)?.name ?? e.target}</span>{" "}
+                via “{e.label}”: {e.condition}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <button type="button" onClick={onClear} className="text-muted-foreground hover:text-foreground" aria-label="Clear selection">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function StepCard({
+  step,
+  index,
+  onSeek,
+  selected,
+  onSelect,
+}: {
+  step: RoutingStep;
+  index: number;
+  onSeek: (s: number) => void;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selected]);
   const icon =
     step.cause === "start" ? <PlayCircle className="h-4 w-4" /> : step.cause === "handoff" ? <PhoneForwarded className="h-4 w-4" /> : <GitBranch className="h-4 w-4" />;
   return (
-    <li className="relative flex gap-3">
+    <li ref={ref} className="relative flex gap-3">
       <div className="flex flex-col items-center">
         <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#8E80FF]/15 text-[#8E80FF]">{icon}</span>
         <span className="mt-1 w-px flex-1 bg-border" />
       </div>
-      <div className="mb-4 min-w-0 flex-1 space-y-2 rounded-xl border border-border/70 p-3">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
+        className={cn(
+          "mb-4 min-w-0 flex-1 cursor-pointer space-y-2 rounded-xl border p-3 transition-colors",
+          selected ? "border-[#8E80FF] bg-[#8E80FF]/10 ring-2 ring-[#8E80FF]/30" : "border-border/70 hover:border-border",
+        )}
+      >
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#8E80FF] px-1 text-[11px] font-semibold text-white">{index + 1}</span>
           {step.fromNodeName && (
@@ -135,7 +262,15 @@ function StepCard({ step, index, onSeek }: { step: RoutingStep; index: number; o
             <span className="text-xs text-muted-foreground">· {step.durationSecs.toFixed(1)} s in this node</span>
           )}
           {step.offset !== null && (
-            <button type="button" onClick={() => onSeek(Math.max(0, step.offset ?? 0))} className="ml-auto font-mono text-xs text-muted-foreground hover:text-foreground hover:underline" title="Play from here">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSeek(Math.max(0, step.offset ?? 0));
+              }}
+              className="ml-auto font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+              title="Play from here"
+            >
               {formatOffset(step.offset)}
             </button>
           )}
@@ -186,6 +321,9 @@ function StepCard({ step, index, onSeek }: { step: RoutingStep; index: number; o
 }
 
 export function RoutingTab({ model, onSeek, loading }: { model: RoutingModel | null; onSeek: (s: number) => void; loading: boolean }) {
+  // Selected node, per agent visit (node ids are only unique within a graph).
+  const [selection, setSelection] = useState<{ visit: number; nodeId: string } | null>(null);
+
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Loading routing…</p>;
   if (!model || !model.steps.length) {
     return <p className="py-10 text-center text-sm text-muted-foreground">No routing recorded for this call.</p>;
@@ -195,6 +333,7 @@ export function RoutingTab({ model, onSeek, loading }: { model: RoutingModel | n
     <div className="space-y-6 py-2">
       {byVisit.map(({ visit, steps }, i) => {
         const graph = visit.definitionId !== null ? model.graphsByDefinition.get(visit.definitionId) : undefined;
+        const selectedNodeId = selection?.visit === i ? selection.nodeId : null;
         return (
           <section key={visit.visitId} className="space-y-3">
             {model.visits.length > 1 && (
@@ -204,11 +343,31 @@ export function RoutingTab({ model, onSeek, loading }: { model: RoutingModel | n
                 {visit.exitReason && <span className="text-xs font-normal text-muted-foreground">· exit: {visit.exitReason.replace(/_/g, " ")}</span>}
               </h3>
             )}
-            {graph ? <AgentGraph graph={graph} steps={steps} /> : null}
+            {graph && (
+              <>
+                <AgentGraph
+                  graph={graph}
+                  steps={steps}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={(nodeId) => setSelection(nodeId ? { visit: i, nodeId } : null)}
+                />
+                <SelectionBanner graph={graph} steps={steps} nodeId={selectedNodeId} onClear={() => setSelection(null)} />
+              </>
+            )}
             <ol>
-              {steps.map((step) => (
-                <StepCard key={step.id} step={step} index={model.steps.indexOf(step)} onSeek={onSeek} />
-              ))}
+              {steps.map((step) => {
+                const selected = selectedNodeId === step.nodeId;
+                return (
+                  <StepCard
+                    key={step.id}
+                    step={step}
+                    index={model.steps.indexOf(step)}
+                    onSeek={onSeek}
+                    selected={selected}
+                    onSelect={() => setSelection(selected ? null : { visit: i, nodeId: step.nodeId })}
+                  />
+                );
+              })}
             </ol>
           </section>
         );
