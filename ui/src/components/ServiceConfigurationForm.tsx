@@ -4,6 +4,8 @@ import { ExternalLink, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { localModelsOnly } from "@/brand/brand";
+import { LocalModelPicker } from "@/brand/LocalModelPicker";
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -545,7 +547,9 @@ export function ServiceConfigurationForm({
                     saveConfig.realtime = buildServiceConfig("realtime", data);
                 }
                 const embeddingsKeys = apiKeys.embeddings.map(k => k.trim()).filter(k => k.length > 0);
-                if (embeddingsKeys.length > 0) {
+                const hasLocalEmbeddings = localModelsOnly
+                    && String(data.embeddings_base_url ?? "").trim().length > 0;
+                if (embeddingsKeys.length > 0 || hasLocalEmbeddings) {
                     saveConfig.embeddings = buildServiceConfig("embeddings", data);
                 }
                 await onSave(saveConfig);
@@ -569,6 +573,7 @@ export function ServiceConfigurationForm({
         const model = watch(`${service}_model`) as string;
         return Object.keys(providerSchema.properties).filter(
             field => field !== "provider" && field !== "api_key"
+                && !(localModelsOnly && field === "base_url")
                 && isVisibleForModel(providerSchema.properties[field], model)
         );
     };
@@ -582,6 +587,12 @@ export function ServiceConfigurationForm({
         return (
             <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
+                    {localModelsOnly && providerSchema?.properties.base_url ? (
+                    <div className="space-y-2">
+                        <Label>Base URL</Label>
+                        {renderField(service, "base_url", providerSchema)}
+                    </div>
+                    ) : (
                     <div className="space-y-2">
                         <Label>Provider</Label>
                         <Select
@@ -617,6 +628,7 @@ export function ServiceConfigurationForm({
                             </p>
                         )}
                     </div>
+                    )}
 
                     {currentProvider && providerSchema && configFields[0] && (
                         <div className="space-y-2">
@@ -742,6 +754,18 @@ export function ServiceConfigurationForm({
             watch(`${service}_model`) as string | undefined,
         );
         const numberSchema = getNumberSchema(actualSchema);
+
+        if (localModelsOnly && field === "model" && service !== "realtime") {
+            return (
+                <LocalModelPicker
+                    service={service}
+                    baseUrl={watch(`${service}_base_url`) as string || ""}
+                    apiKey={apiKeys[service]?.[0] || ""}
+                    value={watch(`${service}_model`) as string || ""}
+                    onChange={(model) => setValue(`${service}_model`, model, { shouldDirty: true })}
+                />
+            );
+        }
 
         if (service === "tts" && field === "voice" && !actualSchema?.allow_custom_input) {
             if (!dropdownOptions) {

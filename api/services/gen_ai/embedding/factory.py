@@ -87,6 +87,17 @@ async def build_embedding_service(
             api_version=api_version or DEFAULT_AZURE_API_VERSION,
         )
 
+    if provider == ServiceProviders.SPEACHES.value:
+        # OxeePhone: self-hosted OpenAI-compatible embeddings (zero-padded to 1536).
+        from api.brand.embeddings import LocalEmbeddingService
+
+        return LocalEmbeddingService(
+            db_client=db_client,
+            api_key=api_key,
+            model_id=model or "",
+            base_url=base_url,
+        )
+
     if provider == ServiceProviders.DOGRAH.value:
         cid = correlation_id
         if cid is None and resolve_correlation:

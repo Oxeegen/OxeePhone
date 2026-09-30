@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
+from api.brand import BRAND
 from api.constants import (
     DEFAULT_CAMPAIGN_RETRY_CONFIG,
     DEFAULT_ORG_CONCURRENCY_LIMIT,
@@ -330,11 +331,16 @@ def _dograh_allows_custom_voice() -> bool:
 
 
 def _byok_provider_schemas(service_type: ServiceType) -> dict[str, dict]:
-    return {
+    schemas = {
         provider: model_cls.model_json_schema()
         for provider, model_cls in REGISTRY[service_type].items()
         if provider != ServiceProviders.DOGRAH.value
     }
+    if BRAND.local_models_only:
+        from api.brand.local_models import restrict_provider_schemas
+
+        return restrict_provider_schemas(service_type, schemas)
+    return schemas
 
 
 async def _model_configuration_v2_response(
@@ -366,6 +372,10 @@ async def get_model_configuration_v2_defaults(
         for service, provider in DEFAULT_SERVICE_PROVIDERS.items()
         if provider != ServiceProviders.DOGRAH.value
     }
+    if BRAND.local_models_only:
+        from api.brand.local_models import default_providers
+
+        byok_default_providers = default_providers()
     return {
         "dograh": {
             "voices": [DOGRAH_DEFAULT_VOICE],
@@ -461,6 +471,10 @@ async def save_model_configuration_v2(
     existing = await get_organization_ai_model_configuration_v2(organization_id)
     configuration = merge_ai_model_configuration_v2_secrets(request, existing)
     try:
+        if BRAND.local_models_only:
+            from api.brand.local_models import enforce_local_models
+
+            enforce_local_models(configuration)
         check_for_masked_keys_in_ai_model_configuration_v2(configuration)
         effective = compile_ai_model_configuration_v2(configuration)
         await UserConfigurationValidator().validate(

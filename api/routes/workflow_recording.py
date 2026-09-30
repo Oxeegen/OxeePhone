@@ -5,6 +5,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from loguru import logger
 
+from api.brand import BRAND
 from api.constants import DEPLOYMENT_MODE
 from api.db import db_client
 from api.db.workflow_recording_client import generate_short_id
@@ -322,6 +323,24 @@ async def transcribe_audio(
     try:
         audio_data = await file.read()
 
+        if BRAND.local_models_only:
+            # OxeePhone: transcribe with the organization's Local Models STT.
+            from api.brand.local_models import (
+                LocalModelsError,
+                transcribe_with_organization_stt,
+            )
+
+            try:
+                return await transcribe_with_organization_stt(
+                    organization_id=user.selected_organization_id,
+                    audio_data=audio_data,
+                    filename=file.filename or "audio.wav",
+                    content_type=file.content_type or "audio/wav",
+                    language=language,
+                )
+            except LocalModelsError as e:
+                raise HTTPException(status_code=502, detail=str(e)) from e
+
         if DEPLOYMENT_MODE == "oss":
             result = await mps_service_key_client.transcribe_audio(
                 audio_data=audio_data,
@@ -341,6 +360,8 @@ async def transcribe_audio(
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.error(f"Error transcribing audio: {exc}")
         raise HTTPException(

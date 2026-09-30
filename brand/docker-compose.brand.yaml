@@ -17,6 +17,7 @@ services:
     environment:
       OXEE_DISABLE_DOGRAH_SERVICES: "true"
       OXEE_DISABLE_TELEMETRY: "true"
+      OXEE_LOCAL_MODELS_ONLY: "true"
       ENABLE_TELEMETRY: "false"
       POSTHOG_API_KEY: ""
       POSTHOG_HOST: ""

@@ -38,8 +38,10 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | --- | --- | --- | --- |
 | API | `OXEE_DISABLE_DOGRAH_SERVICES` | `true` | MPS client replaced by `DisabledMPSClient`; org bootstrap (managed key, Cloudonix SIP) skipped |
 | API | `OXEE_DISABLE_TELEMETRY` | `true` | PostHog and Sentry never initialised |
+| API | `OXEE_LOCAL_MODELS_ONLY` | `true` | Models: BYOK pipeline only, every service on Local Models (`speaches`); `/api/v1/oxee/*` routes; recordings transcribed by the org STT |
 | UI | `BRAND.enabled` | `true` | Name, logo, theme, runtime rebrand of "Dograh" in copy |
 | UI | `BRAND.hideDocs` | `true` | Links to `dograh.com` / docs / GitHub / Slack hidden (`brand.css`) |
+| UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
 
 ## Gated patches on upstream files
@@ -53,6 +55,15 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/mps_service_key_client.py` — singleton swapped for `DisabledMPSClient`
 - `api/services/organization_bootstrap.py` — early return (no managed provisioning)
 - `api/services/posthog_client.py` — `get_posthog()` returns `None`
+- `api/requirements.txt` — `pypdf`, `python-docx` (local document parsing)
+- `api/services/configuration/registry.py` — new `SpeachesEmbeddingsConfiguration` (not gated: an extra provider, inert upstream)
+- `api/services/gen_ai/embedding/factory.py` — `speaches` → `api/brand/embeddings.py` (zero-padded to 1536)
+- `api/tasks/knowledge_base_processing.py` — local parsing/chunking (`api/brand/documents.py`) instead of MPS; no API key needed for Local Models
+- `api/services/workflow/tools/knowledge_base.py` — no API key needed for Local Models
+- `api/routes/main.py` — mounts `api/brand/routes.py` (`POST /api/v1/oxee/models`)
+- `api/routes/organization.py` — schemas restricted to Local Models, default providers, save-time enforcement
+- `api/routes/workflow.py` — same enforcement on workflow model overrides
+- `api/routes/workflow_recording.py` — transcription through the org STT
 
 **UI**
 - `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
@@ -67,6 +78,9 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/instrumentation-client.ts`, `ui/src/app/api/config/{posthog,sentry}/route.ts` — telemetry off
 - `ui/src/components/lead-forms/onboardingServiceClient.ts`, `HireExpertNudge.tsx`, `ui/src/context/LeadFormsContext.tsx` — no lead forms
 - `ui/src/hooks/useLatestReleaseVersion.ts` — no release check
+- `ui/src/components/AIModelConfigurationV2Editor.tsx` — BYOK only, no mode tabs, no third-party notice
+- `ui/src/components/ServiceConfigurationForm.tsx` — Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved
+- `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
 - `ui/src/context/OrgConfigContext.tsx` — registers `@/brand/sessionGuard` (local auth: log out on the first backend 401 instead of leaving every page failing)
 - `ui/next.config.ts` — aliases `@stripe/stripe-js` to `src/brand/stubs/stripe-js.ts` (Stack Auth would otherwise load js.stripe.com + fingerprinting on `/`, `/after-sign-in`, `/workflow`)
 

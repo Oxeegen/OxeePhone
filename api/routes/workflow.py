@@ -10,6 +10,7 @@ from httpx import HTTPStatusError
 from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
+from api.brand import BRAND
 from api.constants import DEPLOYMENT_MODE
 from api.db import db_client
 from api.db.agent_trigger_client import TriggerPathConflictError
@@ -1184,6 +1185,10 @@ async def update_workflow(
                         v2_override,
                         resolved_config.organization_configuration,
                     )
+                if BRAND.local_models_only:
+                    from api.brand.local_models import enforce_local_models
+
+                    enforce_local_models(v2_override)
                 check_for_masked_keys_in_ai_model_configuration_v2(v2_override)
                 effective = compile_ai_model_configuration_v2(v2_override)
                 await UserConfigurationValidator().validate(

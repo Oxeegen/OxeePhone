@@ -2238,6 +2238,32 @@ class AzureOpenAIEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
     )
 
 
+# OxeePhone: self-hosted OpenAI-compatible embeddings (vLLM, TEI, Infinity...),
+# the embeddings counterpart of the Speaches LLM/TTS/STT providers. Vectors of
+# up to 1536 dimensions are zero-padded to the fixed pgvector column (cosine
+# similarity is preserved exactly); see api/brand/embeddings.py.
+@register_embeddings
+class SpeachesEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
+    model_config = SPEACHES_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.SPEACHES] = ServiceProviders.SPEACHES
+    model: str = Field(
+        default="",
+        description=(
+            "Embedding model name as exposed by your OpenAI-compatible server "
+            "(at most 1536 dimensions)."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    base_url: str = Field(
+        default="",
+        description="OpenAI-compatible endpoint (vLLM, TEI, Infinity, etc.).",
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description="Usually not required for self-hosted endpoints. Leave blank unless your server enforces one.",
+    )
+
+
 DOGRAH_EMBEDDING_MODELS = ["dograh_embedding_v1"]
 
 
@@ -2258,6 +2284,7 @@ EmbeddingsConfig = Annotated[
         OpenRouterEmbeddingsConfiguration,
         AzureOpenAIEmbeddingsConfiguration,
         DograhEmbeddingsConfiguration,
+        SpeachesEmbeddingsConfiguration,
     ],
     Field(discriminator="provider"),
 ]

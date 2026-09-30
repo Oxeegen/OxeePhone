@@ -26,6 +26,9 @@ class BrandConfig:
     disable_dograh_services: bool
     # Cut PostHog and Sentry, whatever ENABLE_TELEMETRY / keys say.
     disable_telemetry: bool
+    # Model configuration is BYOK pipeline only, every service on the
+    # self-hosted OpenAI-compatible provider ("speaches", shown as Local Models).
+    local_models_only: bool
 
 
 BRAND = BrandConfig(
@@ -34,4 +37,5 @@ BRAND = BrandConfig(
     mcp_server_name="oxeephone",
     disable_dograh_services=_env_flag("OXEE_DISABLE_DOGRAH_SERVICES", True),
     disable_telemetry=_env_flag("OXEE_DISABLE_TELEMETRY", True),
+    local_models_only=_env_flag("OXEE_LOCAL_MODELS_ONLY", True),
 )

@@ -28,7 +28,12 @@ export const BRAND = {
   // No calls to Dograh-hosted services: PostHog, Sentry, Chatwoot, lead
   // forms (api-leads.dograh.com), GitHub star badge, release-version check.
   disableDograhServices: true,
+  // Models: BYOK pipeline only, every service on the self-hosted
+  // OpenAI-compatible provider ("speaches", shown as Local Models). Must match
+  // the API's OXEE_LOCAL_MODELS_ONLY.
+  localModelsOnly: true,
 } as const;
 
 export const isBranded = BRAND.enabled;
 export const hideDograhServices = BRAND.enabled && BRAND.disableDograhServices;
+export const localModelsOnly = BRAND.enabled && BRAND.localModelsOnly;
