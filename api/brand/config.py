@@ -32,6 +32,8 @@ class BrandConfig:
     # Persist what the call-detail page needs: recording start marker,
     # per-turn latency breakdown, interruption flag on bot messages.
     call_insights: bool
+    # Per-agent start/stop speaking plans (see brand/speaking_plan.py).
+    speaking_plan: bool
 
 
 BRAND = BrandConfig(
@@ -42,4 +44,5 @@ BRAND = BrandConfig(
     disable_telemetry=_env_flag("OXEE_DISABLE_TELEMETRY", True),
     local_models_only=_env_flag("OXEE_LOCAL_MODELS_ONLY", True),
     call_insights=_env_flag("OXEE_CALL_INSIGHTS", True),
+    speaking_plan=_env_flag("OXEE_SPEAKING_PLAN", True),
 )

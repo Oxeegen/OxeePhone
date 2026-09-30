@@ -42,6 +42,7 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | UI | `BRAND.enabled` | `true` | Name, logo, theme, runtime rebrand of "Dograh" in copy |
 | UI | `BRAND.hideDocs` | `true` | Links to `dograh.com` / docs / GitHub / Slack hidden (`brand.css`) |
 | API | `OXEE_CALL_INSIGHTS` | `true` | Persist recording-start marker, per-turn latency breakdown, interruption flag (call-detail page) |
+| API | `OXEE_SPEAKING_PLAN` | `true` | Apply the agent's start/stop speaking plans (`speaking_plan` workflow config, `api/brand/speaking_plan.py`); agents without one keep the upstream turn settings |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -69,7 +70,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/routes/workflow.py` — same enforcement on workflow model overrides
 - `api/routes/workflow_recording.py` — transcription through the org STT
 - `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
-- `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown`
+- `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown` (minus turns falsely measured from the call start); speaking plan: VAD `start_secs`, turn start/stop strategies, stop timeout, `SpeakingPlanGate` before the output transport
 - `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 
@@ -92,6 +93,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/components/ServiceConfigurationForm.tsx` — `showAnalysisTab` (Models › Analysis, saved with the form); Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved; Voice tab uses `@/brand/LocalVoiceControls` (voice + Listen preview, speed slider)
 - `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
 - `ui/src/app/workflow/[workflowId]/run/[runId]/page.tsx` — renders `@/brand/call-detail/CallDetailPage` (VAPI-style call detail, incl. Routing tab fed by `GET /api/v1/oxee/runs/{id}/routing`)
+- `ui/src/app/workflow/[workflowId]/settings/page.tsx` — Start / Stop speaking plans (`@/brand/SpeakingPlanSection`) in place of Turn Detection / Interruption; saves `speaking_plan` plus the matching upstream turn keys
 - `ui/src/app/reports/page.tsx` — appends `@/brand/reports/CallInsights` (latency, consumption, quality, tools, routing; `GET /api/v1/oxee/reports/insights`)
 - `ui/src/context/OrgConfigContext.tsx` — registers `@/brand/sessionGuard` (local auth: log out on the first backend 401 instead of leaving every page failing)
 - `ui/next.config.ts` — aliases `@stripe/stripe-js` to `src/brand/stubs/stripe-js.ts` (Stack Auth would otherwise load js.stripe.com + fingerprinting on `/`, `/after-sign-in`, `/workflow`)

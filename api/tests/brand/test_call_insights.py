@@ -113,3 +113,16 @@ async def test_recording_marker_is_best_effort():
 
     await mark_recording_started(SimpleNamespace(append=broken))  # no raise
     await mark_recording_started(SimpleNamespace())  # no append at all
+
+
+def test_only_the_greeting_is_measured_from_the_call_start():
+    from api.brand.call_insights import LatencyBreakdownFilter
+
+    f = LatencyBreakdownFilter()
+    greeting = LatencyBreakdown(measured_from=MeasuredFrom.CLIENT_CONNECTED)
+    turn = LatencyBreakdown(measured_from=MeasuredFrom.USER_SILENCE)
+    assert f.keep(greeting)
+    assert f.keep(turn)
+    # A turn whose anchor an interruption cleared: measured from the call start.
+    assert not f.keep(LatencyBreakdown(measured_from=MeasuredFrom.CLIENT_CONNECTED))
+    assert f.keep(turn)

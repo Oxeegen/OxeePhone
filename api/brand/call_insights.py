@@ -48,6 +48,28 @@ def build_latency_breakdown_event(breakdown: Any) -> dict:
     }
 
 
+class LatencyBreakdownFilter:
+    """Drops breakdowns anchored on the call start that are not the greeting.
+
+    pipecat anchors a turn on the caller's VAD stop, and an interruption
+    clears that anchor. When the interruption comes after the caller stopped
+    (min-words interruptions with a segmented STT), the reply is measured from
+    the call start instead: tens of seconds of fake latency.
+    """
+
+    def __init__(self):
+        self._greeting_seen = False
+
+    def keep(self, breakdown: Any) -> bool:
+        # MeasuredFrom is a StrEnum.
+        if getattr(breakdown, "measured_from", None) != "client_connected":
+            return True
+        if self._greeting_seen:
+            return False
+        self._greeting_seen = True
+        return True
+
+
 async def mark_recording_started(logs_buffer: Any) -> None:
     """Append the recording-start marker; never raises (runs on call connect)."""
     from loguru import logger
