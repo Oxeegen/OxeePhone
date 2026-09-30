@@ -37,19 +37,7 @@ REPORT_PREFIX = "OXEE_ANALYSIS_REPORT:"
 MAX_REPORTS = 30
 STALE_RUNNING_MINUTES = 20
 
-# Thresholds (ms unless stated). Tuned for phone conversations.
-REPLY_P50_WARN, REPLY_P50_CRIT = 2000, 3000
-STAGE_WARN = {"llm": 1500, "transcriber": 800, "voice": 700, "endpointing": 900}
-GREETING_WARN = 1500
-DEAD_AIR_SECS = 4.0
-NODE_TURNS_WARN = 8
-NODE_SECS_WARN = 90.0
-PING_PONG_SECS = 45.0
-HANGUP_AFTER_TRANSITION_SECS = 12.0
-INTERRUPTION_RATE_WARN = 0.25
-TOOL_ERROR_RATE_WARN = 0.1
-TOOL_SLOW_MS = 2000
-MIN_SAMPLE = 3  # observations before a rate-based rule fires
+# Detection thresholds: api/brand/analysis_thresholds.py (org-configurable).
 MAX_TRANSITIONS_FOR_MODEL = 40
 MAX_EXAMPLES = 5
 
@@ -268,7 +256,13 @@ def digest_run(run: dict, graph: dict | None) -> dict:
 # ------------------------------------------------------------------- rules
 
 
-def _latency_rules(f: _Finding, calls: list[dict]) -> dict:
+def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
+    stage_warn = {
+        "llm": th["llm_stage_warn_ms"],
+        "transcriber": th["transcriber_stage_warn_ms"],
+        "voice": th["voice_stage_warn_ms"],
+        "endpointing": th["endpointing_stage_warn_ms"],
+    }
     by_agent: dict[str, list] = defaultdict(list)
     for c in calls:
         for t in c["turns"]:
@@ -297,11 +291,11 @@ def _latency_rules(f: _Finding, calls: list[dict]) -> dict:
             "voice": tts.most_common(1)[0][0] if tts else None,
             "endpointing": None,
         }
-        if len(replies) >= MIN_SAMPLE:
+        if len(replies) >= th["min_sample"]:
             totals = [t["total_ms"] for _, t in replies]
             p50 = median(totals)
             stage_avg = {
-                s: mean(t["stages"][s] for _, t in replies) for s in STAGE_WARN
+                s: mean(t["stages"][s] for _, t in replies) for s in stage_warn
             }
             first_token = [
                 t["first_token_ms"] for _, t in replies if t["first_token_ms"]
@@ -311,18 +305,20 @@ def _latency_rules(f: _Finding, calls: list[dict]) -> dict:
                 "p50_ms": round(p50),
                 "stages": {k: round(v) for k, v in stage_avg.items()},
             }
-            slow_calls = [c["id"] for c, t in replies if t["total_ms"] > REPLY_P50_WARN]
-            if p50 > REPLY_P50_WARN:
+            slow_calls = [
+                c["id"] for c, t in replies if t["total_ms"] > th["reply_p50_warn_ms"]
+            ]
+            if p50 > th["reply_p50_warn_ms"]:
                 worst = max(stage_avg, key=stage_avg.get)
                 f.add(
                     rule="reply_latency",
-                    severity="critical" if p50 > REPLY_P50_CRIT else "warning",
+                    severity="critical" if p50 > th["reply_p50_crit_ms"] else "warning",
                     category="latency",
                     title=f"Slow replies: median {p50 / 1000:.1f} s",
                     detail=(
                         f"Median time from the caller falling silent to the agent speaking is {p50:.0f} ms over "
-                        f"{len(replies)} replies ({_pct(len(slow_calls and [1 for _, t in replies if t['total_ms'] > REPLY_P50_WARN]) / len(replies))} over "
-                        f"{REPLY_P50_WARN / 1000:.0f} s). Largest stage: {worst} ({stage_avg[worst]:.0f} ms)."
+                        f"{len(replies)} replies ({_pct(len(slow_calls and [1 for _, t in replies if t['total_ms'] > th['reply_p50_warn_ms']]) / len(replies))} over "
+                        f"{th['reply_p50_warn_ms'] / 1000:.0f} s). Largest stage: {worst} ({stage_avg[worst]:.0f} ms)."
                     ),
                     agent=agent,
                     calls=slow_calls,
@@ -332,7 +328,7 @@ def _latency_rules(f: _Finding, calls: list[dict]) -> dict:
                         **{f"{k}_ms": round(v) for k, v in stage_avg.items()},
                     },
                 )
-            for stage, limit in STAGE_WARN.items():
+            for stage, limit in stage_warn.items():
                 if stage_avg[stage] > limit:
                     model = model_for.get(stage)
                     extra = ""
@@ -358,7 +354,10 @@ def _latency_rules(f: _Finding, calls: list[dict]) -> dict:
                             "model": model,
                         },
                     )
-        if len(greetings) >= MIN_SAMPLE and mean(greetings) > GREETING_WARN:
+        if (
+            len(greetings) >= th["min_sample"]
+            and mean(greetings) > th["greeting_warn_ms"]
+        ):
             f.add(
                 rule="greeting_latency",
                 severity="warning",
@@ -371,7 +370,7 @@ def _latency_rules(f: _Finding, calls: list[dict]) -> dict:
     return stats
 
 
-def _silence_rules(f: _Finding, calls: list[dict]) -> None:
+def _silence_rules(f: _Finding, calls: list[dict], th: dict) -> None:
     by_agent: dict[str, dict] = defaultdict(
         lambda: {"agent_silent": [], "caller_silent": []}
     )
@@ -380,7 +379,7 @@ def _silence_rules(f: _Finding, calls: list[dict]) -> None:
         for prev, nxt in pairwise(msgs):
             prev_end = prev["end"] or prev["start"]
             gap = (nxt["start"] - prev_end).total_seconds()
-            if gap < DEAD_AIR_SECS:
+            if gap < th["dead_air_secs"]:
                 continue
             key = (
                 "agent_silent"
@@ -399,7 +398,7 @@ def _silence_rules(f: _Finding, calls: list[dict]) -> None:
                 severity="warning" if longest < 8 else "critical",
                 category="silence",
                 title=f"Dead air before the agent answers ({len(gaps['agent_silent'])}×, up to {longest:.0f} s)",
-                detail=f"The caller finished speaking and nothing was heard for more than {DEAD_AIR_SECS:.0f} s before the agent replied.",
+                detail=f"The caller finished speaking and nothing was heard for more than {th['dead_air_secs']:.0f} s before the agent replied.",
                 agent=agent,
                 node=Counter(n for _, _, n in gaps["agent_silent"] if n).most_common(1)[
                     0
@@ -420,7 +419,7 @@ def _silence_rules(f: _Finding, calls: list[dict]) -> None:
                 category="silence",
                 title=f"Caller stays silent after the agent speaks ({len(gaps['caller_silent'])}×)",
                 detail=(
-                    f"Gaps over {DEAD_AIR_SECS:.0f} s (up to {longest:.0f} s) after the agent spoke: questions may be unclear, "
+                    f"Gaps over {th['dead_air_secs']:.0f} s (up to {longest:.0f} s) after the agent spoke: questions may be unclear, "
                     "or the agent does not re-engage the caller."
                 ),
                 agent=agent,
@@ -443,7 +442,9 @@ def _silence_rules(f: _Finding, calls: list[dict]) -> None:
         )
 
 
-def _node_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> dict:
+def _node_rules(
+    f: _Finding, calls: list[dict], index: dict[int, dict], th: dict
+) -> dict:
     per_node: dict[tuple, dict] = defaultdict(
         lambda: {
             "secs": [],
@@ -485,7 +486,7 @@ def _node_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> dict:
             "avg_secs": round(avg_secs, 1),
             "max_caller_turns": max_turns,
         }
-        if max_turns >= NODE_TURNS_WARN:
+        if max_turns >= th["node_turns_warn"]:
             f.add(
                 rule="node_stuck",
                 severity="warning",
@@ -497,10 +498,10 @@ def _node_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> dict:
                 ),
                 agent=agent,
                 node=node,
-                calls=[i for n, i in v["turns"] if n >= NODE_TURNS_WARN],
+                calls=[i for n, i in v["turns"] if n >= th["node_turns_warn"]],
                 metrics={"max_caller_turns": max_turns},
             )
-        elif len(v["secs"]) >= MIN_SAMPLE and avg_secs > NODE_SECS_WARN:
+        elif len(v["secs"]) >= th["min_sample"] and avg_secs > th["node_secs_warn"]:
             f.add(
                 rule="node_time",
                 severity="info",
@@ -513,8 +514,8 @@ def _node_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> dict:
                 metrics={"avg_secs": round(avg_secs)},
             )
         if (
-            v["agent_msgs"] >= MIN_SAMPLE * 2
-            and v["interrupted"] / v["agent_msgs"] > INTERRUPTION_RATE_WARN
+            v["agent_msgs"] >= th["min_sample"] * 2
+            and v["interrupted"] / v["agent_msgs"] > th["interruption_rate_warn"]
         ):
             rate = v["interrupted"] / v["agent_msgs"]
             f.add(
@@ -537,7 +538,9 @@ def _node_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> dict:
     return stats
 
 
-def _routing_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> None:
+def _routing_rules(
+    f: _Finding, calls: list[dict], index: dict[int, dict], th: dict
+) -> None:
     loops, ping_pong, unmatched, early_hangups = [], [], [], []
     taken: dict[int, Counter] = defaultdict(Counter)
     reached: dict[int, set] = defaultdict(set)
@@ -553,7 +556,7 @@ def _routing_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> No
             if (
                 a["from"]
                 and b["node"] == a["from"]
-                and (b["at"] - a["at"]).total_seconds() <= PING_PONG_SECS
+                and (b["at"] - a["at"]).total_seconds() <= th["ping_pong_secs"]
             ):
                 ping_pong.append((c, a["from"], a["node"]))
         for t in tr:
@@ -575,9 +578,9 @@ def _routing_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> No
                 and last["from_id"]
                 and c["ended_at"]
             ):
-                if (
-                    c["ended_at"] - last["at"]
-                ).total_seconds() <= HANGUP_AFTER_TRANSITION_SECS:
+                if (c["ended_at"] - last["at"]).total_seconds() <= th[
+                    "hangup_after_transition_secs"
+                ]:
                     early_hangups.append((c, last))
     if loops:
         f.add(
@@ -602,7 +605,7 @@ def _routing_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> No
             category="routing",
             title=f"Back-and-forth routing “{a}” ⇄ “{b}” ({n}×)",
             detail=(
-                f"The call went {a} → {b} and back within {PING_PONG_SECS:.0f} s: the move to “{b}” was likely premature "
+                f"The call went {a} → {b} and back within {th['ping_pong_secs']:.0f} s: the move to “{b}” was likely premature "
                 "or its outgoing condition fires too easily."
             ),
             agent=agent,
@@ -627,7 +630,7 @@ def _routing_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> No
             category="routing",
             title=f"Callers hang up right after reaching “{node}” ({n}×)",
             detail=(
-                f"The call ended within {HANGUP_AFTER_TRANSITION_SECS:.0f} s of entering this node without reaching an end node: "
+                f"The call ended within {th['hangup_after_transition_secs']:.0f} s of entering this node without reaching an end node: "
                 "the routing may be wrong or the node's opening confusing."
             ),
             agent=agent,
@@ -669,7 +672,7 @@ def _routing_rules(f: _Finding, calls: list[dict], index: dict[int, dict]) -> No
             )
 
 
-def _tool_rules(f: _Finding, calls: list[dict]) -> None:
+def _tool_rules(f: _Finding, calls: list[dict], th: dict) -> None:
     per_tool: dict[str, dict] = defaultdict(
         lambda: {"n": 0, "failed": 0, "ms": [], "calls": set(), "failed_calls": set()}
     )
@@ -684,7 +687,7 @@ def _tool_rules(f: _Finding, calls: list[dict]) -> None:
             if t["ms"] is not None:
                 v["ms"].append(t["ms"])
     for name, v in per_tool.items():
-        if v["failed"] and v["failed"] / v["n"] >= TOOL_ERROR_RATE_WARN:
+        if v["failed"] and v["failed"] / v["n"] >= th["tool_error_rate_warn"]:
             f.add(
                 rule="tool_errors",
                 severity="critical" if v["failed"] / v["n"] >= 0.3 else "warning",
@@ -694,7 +697,7 @@ def _tool_rules(f: _Finding, calls: list[dict]) -> None:
                 calls=list(v["failed_calls"]),
                 metrics={"calls": v["n"], "errors": v["failed"]},
             )
-        if v["ms"] and mean(v["ms"]) > TOOL_SLOW_MS:
+        if v["ms"] and mean(v["ms"]) > th["tool_slow_ms"]:
             f.add(
                 rule="tool_slow",
                 severity="warning",
@@ -707,17 +710,24 @@ def _tool_rules(f: _Finding, calls: list[dict]) -> None:
 
 
 def run_rules(
-    runs: list[dict], graphs: dict[int, dict]
+    runs: list[dict], graphs: dict[int, dict], thresholds: dict | None = None
 ) -> tuple[list[dict], dict, list[dict]]:
-    """Apply every rule. Returns (findings, stats, digested calls)."""
+    """Apply every rule. Returns (findings, stats, digested calls).
+
+    ``thresholds`` are the organization's values (missing ones fall back to
+    the built-in defaults of ``analysis_thresholds``).
+    """
+    from api.brand.analysis_thresholds import normalize
+
+    th = normalize(thresholds)
     index = _graph_index(graphs)
     calls = [digest_run(r, index.get(r.get("definition_id"))) for r in runs]
     f = _Finding()
-    latency = _latency_rules(f, calls)
-    _silence_rules(f, calls)
-    nodes = _node_rules(f, calls, index)
-    _routing_rules(f, calls, index)
-    _tool_rules(f, calls)
+    latency = _latency_rules(f, calls, th)
+    _silence_rules(f, calls, th)
+    nodes = _node_rules(f, calls, index, th)
+    _routing_rules(f, calls, index, th)
+    _tool_rules(f, calls, th)
     errored = [c for c in calls if c["errors"]]
     if errored:
         f.add(
@@ -986,7 +996,17 @@ async def run_analysis(
             [r["definition_id"] for r in runs if r["definition_id"]],
             organization_id=organization_id,
         )
-        findings, stats, calls = run_rules(runs, graphs)
+        from api.brand.analysis_thresholds import load as load_thresholds
+
+        thresholds = await load_thresholds(organization_id)
+        await save(
+            thresholds={
+                "values": thresholds["values"],
+                "source": thresholds["source"],
+                "model": thresholds.get("model"),
+            }
+        )
+        findings, stats, calls = run_rules(runs, graphs, thresholds["values"])
         await save(
             status="reviewing",
             findings=findings,

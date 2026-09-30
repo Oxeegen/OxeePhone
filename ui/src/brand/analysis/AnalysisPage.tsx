@@ -26,6 +26,8 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { ThresholdsPanel } from "./ThresholdsPanel";
+
 // Analysis: run a review of recorded calls (rules + the org's analysis model)
 // and list what to fix in the agents' configuration.
 
@@ -65,6 +67,7 @@ interface Report extends ReportSummary {
   findings: Finding[];
   model_error: string | null;
   call_links?: Record<string, number>;
+  thresholds?: { values: Record<string, number>; source: "builtin" | "model" | "custom"; model: string | null };
 }
 
 // Status palette (reserved, always with icon + label).
@@ -280,6 +283,8 @@ export function AnalysisPage() {
         <p className="ml-auto text-xs text-muted-foreground">Timezone: {timezone}</p>
       </Card>
 
+      <ThresholdsPanel timezone={timezone} language={language} />
+
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-2">
           <p className="text-sm font-medium">History</p>
@@ -324,6 +329,9 @@ export function AnalysisPage() {
                     {report.calls_analyzed ?? "…"} calls analyzed
                     {report.model ? ` · reviewed by ${report.model}` : ""}
                     {report.finished_at ? ` · ${format(new Date(report.finished_at), "MMM d, HH:mm")}` : ""}
+                    {report.thresholds
+                      ? ` · thresholds: ${report.thresholds.source === "model" ? `proposed by ${report.thresholds.model ?? "the model"}` : report.thresholds.source === "custom" ? "custom" : "built-in"}`
+                      : ""}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" className="gap-2" onClick={() => void remove(report.id)}>

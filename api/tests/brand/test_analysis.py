@@ -378,3 +378,106 @@ async def test_model_review_explains_reasoning_exhaustion(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="token budget reasoning"):
         await review_with_model({"base_url": "http://llm/v1", "model": "m"}, [], {}, [])
+
+
+# ------------------------------------------------------------- thresholds
+
+
+def test_thresholds_change_what_rules_flag():
+    run = _real("run10.json", 4, "Cabinet Martin — routage")
+    strict = {f["rule"] for f in run_rules([run], {4: _graph()})[0]}
+    relaxed = {
+        f["rule"]
+        for f in run_rules(
+            [run],
+            {4: _graph()},
+            {
+                "reply_p50_warn_ms": 9000,
+                "reply_p50_crit_ms": 12000,
+                "llm_stage_warn_ms": 9000,
+                "dead_air_secs": 20,
+            },
+        )[0]
+    }
+    assert {"reply_latency", "stage_llm"} <= strict
+    assert not {"reply_latency", "stage_llm", "dead_air_agent"} & relaxed
+
+
+def test_thresholds_are_clamped_and_consistent():
+    from api.brand.analysis_thresholds import DEFAULTS, normalize
+
+    values = normalize(
+        {
+            "dead_air_secs": 999,
+            "min_sample": "4",
+            "bogus": 1,
+            "reply_p50_warn_ms": 5000,
+            "reply_p50_crit_ms": 1000,
+        }
+    )
+    assert values["dead_air_secs"] == 30.0  # max
+    assert values["min_sample"] == 4 and isinstance(values["min_sample"], int)
+    assert "bogus" not in values
+    assert values["reply_p50_crit_ms"] > values["reply_p50_warn_ms"]
+    assert normalize(None) == DEFAULTS
+
+
+async def test_model_threshold_suggestions_are_clamped(monkeypatch):
+    from api.brand import analysis_thresholds
+
+    answer = {
+        "thresholds": {
+            "dead_air_secs": {
+                "value": 2.5,
+                "reason": "Réceptionniste : silence perçu vite",
+            },
+            "tool_slow_ms": {"value": 999999, "reason": "x"},
+            "unknown": {"value": 1},
+        }
+    }
+    sent = {}
+
+    def handler(request):
+        sent["body"] = json.loads(request.content)
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": json.dumps(answer)}}]}
+        )
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        analysis_thresholds.httpx,
+        "AsyncClient",
+        lambda *a, **k: real_client(
+            *a, **{**k, "transport": httpx.MockTransport(handler)}
+        ),
+    )
+    out = await analysis_thresholds.suggest(
+        {"base_url": "http://m/v1", "model": "m"},
+        [{"name": "A"}],
+        {"calls": 3},
+        language="French",
+    )
+    assert out["dead_air_secs"] == {
+        "value": 2.5,
+        "reason": "Réceptionniste : silence perçu vite",
+    }
+    assert out["tool_slow_ms"]["value"] == 30000  # clamped to max
+    assert "unknown" not in out
+    assert sent["body"]["chat_template_kwargs"] == {"enable_thinking": False}
+    keys = {
+        t["key"]
+        for t in json.loads(sent["body"]["messages"][1]["content"])["thresholds"]
+    }
+    assert {"dead_air_secs", "reply_p50_warn_ms", "min_sample"} <= keys
+
+
+def test_observed_profile_summarises_calls():
+    from api.brand.analysis_thresholds import observed_profile
+
+    _, _, calls = run_rules(
+        [_real("run10.json", 4, "Cabinet Martin — routage")], {4: _graph()}
+    )
+    profile = observed_profile(calls)
+    assert profile["calls"] == 1 and profile["replies"] >= 3
+    assert profile["reply_ms"]["p50"] <= profile["reply_ms"]["p90"]
+    assert profile["silence_gap_s"]["p50"] is not None

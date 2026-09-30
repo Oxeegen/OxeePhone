@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { detailFromError } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
 
 // Models > Analysis: the model that reviews recorded calls on the Analysis
 // page. Saved together with the rest of the Models form (see
@@ -30,14 +31,16 @@ export const AnalysisModelTab = forwardRef<AnalysisModelTabHandle>(function Anal
   const [error, setError] = useState<string | null>(null);
   // A late load must never overwrite what the user already changed.
   const touched = useRef(false);
+  const auth = useAuth();
 
   useEffect(() => {
+    if (auth.loading || !auth.isAuthenticated) return;
     (async () => {
       const response = await client.get<{ 200: AnalysisModel }, unknown>({ url: "/api/v1/oxee/analysis/model" });
       if (response.data && !touched.current) setConfig(response.data as AnalysisModel);
       setLoaded(true);
     })();
-  }, []);
+  }, [auth.loading, auth.isAuthenticated]);
 
   useImperativeHandle(ref, () => ({
     save: async () => {

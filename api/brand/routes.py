@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
@@ -334,3 +335,75 @@ async def delete_analysis_report(
     ):
         raise HTTPException(status_code=404, detail="Report not found")
     return {"deleted": True}
+
+
+# --------------------------------------------------- analysis thresholds
+
+
+def _thresholds_response(state: dict) -> dict:
+    from api.brand.analysis_thresholds import SPEC
+
+    return {
+        "spec": SPEC,
+        "values": state["values"],
+        "source": state.get("source", "builtin"),
+        "suggestions": state.get("suggestions") or {},
+        "suggested_at": state.get("suggested_at"),
+        "model": state.get("model"),
+    }
+
+
+@router.get("/analysis/thresholds")
+async def get_analysis_thresholds(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Detection thresholds (values in use, model suggestions, spec)."""
+    from api.brand.analysis_thresholds import load
+
+    return _thresholds_response(await load(user.selected_organization_id))
+
+
+class ThresholdsUpdate(BaseModel):
+    values: dict[str, float]
+    source: Literal["custom", "model", "builtin"] = "custom"
+
+
+@router.put("/analysis/thresholds")
+async def save_analysis_thresholds(
+    request: ThresholdsUpdate,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Save thresholds (clamped to their allowed ranges)."""
+    from api.brand.analysis_thresholds import load, store
+
+    state = await load(user.selected_organization_id)
+    state.update(values=request.values, source=request.source)
+    return _thresholds_response(await store(user.selected_organization_id, state))
+
+
+class ThresholdsSuggestRequest(BaseModel):
+    timezone: str = "UTC"
+    language: str = "English"
+
+
+@router.post("/analysis/thresholds/suggest")
+async def suggest_analysis_thresholds(
+    request: ThresholdsSuggestRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Ask the analysis model for thresholds suited to the agents and apply them."""
+    from zoneinfo import ZoneInfoNotFoundError
+
+    from api.brand.analysis_thresholds import suggest_for_organization
+
+    try:
+        state = await suggest_for_organization(
+            user.selected_organization_id,
+            timezone=request.timezone,
+            language=request.language,
+        )
+    except ZoneInfoNotFoundError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except (RuntimeError, ValueError, httpx.HTTPError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return _thresholds_response(state)
