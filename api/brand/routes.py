@@ -782,3 +782,15 @@ async def discard_agent_fix(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except fixes.FixError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@router.get("/workflows/list-info")
+async def agent_list_info(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """For the agent list: last run, published version and draft of each agent
+    (``{workflow_id: {last_run_at, published_version, published_at, draft_version}}``).
+    """
+    from api.brand.db import agent_list_info as load
+
+    return {str(k): v for k, v in (await load(user.selected_organization_id)).items()}

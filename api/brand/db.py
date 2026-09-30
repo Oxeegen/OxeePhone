@@ -308,3 +308,58 @@ async def find_workflow_by_name(organization_id: int, name: str) -> int | None:
             )
         ).first()
     return row[0] if row else None
+
+
+async def agent_list_info(organization_id: int) -> dict[int, dict]:
+    """Per agent: last run (simulations excluded), published and draft version."""
+    from sqlalchemy import func
+
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        last_runs = (
+            await session.execute(
+                select(
+                    WorkflowRunModel.workflow_id,
+                    func.max(WorkflowRunModel.created_at),
+                    func.count(WorkflowRunModel.id),
+                )
+                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+                )
+                .group_by(WorkflowRunModel.workflow_id)
+            )
+        ).all()
+        versions = (
+            await session.execute(
+                select(
+                    WorkflowDefinitionModel.workflow_id,
+                    WorkflowDefinitionModel.status,
+                    WorkflowDefinitionModel.version_number,
+                    WorkflowDefinitionModel.published_at,
+                )
+                .join(
+                    WorkflowModel,
+                    WorkflowModel.id == WorkflowDefinitionModel.workflow_id,
+                )
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowDefinitionModel.status.in_(["published", "draft"]),
+                )
+            )
+        ).all()
+    info: dict[int, dict] = {}
+    for workflow_id, last_run_at, runs in last_runs:
+        entry = info.setdefault(workflow_id, {})
+        entry["last_run_at"] = last_run_at
+        entry["runs"] = runs
+    for workflow_id, status, number, published_at in versions:
+        entry = info.setdefault(workflow_id, {})
+        if status == "published":
+            entry["published_version"] = number
+            entry["published_at"] = published_at
+        else:
+            entry["draft_version"] = number
+    return info

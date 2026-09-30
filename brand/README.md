@@ -100,6 +100,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
 - `ui/src/app/workflow/[workflowId]/run/[runId]/page.tsx` — renders `@/brand/call-detail/CallDetailPage` (VAPI-style call detail, incl. Routing tab fed by `GET /api/v1/oxee/runs/{id}/routing`)
 - `ui/src/app/workflow/[workflowId]/settings/page.tsx` — Start / Stop speaking plans (`@/brand/SpeakingPlanSection`) in place of Turn Detection / Interruption; saves `speaking_plan` plus the matching upstream turn keys
+- `ui/src/components/workflow/WorkflowTable.tsx` — Last Run and Published Version columns (`@/brand/agents/AgentListInfo`, `GET /api/v1/oxee/workflows/list-info`); Total Runs without the fix simulations
 - `ui/src/app/workflow/[workflowId]/versions/page.tsx` — new route rendering `@/brand/versions/VersionsPage` (versions list, summary + AI summary, detailed diff, restore / publish / discard)
 - `ui/src/app/workflow/[workflowId]/RenderWorkflow.tsx`, `components/VersionHistoryPanel.tsx` — optional `versionsPageHref` link in the history panel
 - `ui/src/app/reports/page.tsx` — appends `@/brand/reports/CallInsights` (latency, consumption, quality, tools, routing; `GET /api/v1/oxee/reports/insights`)
