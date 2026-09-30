@@ -1129,3 +1129,51 @@ async def get_report(organization_id: int, report_id: str) -> dict | None:
             report["status"] = "failed"
             report["error"] = "Interrupted (the API restarted during the analysis)."
     return report
+
+
+async def create_report(
+    user: Any,
+    *,
+    date: str,
+    days: int,
+    timezone: str,
+    workflow_id: int | None,
+    language: str,
+) -> tuple[dict, dict]:
+    """Store a new (running) report; returns it and the ``run_analysis`` kwargs.
+
+    Raises ValueError on invalid parameters. Keeps the MAX_REPORTS newest.
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    from api.brand.db import delete_configuration, list_configurations_by_prefix
+
+    if days not in (1, 7, 30):
+        raise ValueError("days must be 1, 7 or 30")
+    try:
+        ZoneInfo(timezone)
+        datetime.strptime(date, "%Y-%m-%d")
+    except (ValueError, ZoneInfoNotFoundError) as e:
+        raise ValueError(str(e)) from e
+    organization_id = user.selected_organization_id
+    existing = await list_configurations_by_prefix(
+        organization_id, REPORT_PREFIX, limit=200
+    )
+    for old in existing[MAX_REPORTS - 1 :]:
+        await delete_configuration(organization_id, REPORT_PREFIX + old["id"])
+    report = new_report(
+        date=date,
+        days=days,
+        timezone=timezone,
+        workflow_id=workflow_id,
+        created_by=str(user.provider_id),
+    )
+    await _store_report(organization_id, report)
+    return report, {
+        "organization_id": organization_id,
+        "date": date,
+        "days": days,
+        "timezone": timezone,
+        "workflow_id": workflow_id,
+        "language": language,
+    }

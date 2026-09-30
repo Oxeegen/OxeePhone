@@ -12,7 +12,8 @@ export type FixStatus =
   | "published"
   | "discarded"
   | "failed"
-  | "not_fixable";
+  | "not_fixable"
+  | "rolled_back";
 
 export interface ReplayMessage {
   role: "caller" | "agent" | "system";
@@ -63,6 +64,17 @@ export interface Simulation {
   judge_error?: string | null;
 }
 
+export interface FollowUp {
+  status: "waiting" | "fixed" | "still_present" | "worse" | "manual";
+  checked_at: string;
+  min_calls: number;
+  calls_after: number;
+  calls_before?: number;
+  before?: { severity: string; title: string } | null;
+  after?: { severity: string; title: string } | null;
+  note?: string;
+}
+
 export interface Fix {
   id: string;
   created_at: string;
@@ -91,6 +103,9 @@ export interface Fix {
   combined_with?: string[];
   simulation?: Simulation | null;
   preview?: VersionDiff | null;
+  follow_up?: FollowUp | null;
+  rolled_back_to?: number;
+  rolled_back_at?: string;
   preview_error?: string;
 }
 
@@ -127,7 +142,35 @@ export const STATUS_LABEL: Record<FixStatus, string> = {
   discarded: "Discarded",
   failed: "Failed",
   not_fixable: "Not fixable automatically",
+  rolled_back: "Rolled back",
 };
+
+export const FOLLOW_UP_LABEL: Record<FollowUp["status"], string> = {
+  waiting: "Waiting for calls",
+  fixed: "Fixed in real calls",
+  still_present: "Still present",
+  worse: "Worse than before",
+  manual: "Check with a new analysis",
+};
+
+/** A published (or rolled back) fix of the same problem in another report. */
+export function priorFix(
+  fixes: Fix[],
+  finding: { id: string; rule: string | null; agent: string | null; node: string | null },
+  reportId: string,
+): Fix | undefined {
+  if (!finding.rule) return undefined;
+  return fixes
+    .filter(
+      (f) =>
+        f.report_id !== reportId &&
+        (f.status === "published" || f.status === "rolled_back") &&
+        f.finding.rule === finding.rule &&
+        (f.finding.agent ?? null) === (finding.agent ?? null) &&
+        (f.finding.node ?? null) === (finding.node ?? null),
+    )
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+}
 
 /** The fix to show for a finding: the latest one not discarded, else the latest. */
 export function fixForFinding(fixes: Fix[], findingId: string): Fix | undefined {
@@ -154,5 +197,5 @@ export const STEPS = ["Proposal", "Draft", "Test", "Publish"] as const;
 
 /** How far along the 4 steps a fix is (index of the current step). */
 export function stepIndex(status: FixStatus): number {
-  return { proposing: 0, proposed: 0, failed: 0, not_fixable: 0, applied: 1, testing: 2, tested: 2, published: 3, discarded: 0 }[status];
+  return { proposing: 0, proposed: 0, failed: 0, not_fixable: 0, applied: 1, testing: 2, tested: 2, published: 3, rolled_back: 3, discarded: 0 }[status];
 }

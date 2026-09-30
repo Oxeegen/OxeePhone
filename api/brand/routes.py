@@ -251,48 +251,20 @@ async def start_analysis(
     user: UserModel = Depends(get_user_with_selected_organization),
 ):
     """Start a configuration analysis over the period; poll the report."""
-    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    from api.brand.analysis import create_report, run_analysis
 
-    from api.brand.analysis import (
-        MAX_REPORTS,
-        REPORT_PREFIX,
-        _store_report,
-        new_report,
-        run_analysis,
-    )
-    from api.brand.db import delete_configuration, list_configurations_by_prefix
-
-    if request.days not in (1, 7, 30):
-        raise HTTPException(status_code=422, detail="days must be 1, 7 or 30")
     try:
-        ZoneInfo(request.timezone)
-        datetime.strptime(request.date, "%Y-%m-%d")
-    except (ValueError, ZoneInfoNotFoundError) as e:
+        report, run_kwargs = await create_report(
+            user,
+            date=request.date,
+            days=request.days,
+            timezone=request.timezone,
+            workflow_id=request.workflow_id,
+            language=request.language,
+        )
+    except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
-    organization_id = user.selected_organization_id
-    existing = await list_configurations_by_prefix(
-        organization_id, REPORT_PREFIX, limit=200
-    )
-    for old in existing[MAX_REPORTS - 1 :]:
-        await delete_configuration(organization_id, REPORT_PREFIX + old["id"])
-    report = new_report(
-        date=request.date,
-        days=request.days,
-        timezone=request.timezone,
-        workflow_id=request.workflow_id,
-        created_by=str(user.provider_id),
-    )
-    await _store_report(organization_id, report)
-    background_tasks.add_task(
-        run_analysis,
-        report["id"],
-        organization_id=organization_id,
-        date=request.date,
-        days=request.days,
-        timezone=request.timezone,
-        workflow_id=request.workflow_id,
-        language=request.language,
-    )
+    background_tasks.add_task(run_analysis, report["id"], **run_kwargs)
     return _report_summary(report)
 
 
@@ -794,3 +766,54 @@ async def agent_list_info(
     from api.brand.db import agent_list_info as load
 
     return {str(k): v for k, v in (await load(user.selected_organization_id)).items()}
+
+
+@router.post("/fixes/{fix_id}/follow-up")
+async def follow_up_agent_fix(
+    fix_id: str,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """After publication: is the finding gone from the real calls made on the
+    fixed version? (waiting / fixed / still_present / worse / manual)"""
+    from api.brand import fixes
+
+    try:
+        return await fixes.follow_up(user.selected_organization_id, fix_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except fixes.FixError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+class RollbackFixRequest(BaseModel):
+    replace_draft: bool = False
+
+
+@router.post("/fixes/{fix_id}/rollback")
+async def rollback_agent_fix(
+    fix_id: str,
+    request: RollbackFixRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Publish again the version the fix replaced (as a new version). Refused
+    when the agent was published again since; 409 when a draft exists unless
+    ``replace_draft``. Every fix of the rolled back version goes with it."""
+    from api.brand import fixes, versions
+
+    try:
+        return await fixes.rollback(
+            user.selected_organization_id,
+            fix_id,
+            user,
+            replace_draft=request.replace_draft,
+        )
+    except versions.DraftExists as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Draft v{e.draft.version_number} has unpublished changes; "
+            "pass replace_draft to discard it",
+        ) from e
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except fixes.FixError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e

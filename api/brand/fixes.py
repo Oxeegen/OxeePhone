@@ -417,6 +417,9 @@ Allowed operations (nothing else, no new nodes or transitions):
     before the agent speaks again.
 
 Rules:
+- Example calls marked made_on_the_published_version=false were made on an
+  earlier version: the agent you receive may already address them; do not
+  undo recent changes because of them.
 - "value" of a prompt or condition is the COMPLETE new text: keep everything
   that still applies, change only what fixes the finding, keep the original
   language and tone of the agent.
@@ -538,15 +541,42 @@ async def propose(organization_id: int, fix_id: str) -> None:
         model = await resolve_analysis_model(organization_id)
         if not model:
             raise FixError("no analysis model configured (Models › Analysis)")
-        runs = await brand_db.get_runs_by_ids(
-            fix["finding"]["calls"][:MAX_CASES], organization_id=organization_id
+        all_runs = await brand_db.get_runs_by_ids(
+            fix["finding"]["calls"], organization_id=organization_id
         )
+        prior = await _prior_published_fix(organization_id, fix)
+        if (
+            prior
+            and all_runs
+            and all(r.get("definition_id") != published.id for r in all_runs)
+        ):
+            # The calls predate the fix already in production: proposing again
+            # would undo it. Its follow-up tells whether it works.
+            fix.update(
+                status="not_fixable",
+                reason=f"Already fixed in v{prior.get('draft_version_number')} "
+                f"(published {str(prior.get('updated_at', ''))[:10]}): these calls were "
+                "made on an earlier version. Check the follow-up of that fix once "
+                "the new version has answered calls.",
+                prior_fix_id=prior["id"],
+            )
+            await save(organization_id, fix)
+            return
+        runs = all_runs[:MAX_CASES]
         payload = {
             "finding": fix["finding"],
             "agent": agent_outline(
                 published.workflow_json or {}, published.workflow_configurations or {}
             ),
-            "example_calls": [call_excerpt(r) for r in runs],
+            "published_version": published.version_number,
+            "example_calls": [
+                {
+                    **call_excerpt(r),
+                    "made_on_the_published_version": r.get("definition_id")
+                    == published.id,
+                }
+                for r in runs
+            ],
         }
         result = await chat_json(
             model,
@@ -590,6 +620,23 @@ async def propose(organization_id: int, fix_id: str) -> None:
         logger.warning(f"Fix {fix_id}: proposal failed: {e}")
         fix.update(status="failed", error=str(e))
     await save(organization_id, fix)
+
+
+async def _prior_published_fix(organization_id: int, fix: dict) -> dict | None:
+    """A published fix of the same rule / agent / node from another report."""
+    rule = fix["finding"].get("rule")
+    if not rule:
+        return None
+    for other in await list_fixes(organization_id, workflow_id=fix.get("workflow_id")):
+        f = other.get("finding") or {}
+        if (
+            other["id"] != fix["id"]
+            and other.get("status") == "published"
+            and f.get("rule") == rule
+            and f.get("node") == fix["finding"].get("node")
+        ):
+            return other
+    return None
 
 
 async def preview_diff(organization_id: int, fix: dict) -> dict | None:
@@ -958,3 +1005,142 @@ async def _simulate(
         }
         fix["status"] = "applied"
     await save(organization_id, fix)
+
+
+# --- After publication ----------------------------------------------------------
+
+MIN_CALLS_AFTER = 3
+FOLLOW_UP_WINDOW = 50
+
+
+async def follow_up(organization_id: int, fix_id: str) -> dict:
+    """Is the finding gone from the real calls made on the fixed version?
+
+    The same rules as the analysis run on the calls of the published fix
+    version and on the calls of the version it replaced (same thresholds).
+    Findings from the model (no rule) are checked by a new analysis instead.
+    """
+    from api.brand.analysis import SEVERITY_ORDER, run_rules
+    from api.brand.analysis_thresholds import load as load_thresholds
+
+    fix = await get(organization_id, fix_id)
+    if fix is None:
+        raise LookupError("fix not found")
+    if fix.get("status") not in ("published", "rolled_back"):
+        raise FixError("follow-up starts once the fix is published")
+    finding = fix["finding"]
+    rule = finding.get("rule")
+    result: dict[str, Any] = {"checked_at": _now(), "min_calls": MIN_CALLS_AFTER}
+    after_runs = await brand_db.recent_calls(
+        fix["workflow_id"],
+        organization_id=organization_id,
+        limit=FOLLOW_UP_WINDOW,
+        definition_id=fix["draft_definition_id"],
+    )
+    result["calls_after"] = len(after_runs)
+    if not rule:
+        result.update(
+            status="manual", note="Found by the model: run a new analysis to check it."
+        )
+    elif len(after_runs) < MIN_CALLS_AFTER:
+        result.update(status="waiting")
+    else:
+        before_runs = await brand_db.recent_calls(
+            fix["workflow_id"],
+            organization_id=organization_id,
+            limit=FOLLOW_UP_WINDOW,
+            definition_id=fix.get("base_definition_id"),
+        )
+        graphs = await brand_db.get_definition_graphs(
+            [r["definition_id"] for r in after_runs + before_runs],
+            organization_id=organization_id,
+        )
+        th = (await load_thresholds(organization_id))["values"]
+
+        def matching(runs: list[dict]) -> list[dict]:
+            if not runs:
+                return []
+            found, _, _ = run_rules(runs, graphs, th)
+            return [
+                f
+                for f in found
+                if f.get("rule") == rule
+                and (not finding.get("node") or f.get("node") == finding.get("node"))
+            ]
+
+        before, after = matching(before_runs), matching(after_runs)
+        brief = lambda f: {
+            k: f.get(k) for k in ("severity", "title", "calls", "metrics")
+        }  # noqa: E731
+        result.update(
+            calls_before=len(before_runs),
+            before=brief(before[0]) if before else None,
+            after=brief(after[0]) if after else None,
+        )
+        if not after:
+            result["status"] = "fixed"
+        elif (
+            not before
+            or SEVERITY_ORDER[after[0]["severity"]]
+            < SEVERITY_ORDER[before[0]["severity"]]
+        ):
+            result["status"] = "worse"
+        else:
+            result["status"] = "still_present"
+    fix["follow_up"] = result
+    await save(organization_id, fix)
+    return result
+
+
+async def rollback(
+    organization_id: int, fix_id: str, user: Any, *, replace_draft: bool = False
+) -> dict:
+    """Put back the version the fix replaced, as a new published version."""
+    fix = await get(organization_id, fix_id)
+    if fix is None:
+        raise LookupError("fix not found")
+    if fix.get("status") != "published":
+        raise FixError("only a published fix can be rolled back")
+    workflow_id = fix["workflow_id"]
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise LookupError("agent not found")
+    if workflow.released_definition_id != fix.get("draft_definition_id"):
+        current = await brand_db.get_workflow_version(
+            workflow_id, workflow.released_definition_id
+        )
+        raise FixError(
+            f"the agent was published again since the fix (now v{current.version_number if current else '?'}): "
+            "restore the version you want from the versions page"
+        )
+    note = f"Rollback of the automatic fix: {fix['finding']['title']}"
+    restored = await versions.restore(
+        workflow_id,
+        fix["base_definition_id"],
+        user,
+        organization_id=organization_id,
+        replace_draft=replace_draft,
+        note=note,
+    )
+    published = await db_client.publish_workflow_draft(workflow_id)
+    await versions.record_published(published, user, organization_id=organization_id)
+    # Every fix of that version goes back with it.
+    meta = await versions.get_meta(
+        organization_id, workflow_id, fix["draft_definition_id"]
+    )
+    for other_id in meta.get("fixes") or [fix_id]:
+        other = await get(organization_id, other_id)
+        if other and other.get("status") == "published":
+            other.update(
+                status="rolled_back",
+                rolled_back_to=restored.version_number,
+                rolled_back_at=_now(),
+                rolled_back_by={
+                    "id": getattr(user, "id", None),
+                    "email": getattr(user, "email", None),
+                },
+            )
+            await save(organization_id, other)
+    return await get(organization_id, fix_id)

@@ -292,3 +292,201 @@ async def test_chat_json_retries_gateway_errors(monkeypatch):
 )
 def test_overall_verdict(model, cases, expected):
     assert fixes.overall_verdict(model, cases) == expected
+
+
+@pytest.fixture
+def fix_store(monkeypatch):
+    data = {}
+
+    async def get(org, fix_id):
+        return copy.deepcopy(data.get(fix_id))
+
+    async def save(org, fix):
+        data[fix["id"]] = copy.deepcopy(fix)
+        return fix
+
+    monkeypatch.setattr(fixes, "get", get)
+    monkeypatch.setattr(fixes, "save", save)
+    return data
+
+
+def _published_fix(**extra):
+    return {
+        "id": "f1",
+        "status": "published",
+        "workflow_id": 2,
+        "base_definition_id": 10,
+        "draft_definition_id": 11,
+        "finding": {
+            "id": "r6",
+            "rule": "dead_air_caller",
+            "node": None,
+            "title": "Silences",
+        },
+        **extra,
+    }
+
+
+def _patch_follow_up(monkeypatch, after_runs, before_runs, found_after, found_before):
+    from api.brand import analysis, analysis_thresholds
+
+    async def recent_calls(workflow_id, *, organization_id, limit, definition_id):
+        return after_runs if definition_id == 11 else before_runs
+
+    async def graphs(ids, *, organization_id):
+        return {}
+
+    async def load(org):
+        return {"values": {}}
+
+    def run_rules(runs, graphs, th):
+        return (found_after if runs is after_runs else found_before), {}, []
+
+    monkeypatch.setattr(fixes.brand_db, "recent_calls", recent_calls)
+    monkeypatch.setattr(fixes.brand_db, "get_definition_graphs", graphs)
+    monkeypatch.setattr(analysis_thresholds, "load", load)
+    monkeypatch.setattr(analysis, "run_rules", run_rules)
+
+
+RUNS = [{"id": i, "definition_id": 11} for i in range(3)]
+OLD = [{"id": 10 + i, "definition_id": 10} for i in range(3)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "after,before,found_after,found_before,status",
+    [
+        (RUNS[:2], OLD, [], [], "waiting"),
+        (RUNS, OLD, [], [{"rule": "dead_air_caller", "severity": "info"}], "fixed"),
+        (
+            RUNS,
+            OLD,
+            [{"rule": "dead_air_caller", "severity": "info"}],
+            [{"rule": "dead_air_caller", "severity": "info"}],
+            "still_present",
+        ),
+        (
+            RUNS,
+            OLD,
+            [{"rule": "dead_air_caller", "severity": "warning"}],
+            [{"rule": "dead_air_caller", "severity": "info"}],
+            "worse",
+        ),
+        (RUNS, OLD, [{"rule": "ping_pong", "severity": "warning"}], [], "fixed"),
+    ],
+)
+async def test_follow_up(
+    fix_store, monkeypatch, after, before, found_after, found_before, status
+):
+    fix_store["f1"] = _published_fix()
+    _patch_follow_up(monkeypatch, after, before, found_after, found_before)
+    result = await fixes.follow_up(1, "f1")
+    assert result["status"] == status
+    assert fix_store["f1"]["follow_up"]["status"] == status
+
+
+@pytest.mark.asyncio
+async def test_follow_up_of_a_model_finding_is_manual(fix_store, monkeypatch):
+    fix_store["f1"] = _published_fix(
+        finding={"id": "m1", "rule": None, "node": None, "title": "x"}
+    )
+    _patch_follow_up(monkeypatch, RUNS, OLD, [], [])
+    assert (await fixes.follow_up(1, "f1"))["status"] == "manual"
+
+
+@pytest.mark.asyncio
+async def test_rollback(fix_store, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    fix_store["f1"] = _published_fix()
+    fix_store["f2"] = _published_fix(id="f2")
+    workflow = SimpleNamespace(released_definition_id=11)
+    monkeypatch.setattr(
+        fixes.db_client, "get_workflow", AsyncMock(return_value=workflow)
+    )
+    restore = AsyncMock(return_value=SimpleNamespace(version_number=3))
+    monkeypatch.setattr(fixes.versions, "restore", restore)
+    monkeypatch.setattr(
+        fixes.db_client,
+        "publish_workflow_draft",
+        AsyncMock(return_value=SimpleNamespace(id=12)),
+    )
+    monkeypatch.setattr(fixes.versions, "record_published", AsyncMock())
+    monkeypatch.setattr(
+        fixes.versions, "get_meta", AsyncMock(return_value={"fixes": ["f1", "f2"]})
+    )
+    user = SimpleNamespace(id=1, email="a@x")
+
+    result = await fixes.rollback(1, "f1", user)
+    assert restore.await_args.args[:2] == (2, 10)
+    assert result["status"] == "rolled_back" and result["rolled_back_to"] == 3
+    assert fix_store["f2"]["status"] == "rolled_back"  # same version, same fate
+
+    fix_store["f3"] = _published_fix(id="f3")
+    workflow.released_definition_id = 99  # published again since
+    monkeypatch.setattr(
+        fixes.brand_db,
+        "get_workflow_version",
+        AsyncMock(return_value=SimpleNamespace(version_number=5)),
+    )
+    with pytest.raises(fixes.FixError, match="published again"):
+        await fixes.rollback(1, "f3", user)
+
+
+@pytest.mark.asyncio
+async def test_no_new_proposal_while_a_fix_of_the_same_problem_awaits_calls(
+    fix_store, monkeypatch
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from api.brand import analysis
+
+    fix_store["prior"] = _published_fix(
+        id="prior", draft_version_number=2, updated_at="2026-10-01T00:00"
+    )
+    fix_store["new"] = {
+        "id": "new",
+        "status": "proposing",
+        "workflow_id": 2,
+        "language": "French",
+        "finding": {
+            "id": "r6",
+            "rule": "dead_air_caller",
+            "node": None,
+            "title": "Silences",
+            "calls": [8, 9],
+        },
+    }
+    published = SimpleNamespace(
+        id=11, version_number=2, workflow_json={}, workflow_configurations={}
+    )
+    monkeypatch.setattr(
+        fixes,
+        "_published",
+        AsyncMock(return_value=(SimpleNamespace(name="Accueil"), published)),
+    )
+    monkeypatch.setattr(
+        analysis,
+        "resolve_analysis_model",
+        AsyncMock(return_value={"model": "m", "base_url": "http://m"}),
+    )
+    monkeypatch.setattr(
+        fixes.brand_db,
+        "get_runs_by_ids",
+        AsyncMock(
+            return_value=[
+                {"id": 8, "definition_id": 10},
+                {"id": 9, "definition_id": 10},
+            ]
+        ),
+    )
+
+    async def list_fixes(org, *, report_id=None, workflow_id=None):
+        return list(fix_store.values())
+
+    monkeypatch.setattr(fixes, "list_fixes", list_fixes)
+    await fixes.propose(1, "new")
+    assert fix_store["new"]["status"] == "not_fixable"
+    assert "Already fixed in v2" in fix_store["new"]["reason"]

@@ -27,8 +27,9 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { FixHistory } from "../fixes/FixHistory";
 import { FixControls, requestFixes, useReportFixes } from "../fixes/FixPanel";
-import { fixability, fixForFinding } from "../fixes/model";
+import { fixability, fixForFinding, priorFix } from "../fixes/model";
 import { ThresholdsPanel } from "./ThresholdsPanel";
 
 // Analysis: run a review of recorded calls (rules + the org's analysis model)
@@ -233,6 +234,8 @@ export function AnalysisPage() {
   const categories = useMemo(() => Array.from(new Set((report?.findings ?? []).map((f) => f.category))), [report]);
   const findings = (report?.findings ?? []).filter((f) => category === "all" || f.category === category);
   const { fixes, reload: reloadFixes } = useReportFixes(report?.status === "done" ? report.id : null);
+  const { fixes: allFixes } = useReportFixes("*");
+  const [view, setView] = useState<"reports" | "fixes">("reports");
   const [fixingAll, setFixingAll] = useState(false);
   const fixableLeft = (report?.findings ?? []).filter((f) => {
     const current = fixForFinding(fixes, f.id);
@@ -295,6 +298,25 @@ export function AnalysisPage() {
 
       <ThresholdsPanel timezone={timezone} language={language} />
 
+      <div className="flex gap-1 border-b border-border">
+        {(["reports", "fixes"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={cn(
+              "-mb-px border-b-2 px-3 py-2 text-sm",
+              view === v ? "border-[var(--cta)] font-medium" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {v === "reports" ? "Reports" : `Fixes${allFixes.length ? ` (${allFixes.length})` : ""}`}
+          </button>
+        ))}
+      </div>
+
+      {view === "fixes" ? (
+        <FixHistory language={language} />
+      ) : (
       <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-2">
           <p className="text-sm font-medium">History</p>
@@ -423,6 +445,7 @@ export function AnalysisPage() {
                         reportId={report.id}
                         language={language}
                         onChanged={() => void reloadFixes()}
+                        prior={priorFix(allFixes, f, report.id)}
                       />
                     )}
                   </FindingCard>
@@ -432,6 +455,7 @@ export function AnalysisPage() {
           )}
         </main>
       </div>
+      )}
     </div>
   );
 }

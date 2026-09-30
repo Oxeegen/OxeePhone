@@ -273,27 +273,33 @@ async def get_runs_by_ids(run_ids: list[int], *, organization_id: int) -> list[d
 
 
 async def recent_calls(
-    workflow_id: int, *, organization_id: int, limit: int = 10
+    workflow_id: int,
+    *,
+    organization_id: int,
+    limit: int = 10,
+    definition_id: int | None = None,
 ) -> list[dict]:
-    """Latest completed real calls (no text chats, no simulations) of an agent."""
+    """Latest completed real calls (no text chats, no simulations) of an agent,
+    optionally made on one version."""
     from api.db.models import WorkflowRunModel
 
+    query = (
+        select(*_run_columns())
+        .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+        .where(
+            WorkflowRunModel.workflow_id == workflow_id,
+            WorkflowModel.organization_id == organization_id,
+            WorkflowRunModel.is_completed.is_(True),
+            WorkflowRunModel.mode != "textchat",
+            ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+        )
+        .order_by(WorkflowRunModel.created_at.desc())
+        .limit(limit)
+    )
+    if definition_id is not None:
+        query = query.where(WorkflowRunModel.definition_id == definition_id)
     async with db_client.async_session() as session:
-        rows = (
-            await session.execute(
-                select(*_run_columns())
-                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
-                .where(
-                    WorkflowRunModel.workflow_id == workflow_id,
-                    WorkflowModel.organization_id == organization_id,
-                    WorkflowRunModel.is_completed.is_(True),
-                    WorkflowRunModel.mode != "textchat",
-                    ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
-                )
-                .order_by(WorkflowRunModel.created_at.desc())
-                .limit(limit)
-            )
-        ).all()
+        rows = (await session.execute(query)).all()
     return [_run_dict(r) for r in rows]
 
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type Fix, fixability, fixForFinding, operationLabel, stepIndex } from "./model";
+import { type Fix, fixability, fixForFinding, operationLabel, priorFix, stepIndex } from "./model";
 
 const fix = (id: string, findingId: string, status: Fix["status"], created_at: string) =>
   ({ id, finding: { id: findingId }, status, created_at }) as unknown as Fix;
@@ -27,5 +27,27 @@ describe("fixes model", () => {
     expect(stepIndex("proposed")).toBe(0);
     expect(stepIndex("testing")).toBe(2);
     expect(stepIndex("published")).toBe(3);
+  });
+});
+
+describe("prior fixes", () => {
+  const published = {
+    id: "p",
+    report_id: "old",
+    status: "published",
+    updated_at: "2026-10-01T10:00",
+    finding: { id: "r6", rule: "dead_air_caller", agent: "Accueil cabinet Martin", node: null },
+  } as unknown as Fix;
+  const finding = { id: "r2", rule: "dead_air_caller", agent: "Accueil cabinet Martin", node: null };
+
+  it("finds a published fix of the same problem in another report", () => {
+    expect(priorFix([published], finding, "new")?.id).toBe("p");
+  });
+
+  it("ignores the same report, other agents, drafts and model findings", () => {
+    expect(priorFix([published], finding, "old")).toBeUndefined();
+    expect(priorFix([published], { ...finding, agent: "Other" }, "new")).toBeUndefined();
+    expect(priorFix([{ ...published, status: "applied" } as Fix], finding, "new")).toBeUndefined();
+    expect(priorFix([published], { ...finding, rule: null }, "new")).toBeUndefined();
   });
 });

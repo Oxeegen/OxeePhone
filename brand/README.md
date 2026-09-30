@@ -45,6 +45,7 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | API | `OXEE_SPEAKING_PLAN` | `true` | Apply the agent's start/stop speaking plans (`speaking_plan` workflow config, `api/brand/speaking_plan.py`); agents without one keep the upstream turn settings |
 | API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
 | API | `OXEE_AGENT_FIXES` | `true` | Automatic fixes of analysis findings (model proposal → draft → text simulation → publish; `api/brand/fixes.py`, `api/brand/simulation.py`, `/api/v1/oxee/fixes*`); simulation runs are named `OXEE-SIM-…` and left out of reports / analyses |
+| API | `OXEE_MCP_CAN_PUBLISH` | unset (false) | Adds the `oxee_publish_draft` / `oxee_rollback_fix` MCP tools (see `brand/agent-vm/README.md`) |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -74,6 +75,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
 - `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown` (minus turns falsely measured from the call start); speaking plan: VAD `start_secs`, turn start/stop strategies, stop timeout, `SpeakingPlanGate` before the output transport
 - `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
+- `api/app.py` — registers the OxeePhone MCP tools (`api/brand/mcp_tools.py`) when `agent_fixes`
 - `api/app.py` — `ChannelMiddleware` (request channel: editor / API key / MCP) when `version_history`
 - `api/routes/workflow.py` — records version edits (update, create-draft) and publications in `api/brand/versions.py`
 - `api/mcp_server/tools/save_workflow.py` — records MCP drafts (origin `mcp`)

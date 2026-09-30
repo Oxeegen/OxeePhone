@@ -11,6 +11,7 @@ import {
   Rocket,
   Trash2,
   TriangleAlert,
+  Undo2,
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
@@ -29,6 +30,8 @@ import {
   BUSY,
   type Fix,
   fixability,
+  FOLLOW_UP_LABEL,
+  type FollowUp,
   type Replay,
   type SimulationCase,
   STATUS_LABEL,
@@ -39,14 +42,17 @@ import {
 // Automatic fixes on the Analysis page: one card per finding
 // (proposal → draft → simulation → publish). See api/brand/fixes.py.
 
-/** Fixes of a report, polled while one is busy. */
+/** Fixes of a report ("*" for all of them), polled while one is busy. */
 export function useReportFixes(reportId: string | null) {
   const auth = useAuth();
   const [fixes, setFixes] = useState<Fix[]>([]);
 
   const reload = useCallback(async () => {
     if (!reportId) return;
-    const response = await client.get<{ 200: Fix[] }, unknown>({ url: "/api/v1/oxee/fixes", query: { report_id: reportId } });
+    const response = await client.get<{ 200: Fix[] }, unknown>({
+      url: "/api/v1/oxee/fixes",
+      query: reportId === "*" ? undefined : { report_id: reportId },
+    });
     if (response.data) setFixes(response.data as Fix[]);
   }, [reportId]);
 
@@ -231,20 +237,131 @@ function CaseCard({ c, workflowId }: { c: SimulationCase; workflowId: number }) 
   );
 }
 
+const FOLLOW_UP_STYLE: Record<FollowUp["status"], string> = {
+  fixed: VERDICT_STYLE.pass,
+  still_present: VERDICT_STYLE.mixed,
+  worse: VERDICT_STYLE.fail,
+  waiting: VERDICT_STYLE.unchanged,
+  manual: VERDICT_STYLE.unchanged,
+};
+
+function FollowUpSection({ fix, onChanged }: { fix: Fix; onChanged: () => void }) {
+  const [busy, setBusy] = useState<"check" | "rollback" | null>(null);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const f = fix.follow_up;
+
+  const check = async () => {
+    setBusy("check");
+    const response = await client.post<{ 200: FollowUp }, unknown>({ url: `/api/v1/oxee/fixes/${fix.id}/follow-up` });
+    setBusy(null);
+    if (response.error) toast.error(detailFromError(response.error, "Could not check the calls"));
+    onChanged();
+  };
+
+  const rollback = async (replaceDraft: boolean) => {
+    setBusy("rollback");
+    const response = await client.post<{ 200: Fix }, unknown>({
+      url: `/api/v1/oxee/fixes/${fix.id}/rollback`,
+      body: { replace_draft: replaceDraft },
+      headers: { "Content-Type": "application/json" },
+    });
+    setBusy(null);
+    if (response.error) {
+      const status = (response as { response?: Response }).response?.status;
+      const message = detailFromError(response.error, "The rollback failed");
+      if (status === 409 && message.includes("replace_draft")) setConfirm(message);
+      else toast.error(message);
+      return;
+    }
+    setConfirm(null);
+    toast.success(`Rolled back: v${(response.data as Fix).rolled_back_to} is published`);
+    onChanged();
+  };
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">Follow-up on real calls</span>
+        {f && (
+          <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", FOLLOW_UP_STYLE[f.status])}>
+            {FOLLOW_UP_LABEL[f.status]}
+          </span>
+        )}
+        {f && <span className="text-[11px] text-muted-foreground">checked {new Date(f.checked_at).toLocaleString()}</span>}
+      </div>
+      {fix.status === "rolled_back" ? (
+        <p className="text-sm">Rolled back: v{fix.rolled_back_to} put the previous version back in production.</p>
+      ) : !f ? (
+        <p className="text-sm text-muted-foreground">
+          Once the new version has answered a few calls, check whether the problem is gone from them (same rules as the
+          analysis, on the calls before and after the fix).
+        </p>
+      ) : f.status === "waiting" ? (
+        <p className="text-sm text-muted-foreground">
+          {f.calls_after} call{f.calls_after > 1 ? "s" : ""} on the fixed version so far; at least {f.min_calls} are needed.
+        </p>
+      ) : f.status === "manual" ? (
+        <p className="text-sm text-muted-foreground">{f.note}</p>
+      ) : (
+        <p className="text-sm">
+          {f.calls_after} call{f.calls_after > 1 ? "s" : ""} after the fix, {f.calls_before ?? 0} before.{" "}
+          {f.status === "fixed"
+            ? "The problem no longer shows."
+            : f.after
+              ? `Still observed after: “${f.after.title}” (${f.after.severity}${f.before ? `, before: ${f.before.severity}` : ""}).`
+              : ""}
+        </p>
+      )}
+      {confirm && (
+        <div className="space-y-2 rounded-md border border-amber-500/40 p-2 text-sm">
+          <p>{confirm}.</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => void rollback(true)}>Discard it and roll back</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {fix.status === "published" && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" disabled={busy !== null} onClick={() => void check()}>
+            {busy === "check" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Check the calls
+          </Button>
+          <Button
+            size="sm"
+            variant={f && (f.status === "still_present" || f.status === "worse") ? "destructive" : "ghost"}
+            className="gap-1.5"
+            disabled={busy !== null}
+            onClick={() => {
+              if (window.confirm(`Put back v${fix.base_version_number ?? "?"} (the version before the fix) as a new published version? Every fix of v${fix.draft_version_number} is undone with it.`)) void rollback(false);
+            }}
+          >
+            {busy === "rollback" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />} Roll back
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FixControls({
   finding,
   fix,
   reportId,
   language,
   onChanged,
+  prior,
+  defaultOpen = false,
 }: {
   finding: { id: string; rule: string | null; category: string };
   fix: Fix | undefined;
   reportId: string;
   language: string;
   onChanged: () => void;
+  /** A fix of the same problem published from an earlier report. */
+  prior?: Fix;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [detail, setDetail] = useState<Fix | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmReplace, setConfirmReplace] = useState<string | null>(null);
@@ -295,13 +412,22 @@ export function FixControls({
     onChanged();
   };
 
+  const priorNote = prior && (
+    <p className="flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+      <TriangleAlert className="h-3.5 w-3.5" />
+      A fix for this was {prior.status === "rolled_back" ? "published then rolled back" : `published in v${prior.draft_version_number}`} on{" "}
+      {new Date(prior.updated_at).toLocaleDateString()}, and the problem is still observed.
+    </p>
+  );
+
   if (!fix) {
     const fx = fixability(finding);
     if (!fx.fixable) {
       return <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Wrench className="h-3.5 w-3.5" /> Not fixable automatically: {fx.reason}</p>;
     }
     return (
-      <div>
+      <div className="space-y-2">
+        {priorNote}
         <Button
           size="sm"
           variant="outline"
@@ -328,6 +454,8 @@ export function FixControls({
   const wf = d.workflow_id ?? 0;
 
   return (
+    <div className="space-y-2">
+    {["proposing", "proposed", "discarded", "not_fixable", "failed"].includes(fix.status) && priorNote}
     <div className="space-y-3 rounded-lg border border-[var(--cta)]/30 bg-[var(--cta)]/[0.03] p-3">
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full flex-wrap items-center gap-2 text-left">
         <Wrench className="h-4 w-4 text-[var(--cta)]" />
@@ -378,6 +506,8 @@ export function FixControls({
               {d.status !== "published" && " — the published version keeps answering calls."}
             </p>
           )}
+
+          {(d.status === "published" || d.status === "rolled_back") && <FollowUpSection fix={d} onChanged={() => { onChanged(); void loadDetail(d.id); }} />}
 
           {sim && (
             <div className="space-y-2">
@@ -457,6 +587,7 @@ export function FixControls({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

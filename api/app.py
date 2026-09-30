@@ -52,6 +52,14 @@ from api.tasks.arq import get_arq_redis
 
 API_PREFIX = "/api/v1"
 
+if BRAND.agent_fixes:
+    # OxeePhone: analysis, automatic fixes and versions for external agents
+    # (api/brand/mcp_tools.py). Registered here: the MCP package imports its
+    # server, which that module needs.
+    from api.brand.mcp_tools import register as register_oxee_mcp_tools
+
+    register_oxee_mcp_tools(mcp)
+
 mcp_app = mcp.http_app(path="/", stateless_http=True)
 
 
