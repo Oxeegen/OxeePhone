@@ -108,3 +108,31 @@ async def run_routing(
     if run is None:
         raise HTTPException(status_code=404, detail="Call not found")
     return await run_routing_graphs(run, organization_id=user.selected_organization_id)
+
+
+@router.get("/reports/insights")
+async def report_insights(
+    date: str,
+    timezone: str,
+    days: int = 7,
+    workflow_id: int | None = None,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Latency, consumption, quality, tools and routing indicators for the
+    ``days`` local days ending on ``date`` (Reports page)."""
+    from zoneinfo import ZoneInfoNotFoundError
+
+    from api.brand.insights import get_insights
+
+    if days not in (1, 7, 30):
+        raise HTTPException(status_code=422, detail="days must be 1, 7 or 30")
+    try:
+        return await get_insights(
+            organization_id=user.selected_organization_id,
+            date=date,
+            days=days,
+            timezone=timezone,
+            workflow_id=workflow_id,
+        )
+    except (ValueError, ZoneInfoNotFoundError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

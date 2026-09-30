@@ -8,40 +8,42 @@ import { averageFirstToken, averageStages, type LatencyTurn, type Stage, STAGES 
 const STAGE_META: Record<Stage, { label: string; color: string; icon: ComponentType<{ className?: string }>; help: string }> = {
   endpointing: {
     label: "Endpointing",
-    color: "#22C55E",
+    color: "var(--viz-endpointing)",
     icon: Timer,
     help: "Deciding the caller has finished: VAD silence + turn detection.",
   },
   transcriber: {
     label: "Transcriber",
-    color: "#F97316",
+    color: "var(--viz-transcriber)",
     icon: Mic,
     help: "Speech-to-text: time to the final transcript of the caller's turn.",
   },
   llm: {
     label: "LLM",
-    color: "#EAB308",
+    color: "var(--viz-llm)",
     icon: Bot,
     help: "Language model: from the end of the caller's turn until its first sentence is ready (first token, then streaming; all LLM calls of the turn).",
   },
-  tools: { label: "Tools", color: "#EC4899", icon: Wrench, help: "Tool / function execution during the turn." },
+  tools: { label: "Tools", color: "var(--viz-tools)", icon: Wrench, help: "Tool / function execution during the turn." },
   sentence: {
     label: "First sentence",
-    color: "#14B8A6",
+    color: "var(--viz-sentence)",
     icon: Type,
     help: "LLM streaming until the first complete sentence the voice can speak.",
   },
-  voice: { label: "Voice", color: "#3B82F6", icon: AudioLines, help: "Text-to-speech: time to the first audio." },
-  transport: { label: "Transport", color: "#A855F7", icon: Send, help: "Sending the first audio to the caller." },
+  voice: { label: "Voice", color: "var(--viz-voice)", icon: AudioLines, help: "Text-to-speech: time to the first audio." },
+  transport: { label: "Transport", color: "var(--viz-transport)", icon: Send, help: "Sending the first audio to the caller." },
   other: {
     label: "Other",
-    color: "#94A3B8",
+    color: "var(--viz-other)",
     icon: MoreHorizontal,
     help: "Pipeline time between stages (text aggregation, queuing...). Stages always add up to the total.",
   },
 };
 
 const fmt = (msValue: number) => `${Math.round(msValue)}ms`;
+
+export { STAGE_META };
 
 export function LatencyTab({ turns }: { turns: LatencyTurn[] }) {
   if (!turns.length) {
@@ -65,7 +67,7 @@ export function LatencyTab({ turns }: { turns: LatencyTurn[] }) {
             Average response: <span className="font-semibold text-foreground">{fmt(avg.totalMs)}</span> over {avg.count} turn{avg.count > 1 ? "s" : ""}
           </span>
         </div>
-        <div className="flex h-3 w-full overflow-hidden rounded-full">
+        <div className="flex h-3 w-full gap-[2px] overflow-hidden rounded-full">
           {shown.map((s) => (
             <div
               key={s}

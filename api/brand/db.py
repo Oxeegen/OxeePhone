@@ -45,3 +45,64 @@ async def get_definition_graphs(
             }
             for definition_id, workflow_json, workflow_id, workflow_name in result.all()
         }
+
+
+INSIGHTS_MAX_RUNS = 5000
+
+
+async def get_runs_for_insights(
+    *,
+    organization_id: int,
+    start_utc,
+    end_utc,
+    workflow_id: int | None = None,
+    limit: int = INSIGHTS_MAX_RUNS,
+) -> list[dict]:
+    """Runs of a period with what the reporting insights need (org-scoped).
+
+    Same window and scoping as the daily report (created_at within the local
+    day(s), organization through ``WorkflowModel``), newest first, capped.
+    """
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        query = (
+            select(
+                WorkflowRunModel.id,
+                WorkflowRunModel.workflow_id,
+                WorkflowModel.name,
+                WorkflowRunModel.definition_id,
+                WorkflowRunModel.created_at,
+                WorkflowRunModel.is_completed,
+                WorkflowRunModel.mode,
+                WorkflowRunModel.usage_info,
+                WorkflowRunModel.gathered_context,
+                WorkflowRunModel.logs,
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(
+                WorkflowModel.organization_id == organization_id,
+                WorkflowRunModel.created_at >= start_utc,
+                WorkflowRunModel.created_at <= end_utc,
+            )
+            .order_by(WorkflowRunModel.created_at.desc())
+            .limit(limit)
+        )
+        if workflow_id is not None:
+            query = query.where(WorkflowRunModel.workflow_id == workflow_id)
+        rows = (await session.execute(query)).all()
+    return [
+        {
+            "id": r[0],
+            "workflow_id": r[1],
+            "workflow_name": r[2],
+            "definition_id": r[3],
+            "created_at": r[4],
+            "is_completed": r[5],
+            "mode": r[6],
+            "usage_info": r[7] or {},
+            "gathered_context": r[8] or {},
+            "logs": r[9] or {},
+        }
+        for r in rows
+    ]
