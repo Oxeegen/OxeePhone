@@ -68,7 +68,11 @@ def _pipeline(**providers):
             "api_key": "sk-test",
         }
     return OrganizationAIModelConfigurationV2.model_validate(
-        {"version": 2, "mode": "byok", "byok": {"mode": "pipeline", "pipeline": services}}
+        {
+            "version": 2,
+            "mode": "byok",
+            "byok": {"mode": "pipeline", "pipeline": services},
+        }
     )
 
 
@@ -106,8 +110,16 @@ def test_masked_key_is_resolved_from_stored_configuration():
                         "base_url": "http://x/v1",
                         "api_key": "secret-abcd",
                     },
-                    "tts": {"provider": "speaches", "model": "t", "base_url": "http://x"},
-                    "stt": {"provider": "speaches", "model": "s", "base_url": "http://x"},
+                    "tts": {
+                        "provider": "speaches",
+                        "model": "t",
+                        "base_url": "http://x",
+                    },
+                    "stt": {
+                        "provider": "speaches",
+                        "model": "s",
+                        "base_url": "http://x",
+                    },
                 },
             },
         }
@@ -205,7 +217,9 @@ async def test_recording_transcription_uses_organization_stt(mock_http, monkeypa
     monkeypatch.setattr(
         ai_model_configuration, "get_resolved_ai_model_configuration", fake_resolved
     )
-    mock_http["handler"] = lambda request: httpx.Response(200, json={"text": " Bonjour "})
+    mock_http["handler"] = lambda request: httpx.Response(
+        200, json={"text": " Bonjour "}
+    )
 
     result = await local_models.transcribe_with_organization_stt(
         organization_id=1,
@@ -264,7 +278,10 @@ def test_markdown_is_chunked_with_heading_context(tmp_path):
         "# Accueil\n\nBonjour et bienvenue.\n\n## Horaires\n\nOuvert du lundi au vendredi.\n"
     )
     result = documents.process_document_locally(
-        file_path=str(path), filename="guide.md", retrieval_mode="chunked", max_tokens=128
+        file_path=str(path),
+        filename="guide.md",
+        retrieval_mode="chunked",
+        max_tokens=128,
     )
     chunks = result["chunks"]
     assert [c["chunk_text"] for c in chunks] == [
@@ -283,7 +300,10 @@ def test_long_text_is_split_under_the_token_budget(tmp_path):
     sentence = "Ceci est une phrase de test assez longue pour remplir un morceau. "
     path.write_text(sentence * 100)
     result = documents.process_document_locally(
-        file_path=str(path), filename="long.txt", retrieval_mode="chunked", max_tokens=32
+        file_path=str(path),
+        filename="long.txt",
+        retrieval_mode="chunked",
+        max_tokens=32,
     )
     assert len(result["chunks"]) > 1
     assert all(
@@ -295,7 +315,10 @@ def test_txt_keeps_hash_lines_as_text(tmp_path):
     path = tmp_path / "notes.txt"
     path.write_text("# pas un titre\nligne suivante\n")
     result = documents.process_document_locally(
-        file_path=str(path), filename="notes.txt", retrieval_mode="chunked", max_tokens=128
+        file_path=str(path),
+        filename="notes.txt",
+        retrieval_mode="chunked",
+        max_tokens=128,
     )
     assert result["chunks"][0]["chunk_text"] == "# pas un titre\nligne suivante"
 
@@ -313,7 +336,10 @@ def test_docx_headings_and_tables(tmp_path):
     document.save(path)
 
     result = documents.process_document_locally(
-        file_path=str(path), filename="tarifs.docx", retrieval_mode="chunked", max_tokens=128
+        file_path=str(path),
+        filename="tarifs.docx",
+        retrieval_mode="chunked",
+        max_tokens=128,
     )
     text = result["chunks"][0]["contextualized_text"]
     assert text.startswith("Tarifs\n")
@@ -348,7 +374,10 @@ def test_pdf_text_is_extracted(tmp_path):
         writer.write(f)
 
     result = documents.process_document_locally(
-        file_path=str(path), filename="doc.pdf", retrieval_mode="chunked", max_tokens=128
+        file_path=str(path),
+        filename="doc.pdf",
+        retrieval_mode="chunked",
+        max_tokens=128,
     )
     assert result["chunks"][0]["chunk_text"] == "Horaires du cabinet"
     assert result["chunks"][0]["chunk_metadata"]["pages"] == [1]
@@ -364,11 +393,16 @@ def test_scanned_pdf_gets_a_clear_error(tmp_path):
         writer.write(f)
     with pytest.raises(documents.DocumentProcessingError, match="scanned"):
         documents.process_document_locally(
-            file_path=str(path), filename="scan.pdf", retrieval_mode="chunked", max_tokens=128
+            file_path=str(path),
+            filename="scan.pdf",
+            retrieval_mode="chunked",
+            max_tokens=128,
         )
 
 
-@pytest.mark.parametrize("name, message", [("old.doc", ".docx"), ("x.xlsx", "Unsupported")])
+@pytest.mark.parametrize(
+    "name, message", [("old.doc", ".docx"), ("x.xlsx", "Unsupported")]
+)
 def test_unsupported_formats_get_a_clear_error(tmp_path, name, message):
     path = tmp_path / name
     path.write_bytes(b"data")
@@ -382,7 +416,10 @@ def test_full_document_mode_returns_text_only(tmp_path):
     path = tmp_path / "faq.json"
     path.write_text(json.dumps({"question": "Horaires ?", "reponse": "9h-18h"}))
     result = documents.process_document_locally(
-        file_path=str(path), filename="faq.json", retrieval_mode="full_document", max_tokens=128
+        file_path=str(path),
+        filename="faq.json",
+        retrieval_mode="full_document",
+        max_tokens=128,
     )
     assert result["chunks"] == []
     assert '"reponse": "9h-18h"' in result["full_text"]
@@ -408,7 +445,9 @@ def _tts_service(**kwargs):
 
     return LocalModelsTTSService(
         base_url="http://tts/v1",
-        settings=SpeachesTTSSettings(model="voxee-tts-pro", voice="fr_cedric", speed=1.2),
+        settings=SpeachesTTSSettings(
+            model="voxee-tts-pro", voice="fr_cedric", speed=1.2
+        ),
         **kwargs,
     )
 
@@ -459,7 +498,11 @@ async def test_voice_preview_matches_call_rendering(mock_http):
         "language": "fr",
     }
     with wave.open(io.BytesIO(audio)) as wav:
-        assert (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) == (24000, 1, 2)
+        assert (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) == (
+            24000,
+            1,
+            2,
+        )
         frames = wav.readframes(wav.getnframes())
     # Odd trailing byte dropped, +6 dB ~ x1.995.
     assert len(frames) == 8
@@ -472,8 +515,13 @@ async def test_voice_preview_surfaces_endpoint_errors(mock_http):
     )
     with pytest.raises(local_models.LocalModelsError, match="unknown voice 'x'"):
         await local_models.synthesize_preview(
-            base_url="http://tts/v1", api_key=None, model="m", voice="x",
-            speed=None, language=None, text="t",
+            base_url="http://tts/v1",
+            api_key=None,
+            model="m",
+            voice="x",
+            speed=None,
+            language=None,
+            text="t",
         )
 
 
@@ -483,10 +531,19 @@ async def test_voice_preview_surfaces_endpoint_errors(mock_http):
 @pytest.mark.parametrize(
     "n, words",
     [
-        (0, "zéro"), (21, "vingt et un"), (71, "soixante et onze"), (80, "quatre-vingts"),
-        (81, "quatre-vingt-un"), (91, "quatre-vingt-onze"), (200, "deux cents"),
-        (201, "deux cent un"), (1000, "mille"), (2026, "deux mille vingt-six"),
-        (80000, "quatre-vingt mille"), (1000000, "un million"), (2000000, "deux millions"),
+        (0, "zéro"),
+        (21, "vingt et un"),
+        (71, "soixante et onze"),
+        (80, "quatre-vingts"),
+        (81, "quatre-vingt-un"),
+        (91, "quatre-vingt-onze"),
+        (200, "deux cents"),
+        (201, "deux cent un"),
+        (1000, "mille"),
+        (2026, "deux mille vingt-six"),
+        (80000, "quatre-vingt mille"),
+        (1000000, "un million"),
+        (2000000, "deux millions"),
     ],
 )
 def test_french_numbers(n, words):
@@ -502,16 +559,28 @@ def test_french_numbers(n, words):
         ("de 9h05 à 21h", "de neuf heures cinq à vingt et une heures"),
         ("à 12h ou 0h", "à midi ou minuit"),
         ("à 18:30", "à dix-huit heures trente"),
-        ("au 06 12 34 56 78", "au zéro six, douze, trente-quatre, cinquante-six, soixante-dix-huit"),
-        ("au 01.45.67.89.00", "au zéro un, quarante-cinq, soixante-sept, quatre-vingt-neuf, zéro zéro"),
+        (
+            "au 06 12 34 56 78",
+            "au zéro six, douze, trente-quatre, cinquante-six, soixante-dix-huit",
+        ),
+        (
+            "au 01.45.67.89.00",
+            "au zéro un, quarante-cinq, soixante-sept, quatre-vingt-neuf, zéro zéro",
+        ),
         ("45,50 €", "quarante-cinq euros cinquante"),
         ("1 250 euros", "mille deux cent cinquante euros"),
         ("1 €", "un euro"),
         ("15 %", "quinze pour cent"),
         ("le 12/03/2026", "le douze mars deux mille vingt-six"),
         ("le 1/04", "le premier avril"),
-        ("le 1er, la 1re, le 2e, le 21ème", "le premier, la première, le deuxième, le vingt et unième"),
-        ("Dr Martin, Mme Durand, M. Dupont", "docteur Martin, madame Durand, monsieur Dupont"),
+        (
+            "le 1er, la 1re, le 2e, le 21ème",
+            "le premier, la première, le deuxième, le vingt et unième",
+        ),
+        (
+            "Dr Martin, Mme Durand, M. Dupont",
+            "docteur Martin, madame Durand, monsieur Dupont",
+        ),
         ("n° 42, merci", "numéro quarante-deux, merci"),
         ("3,14 km", "trois virgule quatorze km"),
         ("dossier A123, code 75011", "dossier A123, code 75011"),
@@ -526,13 +595,20 @@ def test_french_normalization(text, spoken):
 def test_pronunciations_override_and_other_languages_untouched():
     from api.brand.speech_text import parse_pronunciations, prepare_speech_text
 
-    entries = parse_pronunciations("# comment\nDr Martin => docteur Martaine\nvLLM = vé elle elle aime\n\nbad line")
+    entries = parse_pronunciations(
+        "# comment\nDr Martin => docteur Martaine\nvLLM = vé elle elle aime\n\nbad line"
+    )
     assert entries == [("Dr Martin", "docteur Martaine"), ("vLLM", "vé elle elle aime")]
     assert (
-        prepare_speech_text("dr martin utilise VLLM à 9h", language="fr", pronunciations=entries)
+        prepare_speech_text(
+            "dr martin utilise VLLM à 9h", language="fr", pronunciations=entries
+        )
         == "docteur Martaine utilise vé elle elle aime à neuf heures"
     )
-    assert prepare_speech_text("Meet at 9h, 2 people.", language="en") == "Meet at 9h, 2 people."
+    assert (
+        prepare_speech_text("Meet at 9h, 2 people.", language="en")
+        == "Meet at 9h, 2 people."
+    )
 
 
 def test_gain_scales_and_clips():
@@ -540,13 +616,17 @@ def test_gain_scales_and_clips():
 
     pcm = b"".join(v.to_bytes(2, "little", signed=True) for v in (1000, -1000, 30000))
     out = apply_gain(pcm, gain_factor(6.0))
-    values = [int.from_bytes(out[i : i + 2], "little", signed=True) for i in range(0, 6, 2)]
+    values = [
+        int.from_bytes(out[i : i + 2], "little", signed=True) for i in range(0, 6, 2)
+    ]
     assert values == [1995, -1995, 32767]
     assert apply_gain(pcm, gain_factor(0)) is pcm
 
 
 def test_tts_service_prepares_text_for_synthesis_only():
-    service = _tts_service(language="fr", pronunciations="Oxeegen = Oxy-jène", volume_gain_db=3)
+    service = _tts_service(
+        language="fr", pronunciations="Oxeegen = Oxy-jène", volume_gain_db=3
+    )
     assert service.speech_params("Oxeegen vous rappelle à 9h")["input"] == (
         "Oxy-jène vous rappelle à neuf heures"
     )

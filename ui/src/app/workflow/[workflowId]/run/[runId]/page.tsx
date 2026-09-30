@@ -21,6 +21,8 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import WorkflowLayout from '@/app/workflow/WorkflowLayout';
+import { isBranded } from "@/brand/brand";
+import { CallDetailPage } from "@/brand/call-detail/CallDetailPage";
 import {
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
     getWorkflowRunApiV1WorkflowWorkflowIdRunsRunIdGet,
@@ -609,7 +611,7 @@ function ContextDisplay({ title, context }: { title: string; context: Record<str
 }
 
 
-export default function WorkflowRunPage() {
+function UpstreamWorkflowRunPage() {
     const params = useParams();
     const [isLoading, setIsLoading] = useState(true);
     const auth = useAuth();
@@ -923,3 +925,9 @@ export default function WorkflowRunPage() {
         </WorkflowLayout>
     );
 }
+
+// OxeePhone: VAPI-style call detail (src/brand/call-detail) when branded.
+export default function WorkflowRunPage() {
+    return isBranded ? <CallDetailPage /> : <UpstreamWorkflowRunPage />;
+}
+

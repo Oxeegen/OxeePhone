@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import HTTPException
 from loguru import logger
 
+from api.brand import BRAND
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.errors.failure import mark_failure_reported
@@ -1258,6 +1259,19 @@ async def _run_pipeline_impl(
                 await in_memory_logs_buffer.append(message)
             except Exception as e:
                 logger.error(f"Failed to append latency to logs buffer: {e}")
+
+    if BRAND.call_insights and task.user_bot_latency_observer:
+        # OxeePhone: keep pipecat's per-stage latency breakdown for each turn.
+        from api.brand.call_insights import build_latency_breakdown_event
+
+        @task.user_bot_latency_observer.event_handler("on_latency_breakdown")
+        async def on_latency_breakdown(observer, breakdown):
+            try:
+                await in_memory_logs_buffer.append(
+                    build_latency_breakdown_event(breakdown)
+                )
+            except Exception as e:
+                logger.error(f"Failed to append latency breakdown to logs buffer: {e}")
 
     # Register turn log handlers for all call types (WebRTC and telephony)
     register_turn_log_handlers(

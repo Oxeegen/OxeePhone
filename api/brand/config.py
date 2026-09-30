@@ -29,6 +29,9 @@ class BrandConfig:
     # Model configuration is BYOK pipeline only, every service on the
     # self-hosted OpenAI-compatible provider ("speaches", shown as Local Models).
     local_models_only: bool
+    # Persist what the call-detail page needs: recording start marker,
+    # per-turn latency breakdown, interruption flag on bot messages.
+    call_insights: bool
 
 
 BRAND = BrandConfig(
@@ -38,4 +41,5 @@ BRAND = BrandConfig(
     disable_dograh_services=_env_flag("OXEE_DISABLE_DOGRAH_SERVICES", True),
     disable_telemetry=_env_flag("OXEE_DISABLE_TELEMETRY", True),
     local_models_only=_env_flag("OXEE_LOCAL_MODELS_ONLY", True),
+    call_insights=_env_flag("OXEE_CALL_INSIGHTS", True),
 )

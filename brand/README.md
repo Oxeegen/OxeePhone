@@ -41,6 +41,8 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | API | `OXEE_LOCAL_MODELS_ONLY` | `true` | Models: BYOK pipeline only, every service on Local Models (`speaches`); `/api/v1/oxee/*` routes; recordings transcribed by the org STT |
 | UI | `BRAND.enabled` | `true` | Name, logo, theme, runtime rebrand of "Dograh" in copy |
 | UI | `BRAND.hideDocs` | `true` | Links to `dograh.com` / docs / GitHub / Slack hidden (`brand.css`) |
+| API | `OXEE_CALL_INSIGHTS` | `true` | Persist recording-start marker, per-turn latency breakdown, interruption flag (call-detail page) |
+| API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
 
@@ -66,6 +68,10 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/routes/organization.py` — schemas restricted to Local Models, default providers, save-time enforcement
 - `api/routes/workflow.py` — same enforcement on workflow model overrides
 - `api/routes/workflow_recording.py` — transcription through the org STT
+- `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
+- `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown`
+- `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
+- `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 
 **UI**
 - `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
@@ -83,6 +89,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/components/AIModelConfigurationV2Editor.tsx` — BYOK only, no mode tabs, no third-party notice
 - `ui/src/components/ServiceConfigurationForm.tsx` — Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved; Voice tab uses `@/brand/LocalVoiceControls` (voice + Listen preview, speed slider)
 - `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
+- `ui/src/app/workflow/[workflowId]/run/[runId]/page.tsx` — renders `@/brand/call-detail/CallDetailPage` (VAPI-style call detail)
 - `ui/src/context/OrgConfigContext.tsx` — registers `@/brand/sessionGuard` (local auth: log out on the first backend 401 instead of leaving every page failing)
 - `ui/next.config.ts` — aliases `@stripe/stripe-js` to `src/brand/stubs/stripe-js.ts` (Stack Auth would otherwise load js.stripe.com + fingerprinting on `/`, `/after-sign-in`, `/workflow`)
 
@@ -101,3 +108,12 @@ OXEE_DISABLE_DOGRAH_SERVICES=false OXEE_DISABLE_TELEMETRY=false \
 # brand gates (force the flags on themselves)
 python -m pytest -c api/pytest.ini --rootdir api api/tests/brand
 ```
+
+## Local web calls (Docker Desktop)
+
+Containers cannot reach the host's published UDP ports here, so WebRTC media
+must go through coturn *inside* the Docker network. Machine-local, not
+committed: in `.env` set `ENABLE_COTURN=true`, `TURN_SECRET`, `TURN_HOST=<LAN
+IP>`, `FORCE_TURN_RELAY=true`; in `docker-compose.local.yaml` set
+`OXEE_SERVER_TURN_HOST: coturn` on `api` and mount a `turnserver.conf` without
+`external-ip` on `coturn`; start with `--profile local-turn`.
