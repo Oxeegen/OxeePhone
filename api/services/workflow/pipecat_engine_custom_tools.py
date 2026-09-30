@@ -17,6 +17,8 @@ from pipecat.frames.frames import FunctionCallResultProperties
 from pipecat.services.llm_service import FunctionCallParams
 from pipecat.utils.enums import EndTaskReason
 
+from api.brand import BRAND
+from api.brand.simulation import tool_override as simulation_tool_override
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
@@ -449,6 +451,17 @@ class CustomToolManager:
                         custom_message, mute_user=True
                     )
 
+                # OxeePhone: tools are never executed while testing a fix.
+                result = (
+                    simulation_tool_override(
+                        function_name, function_call_params.arguments
+                    )
+                    if BRAND.agent_fixes
+                    else None
+                )
+                if result is not None:
+                    await function_call_params.result_callback(result)
+                    return
                 result = await execute_http_tool(
                     tool=tool,
                     arguments=function_call_params.arguments,
@@ -478,9 +491,18 @@ class CustomToolManager:
             logger.info(f"MCP Tool EXECUTED: {function_name}")
             logger.info(f"Arguments: {function_call_params.arguments}")
             try:
-                result = await session.call(
-                    function_name, function_call_params.arguments or {}
+                # OxeePhone: tools are never executed while testing a fix.
+                result = (
+                    simulation_tool_override(
+                        function_name, function_call_params.arguments
+                    )
+                    if BRAND.agent_fixes
+                    else None
                 )
+                if result is None:
+                    result = await session.call(
+                        function_name, function_call_params.arguments or {}
+                    )
                 await function_call_params.result_callback(result)
             except Exception as e:
                 logger.error(f"MCP tool '{function_name}' failed: {e}")

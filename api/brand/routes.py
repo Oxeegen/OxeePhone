@@ -561,3 +561,224 @@ async def discard_agent_draft(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     return {"discarded": True}
+
+
+# --- Automatic fixes ----------------------------------------------------------
+
+
+class CreateFixRequest(BaseModel):
+    report_id: str
+    finding_id: str | None = None
+    language: str = "English"
+
+
+def _stale(fix: dict) -> dict:
+    """A fix stuck in a background step (API restarted) is marked failed."""
+    from datetime import UTC, datetime, timedelta
+
+    busy = fix.get("status") in ("proposing", "testing")
+    updated = fix.get("updated_at")
+    if busy and updated:
+        age = datetime.now(UTC) - datetime.fromisoformat(updated)
+        if age > timedelta(minutes=20):
+            fix = {
+                **fix,
+                "status": "failed",
+                "error": "interrupted (the API restarted?)",
+            }
+    return fix
+
+
+@router.get("/fixes")
+async def list_agent_fixes(
+    report_id: str | None = None,
+    workflow_id: int | None = None,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Automatic fixes, newest first (optionally for one analysis report or agent)."""
+    from api.brand.fixes import list_fixes
+
+    items = await list_fixes(
+        user.selected_organization_id, report_id=report_id, workflow_id=workflow_id
+    )
+    return [_stale(f) for f in items]
+
+
+@router.post("/fixes")
+async def create_agent_fixes(
+    request: CreateFixRequest,
+    background_tasks: BackgroundTasks,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Ask the analysis model for a fix of one finding (``finding_id``) or of
+    every fixable finding of the report without a fix yet. Proposals run in
+    the background: poll GET /fixes/{id}."""
+    from api.brand import fixes
+    from api.brand.analysis import get_report
+
+    org = user.selected_organization_id
+    report = await get_report(org, request.report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    findings = report.get("findings") or []
+    if request.finding_id:
+        findings = [f for f in findings if f.get("id") == request.finding_id]
+        if not findings:
+            raise HTTPException(status_code=404, detail="Finding not found")
+        live = [
+            f
+            for f in await fixes.list_fixes(org, report_id=request.report_id)
+            if f["finding"].get("id") == request.finding_id
+            and f.get("status") in fixes.ACTIVE
+        ]
+        if live:
+            return live[:1]  # one live fix per finding
+    else:
+        taken = {
+            f["finding"].get("id")
+            for f in await fixes.list_fixes(org, report_id=request.report_id)
+            if f.get("status") in fixes.ACTIVE
+        }
+        findings = [
+            f
+            for f in findings
+            if f.get("id") not in taken and fixes.fixability(f)["fixable"]
+        ]
+    created = [
+        await fixes.create(org, user, report, f, language=request.language)
+        for f in findings
+    ]
+
+    async def run_proposals(ids: list[str]):
+        for fix_id in ids:
+            await fixes.propose(org, fix_id)
+
+    background_tasks.add_task(
+        run_proposals, [f["id"] for f in created if f["status"] == "proposing"]
+    )
+    return created
+
+
+@router.get("/fixes/{fix_id}")
+async def get_agent_fix(
+    fix_id: str,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """One fix, with the diff of its proposal against the published version."""
+    from api.brand import fixes
+
+    fix = await fixes.get(user.selected_organization_id, fix_id)
+    if fix is None:
+        raise HTTPException(status_code=404, detail="Fix not found")
+    fix = _stale(fix)
+    try:
+        fix["preview"] = await fixes.preview_diff(user.selected_organization_id, fix)
+    except fixes.FixError as e:
+        fix["preview"] = None
+        fix["preview_error"] = str(e)
+    return fix
+
+
+@router.post("/fixes/{fix_id}/propose")
+async def repropose_agent_fix(
+    fix_id: str,
+    background_tasks: BackgroundTasks,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Ask the model again (after a failure or to get another proposal)."""
+    from api.brand import fixes
+
+    org = user.selected_organization_id
+    fix = await fixes.get(org, fix_id)
+    if fix is None:
+        raise HTTPException(status_code=404, detail="Fix not found")
+    if fix["status"] not in ("proposed", "failed", "not_fixable"):
+        raise HTTPException(status_code=409, detail=f"Fix is {fix['status']}")
+    if not fix.get("workflow_id"):
+        raise HTTPException(
+            status_code=422, detail="The agent of this finding is unknown"
+        )
+    fix.update(status="proposing", error=None, reason=None, proposal=None)
+    await fixes.save(org, fix)
+    background_tasks.add_task(fixes.propose, org, fix_id)
+    return fix
+
+
+class ApplyFixRequest(BaseModel):
+    replace_draft: bool = False
+
+
+@router.post("/fixes/{fix_id}/apply")
+async def apply_agent_fix(
+    fix_id: str,
+    request: ApplyFixRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Save the proposal as a draft of the agent (combined with the other
+    fixes already in a fix draft). 409 when a draft made by hand exists,
+    unless ``replace_draft``. The published version is untouched."""
+    from api.brand import fixes, versions
+
+    try:
+        return await fixes.apply(
+            user.selected_organization_id,
+            fix_id,
+            user,
+            replace_draft=request.replace_draft,
+        )
+    except versions.DraftExists as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Draft v{e.draft.version_number} has unpublished changes made "
+            "by hand; pass replace_draft to discard it",
+        ) from e
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except fixes.FixError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+class SimulateFixRequest(BaseModel):
+    max_cases: int = Field(default=3, ge=1, le=5)
+
+
+@router.post("/fixes/{fix_id}/simulate")
+async def simulate_agent_fix(
+    fix_id: str,
+    request: SimulateFixRequest,
+    background_tasks: BackgroundTasks,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Replay the finding's calls (or recent calls) as text on the published
+    version and on the draft, then compare. Tools are not executed: their
+    recorded results are replayed. Runs in the background."""
+    from api.brand import fixes
+
+    org = user.selected_organization_id
+    fix = await fixes.get(org, fix_id)
+    if fix is None:
+        raise HTTPException(status_code=404, detail="Fix not found")
+    if fix["status"] not in ("applied", "tested"):
+        raise HTTPException(status_code=409, detail="Apply the fix to a draft first")
+    fix.update(status="testing", simulation={"status": "starting", "cases": []})
+    await fixes.save(org, fix)
+    background_tasks.add_task(
+        fixes.simulate, org, fix_id, user.id, max_cases=request.max_cases
+    )
+    return fix
+
+
+@router.post("/fixes/{fix_id}/discard")
+async def discard_agent_fix(
+    fix_id: str,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Drop the fix (and its draft when it holds no other fix)."""
+    from api.brand import fixes
+
+    try:
+        return await fixes.discard(user.selected_organization_id, fix_id)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except fixes.FixError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e

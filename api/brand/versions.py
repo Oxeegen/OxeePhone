@@ -172,6 +172,7 @@ async def record_published(definition: Any, user: Any, *, organization_id: int) 
         meta["published_at"] = _now()
         meta["published_via"] = current_channel().get("channel")
         await _save_meta(organization_id, definition.workflow_id, definition.id, meta)
+        await _set_fixes_status(organization_id, meta.get("fixes"), "published")
     except Exception as e:
         logger.warning(f"Could not record the publication: {e}")
 
@@ -470,6 +471,23 @@ async def discard_draft(workflow_id: int, *, organization_id: int) -> None:
     draft = await db_client.get_draft_version(workflow_id)
     await db_client.discard_workflow_draft(workflow_id)
     if draft is not None:
+        meta = await get_meta(organization_id, workflow_id, draft.id)
+        await _set_fixes_status(organization_id, meta.get("fixes"), "discarded")
         await brand_db.delete_configuration(
             organization_id, _key(workflow_id, draft.id)
         )
+
+
+async def _set_fixes_status(
+    organization_id: int, fix_ids: list | None, status: str
+) -> None:
+    """Automatic fixes follow the draft that holds them."""
+    if not fix_ids:
+        return
+    from api.brand import fixes
+
+    for fix_id in fix_ids:
+        fix = await fixes.get(organization_id, fix_id)
+        if fix and fix.get("status") in ("applied", "testing", "tested"):
+            fix["status"] = status
+            await fixes.save(organization_id, fix)

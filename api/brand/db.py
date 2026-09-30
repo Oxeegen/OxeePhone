@@ -48,6 +48,8 @@ async def get_definition_graphs(
 
 
 INSIGHTS_MAX_RUNS = 5000
+# Text replays of automatic-fix tests (api/brand/simulation.py).
+SIM_RUN_PREFIX = "OXEE-SIM-"
 
 
 async def get_runs_for_insights(
@@ -84,6 +86,7 @@ async def get_runs_for_insights(
                 WorkflowModel.organization_id == organization_id,
                 WorkflowRunModel.created_at >= start_utc,
                 WorkflowRunModel.created_at <= end_utc,
+                ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
             )
             .order_by(WorkflowRunModel.created_at.desc())
             .limit(limit)
@@ -162,6 +165,7 @@ async def count_runs_by_definition(
                 .where(
                     WorkflowRunModel.workflow_id == workflow_id,
                     WorkflowModel.organization_id == organization_id,
+                    ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
                 )
                 .group_by(WorkflowRunModel.definition_id)
             )
@@ -211,3 +215,96 @@ async def get_previous_version(
             .scalars()
             .first()
         )
+
+
+def _run_columns():
+    from api.db.models import WorkflowRunModel
+
+    return (
+        WorkflowRunModel.id,
+        WorkflowRunModel.workflow_id,
+        WorkflowModel.name,
+        WorkflowRunModel.definition_id,
+        WorkflowRunModel.created_at,
+        WorkflowRunModel.is_completed,
+        WorkflowRunModel.mode,
+        WorkflowRunModel.usage_info,
+        WorkflowRunModel.gathered_context,
+        WorkflowRunModel.logs,
+    )
+
+
+def _run_dict(r) -> dict:
+    return {
+        "id": r[0],
+        "workflow_id": r[1],
+        "workflow_name": r[2],
+        "definition_id": r[3],
+        "created_at": r[4],
+        "is_completed": r[5],
+        "mode": r[6],
+        "usage_info": r[7] or {},
+        "gathered_context": r[8] or {},
+        "logs": r[9] or {},
+    }
+
+
+async def get_runs_by_ids(run_ids: list[int], *, organization_id: int) -> list[dict]:
+    """Runs by id, same shape as ``get_runs_for_insights`` (org-scoped, in the
+    given order)."""
+    from api.db.models import WorkflowRunModel
+
+    ids = [int(i) for i in run_ids if i is not None]
+    if not ids:
+        return []
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(*_run_columns())
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(
+                    WorkflowRunModel.id.in_(ids),
+                    WorkflowModel.organization_id == organization_id,
+                )
+            )
+        ).all()
+    by_id = {r[0]: _run_dict(r) for r in rows}
+    return [by_id[i] for i in ids if i in by_id]
+
+
+async def recent_calls(
+    workflow_id: int, *, organization_id: int, limit: int = 10
+) -> list[dict]:
+    """Latest completed real calls (no text chats, no simulations) of an agent."""
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(*_run_columns())
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(
+                    WorkflowRunModel.workflow_id == workflow_id,
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowRunModel.is_completed.is_(True),
+                    WorkflowRunModel.mode != "textchat",
+                    ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+                )
+                .order_by(WorkflowRunModel.created_at.desc())
+                .limit(limit)
+            )
+        ).all()
+    return [_run_dict(r) for r in rows]
+
+
+async def find_workflow_by_name(organization_id: int, name: str) -> int | None:
+    async with db_client.async_session() as session:
+        row = (
+            await session.execute(
+                select(WorkflowModel.id).where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowModel.name == name,
+                )
+            )
+        ).first()
+    return row[0] if row else None

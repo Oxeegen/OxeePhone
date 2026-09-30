@@ -12,6 +12,7 @@ import {
   Ruler,
   SearchCheck,
   Trash2,
+  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,6 +27,8 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { FixControls, requestFixes, useReportFixes } from "../fixes/FixPanel";
+import { fixability, fixForFinding } from "../fixes/model";
 import { ThresholdsPanel } from "./ThresholdsPanel";
 
 // Analysis: run a review of recorded calls (rules + the org's analysis model)
@@ -94,7 +97,7 @@ function SeverityBadge({ severity, count }: { severity: Severity; count?: number
   );
 }
 
-function FindingCard({ finding, links }: { finding: Finding; links: Record<string, number> }) {
+function FindingCard({ finding, links, children }: { finding: Finding; links: Record<string, number>; children?: React.ReactNode }) {
   const meta = SEVERITY[finding.severity];
   const Icon = meta.icon;
   return (
@@ -133,6 +136,7 @@ function FindingCard({ finding, links }: { finding: Finding; links: Record<strin
           )}
         </p>
       )}
+      {children}
     </Card>
   );
 }
@@ -228,6 +232,12 @@ export function AnalysisPage() {
   const periodLabel = (d: number) => PERIODS.find((p) => p.days === d)?.label ?? `${d} days`;
   const categories = useMemo(() => Array.from(new Set((report?.findings ?? []).map((f) => f.category))), [report]);
   const findings = (report?.findings ?? []).filter((f) => category === "all" || f.category === category);
+  const { fixes, reload: reloadFixes } = useReportFixes(report?.status === "done" ? report.id : null);
+  const [fixingAll, setFixingAll] = useState(false);
+  const fixableLeft = (report?.findings ?? []).filter((f) => {
+    const current = fixForFinding(fixes, f.id);
+    return fixability(f).fixable && (!current || ["discarded", "failed"].includes(current.status));
+  }).length;
   const running = report?.status === "running" || report?.status === "reviewing";
 
   return (
@@ -334,6 +344,24 @@ export function AnalysisPage() {
                       : ""}
                   </p>
                 </div>
+                {report.status === "done" && fixableLeft > 0 && (
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    disabled={fixingAll}
+                    onClick={async () => {
+                      setFixingAll(true);
+                      const created = await requestFixes(report.id, language);
+                      setFixingAll(false);
+                      if (created) {
+                        toast.success(`${created.length} fix${created.length > 1 ? "es" : ""} requested — the analysis model is preparing them`);
+                        void reloadFixes();
+                      }
+                    }}
+                  >
+                    {fixingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wrench className="h-4 w-4" />} Fix all ({fixableLeft})
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" className="gap-2" onClick={() => void remove(report.id)}>
                   <Trash2 className="h-4 w-4" /> Delete
                 </Button>
@@ -387,7 +415,17 @@ export function AnalysisPage() {
               )}
               <div className="space-y-3">
                 {findings.map((f) => (
-                  <FindingCard key={f.id} finding={f} links={report.call_links ?? {}} />
+                  <FindingCard key={f.id} finding={f} links={report.call_links ?? {}}>
+                    {report.status === "done" && (
+                      <FixControls
+                        finding={f}
+                        fix={fixForFinding(fixes, f.id)}
+                        reportId={report.id}
+                        language={language}
+                        onChanged={() => void reloadFixes()}
+                      />
+                    )}
+                  </FindingCard>
                 ))}
               </div>
             </>

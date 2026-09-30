@@ -37,6 +37,9 @@ class BrandConfig:
     # Agent versions page: origin/author of each version, diffs, restore
     # (see brand/versions.py).
     version_history: bool
+    # Automatic fixes of analysis findings, tested by text simulation
+    # (see brand/fixes.py, brand/simulation.py).
+    agent_fixes: bool
 
 
 BRAND = BrandConfig(
@@ -49,4 +52,5 @@ BRAND = BrandConfig(
     call_insights=_env_flag("OXEE_CALL_INSIGHTS", True),
     speaking_plan=_env_flag("OXEE_SPEAKING_PLAN", True),
     version_history=_env_flag("OXEE_VERSION_HISTORY", True),
+    agent_fixes=_env_flag("OXEE_AGENT_FIXES", True),
 )

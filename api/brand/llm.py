@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -17,6 +18,9 @@ def extract_json(text: str) -> dict:
     if start < 0 or end < start:
         raise ValueError("the model did not answer with JSON")
     return json.loads(text[start : end + 1])
+
+
+RETRY_DELAYS = (3.0, 8.0, 20.0)
 
 
 async def chat_json(
@@ -52,10 +56,17 @@ async def chat_json(
     }
     url = f"{model['base_url'].rstrip('/')}/chat/completions"
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
-        response = await client.post(url, headers=headers, json=body)
-        if response.status_code == 400 and "chat_template_kwargs" in response.text:
-            body.pop("chat_template_kwargs")
+        for attempt in range(len(RETRY_DELAYS) + 1):
             response = await client.post(url, headers=headers, json=body)
+            if response.status_code == 400 and "chat_template_kwargs" in response.text:
+                body.pop("chat_template_kwargs")
+                response = await client.post(url, headers=headers, json=body)
+            # Gateways rate-limit bursts (nginx 503) and busy servers say 429.
+            if response.status_code not in (429, 502, 503) or attempt == len(
+                RETRY_DELAYS
+            ):
+                break
+            await asyncio.sleep(RETRY_DELAYS[attempt])
     if response.status_code >= 400:
         raise RuntimeError(
             f"{url} answered HTTP {response.status_code}: {response.text[:200]}"

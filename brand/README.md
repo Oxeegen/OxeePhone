@@ -44,6 +44,7 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | API | `OXEE_CALL_INSIGHTS` | `true` | Persist recording-start marker, per-turn latency breakdown, interruption flag (call-detail page) |
 | API | `OXEE_SPEAKING_PLAN` | `true` | Apply the agent's start/stop speaking plans (`speaking_plan` workflow config, `api/brand/speaking_plan.py`); agents without one keep the upstream turn settings |
 | API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
+| API | `OXEE_AGENT_FIXES` | `true` | Automatic fixes of analysis findings (model proposal → draft → text simulation → publish; `api/brand/fixes.py`, `api/brand/simulation.py`, `/api/v1/oxee/fixes*`); simulation runs are named `OXEE-SIM-…` and left out of reports / analyses |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -76,6 +77,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/app.py` — `ChannelMiddleware` (request channel: editor / API key / MCP) when `version_history`
 - `api/routes/workflow.py` — records version edits (update, create-draft) and publications in `api/brand/versions.py`
 - `api/mcp_server/tools/save_workflow.py` — records MCP drafts (origin `mcp`)
+- `api/services/workflow/pipecat_engine_custom_tools.py` — HTTP / MCP tools answered by `api/brand/simulation.tool_override` during a fix simulation (never executed)
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 
 **UI**
