@@ -43,6 +43,7 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | UI | `BRAND.hideDocs` | `true` | Links to `dograh.com` / docs / GitHub / Slack hidden (`brand.css`) |
 | API | `OXEE_CALL_INSIGHTS` | `true` | Persist recording-start marker, per-turn latency breakdown, interruption flag (call-detail page) |
 | API | `OXEE_SPEAKING_PLAN` | `true` | Apply the agent's start/stop speaking plans (`speaking_plan` workflow config, `api/brand/speaking_plan.py`); agents without one keep the upstream turn settings |
+| API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -72,6 +73,9 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
 - `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown` (minus turns falsely measured from the call start); speaking plan: VAD `start_secs`, turn start/stop strategies, stop timeout, `SpeakingPlanGate` before the output transport
 - `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
+- `api/app.py` — `ChannelMiddleware` (request channel: editor / API key / MCP) when `version_history`
+- `api/routes/workflow.py` — records version edits (update, create-draft) and publications in `api/brand/versions.py`
+- `api/mcp_server/tools/save_workflow.py` — records MCP drafts (origin `mcp`)
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 
 **UI**
@@ -94,6 +98,8 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
 - `ui/src/app/workflow/[workflowId]/run/[runId]/page.tsx` — renders `@/brand/call-detail/CallDetailPage` (VAPI-style call detail, incl. Routing tab fed by `GET /api/v1/oxee/runs/{id}/routing`)
 - `ui/src/app/workflow/[workflowId]/settings/page.tsx` — Start / Stop speaking plans (`@/brand/SpeakingPlanSection`) in place of Turn Detection / Interruption; saves `speaking_plan` plus the matching upstream turn keys
+- `ui/src/app/workflow/[workflowId]/versions/page.tsx` — new route rendering `@/brand/versions/VersionsPage` (versions list, summary + AI summary, detailed diff, restore / publish / discard)
+- `ui/src/app/workflow/[workflowId]/RenderWorkflow.tsx`, `components/VersionHistoryPanel.tsx` — optional `versionsPageHref` link in the history panel
 - `ui/src/app/reports/page.tsx` — appends `@/brand/reports/CallInsights` (latency, consumption, quality, tools, routing; `GET /api/v1/oxee/reports/insights`)
 - `ui/src/context/OrgConfigContext.tsx` — registers `@/brand/sessionGuard` (local auth: log out on the first backend 401 instead of leaving every page failing)
 - `ui/next.config.ts` — aliases `@stripe/stripe-js` to `src/brand/stubs/stripe-js.ts` (Stack Auth would otherwise load js.stripe.com + fingerprinting on `/`, `/after-sign-in`, `/workflow`)

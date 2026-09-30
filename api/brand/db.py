@@ -144,3 +144,70 @@ async def delete_configuration(organization_id: int, key: str) -> bool:
         )
         await session.commit()
         return (result.rowcount or 0) > 0
+
+
+async def count_runs_by_definition(
+    workflow_id: int, *, organization_id: int
+) -> dict[int, int]:
+    """``{definition_id: number of runs}`` for one workflow (org-scoped)."""
+    from sqlalchemy import func
+
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(WorkflowRunModel.definition_id, func.count(WorkflowRunModel.id))
+                .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+                .where(
+                    WorkflowRunModel.workflow_id == workflow_id,
+                    WorkflowModel.organization_id == organization_id,
+                )
+                .group_by(WorkflowRunModel.definition_id)
+            )
+        ).all()
+    return {d: n for d, n in rows if d is not None}
+
+
+async def get_workflow_version(
+    workflow_id: int, definition_id: int
+) -> WorkflowDefinitionModel | None:
+    """One version of a workflow (the caller checked the workflow's organization)."""
+    async with db_client.async_session() as session:
+        return (
+            (
+                await session.execute(
+                    select(WorkflowDefinitionModel).where(
+                        WorkflowDefinitionModel.id == definition_id,
+                        WorkflowDefinitionModel.workflow_id == workflow_id,
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+
+async def get_previous_version(
+    workflow_id: int, version_number: int
+) -> WorkflowDefinitionModel | None:
+    """The version just before ``version_number`` (any status)."""
+    async with db_client.async_session() as session:
+        return (
+            (
+                await session.execute(
+                    select(WorkflowDefinitionModel)
+                    .where(
+                        WorkflowDefinitionModel.workflow_id == workflow_id,
+                        WorkflowDefinitionModel.version_number < version_number,
+                        WorkflowDefinitionModel.status.in_(
+                            ["published", "draft", "archived"]
+                        ),
+                    )
+                    .order_by(WorkflowDefinitionModel.version_number.desc())
+                    .limit(1)
+                )
+            )
+            .scalars()
+            .first()
+        )

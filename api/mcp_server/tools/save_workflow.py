@@ -26,6 +26,7 @@ from fastapi import HTTPException
 from loguru import logger
 from pydantic import ValidationError as PydanticValidationError
 
+from api.brand import BRAND
 from api.db import db_client
 from api.mcp_server.auth import authenticate_mcp_request
 from api.mcp_server.tools._workflow_projection import (
@@ -174,6 +175,12 @@ async def save_workflow(workflow_id: int, code: str) -> dict[str, Any]:
         workflow_id=workflow_id,
         workflow_definition=payload,
     )
+    if BRAND.version_history:
+        from api.brand.versions import record_edit
+
+        await record_edit(
+            draft, user, organization_id=user.selected_organization_id, origin="mcp"
+        )
 
     return {
         "saved": True,

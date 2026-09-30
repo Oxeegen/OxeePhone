@@ -34,6 +34,9 @@ class BrandConfig:
     call_insights: bool
     # Per-agent start/stop speaking plans (see brand/speaking_plan.py).
     speaking_plan: bool
+    # Agent versions page: origin/author of each version, diffs, restore
+    # (see brand/versions.py).
+    version_history: bool
 
 
 BRAND = BrandConfig(
@@ -45,4 +48,5 @@ BRAND = BrandConfig(
     local_models_only=_env_flag("OXEE_LOCAL_MODELS_ONLY", True),
     call_insights=_env_flag("OXEE_CALL_INSIGHTS", True),
     speaking_plan=_env_flag("OXEE_SPEAKING_PLAN", True),
+    version_history=_env_flag("OXEE_VERSION_HISTORY", True),
 )

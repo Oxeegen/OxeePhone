@@ -884,6 +884,12 @@ async def publish_workflow(
         published = await db_client.publish_workflow_draft(workflow_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    if BRAND.version_history:
+        from api.brand.versions import record_published
+
+        await record_published(
+            published, user, organization_id=user.selected_organization_id
+        )
 
     capture_event(
         distinct_id=str(user.provider_id),
@@ -921,6 +927,15 @@ async def create_workflow_draft(
         )
 
     draft = await db_client.save_workflow_draft(workflow_id)
+    if BRAND.version_history:
+        from api.brand.versions import record_edit
+
+        await record_edit(
+            draft,
+            user,
+            organization_id=user.selected_organization_id,
+            only_if_new=True,
+        )
     return WorkflowVersionResponse(
         id=draft.id,
         version_number=draft.version_number,
@@ -1302,6 +1317,12 @@ async def update_workflow(
 
         # Return draft content if one exists (save creates a draft)
         draft = await db_client.get_draft_version(workflow_id)
+        if BRAND.version_history and draft:
+            from api.brand.versions import record_edit
+
+            await record_edit(
+                draft, user, organization_id=user.selected_organization_id
+            )
         if draft:
             workflow_def = draft.workflow_json
             workflow_configs = draft.workflow_configurations

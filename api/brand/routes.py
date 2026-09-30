@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from api.brand.local_models import (
@@ -407,3 +407,157 @@ async def suggest_analysis_thresholds(
     except (RuntimeError, ValueError, httpx.HTTPError) as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     return _thresholds_response(state)
+
+
+# --- Agent versions ---------------------------------------------------------
+
+
+async def _own_workflow(workflow_id: int, user: UserModel):
+    from api.db import db_client
+
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found")
+    return workflow
+
+
+@router.get("/workflows/{workflow_id}/versions")
+async def list_agent_versions(
+    workflow_id: int,
+    limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Versions of an agent, newest first, each with its origin (editor, API
+    key, MCP, restore, automatic fix), authors, number of calls and a short
+    summary of what changed since the previous version."""
+    from api.brand.versions import list_versions
+
+    await _own_workflow(workflow_id, user)
+    return await list_versions(
+        workflow_id,
+        organization_id=user.selected_organization_id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/workflows/{workflow_id}/versions/{definition_id}/diff")
+async def get_agent_version_diff(
+    workflow_id: int,
+    definition_id: int,
+    base: int | None = Query(
+        None, description="Version id to compare with (default: the previous version)"
+    ),
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Detailed diff: every node, transition, setting and variable changed,
+    with before / after values and word-level diffs of long texts."""
+    from api.brand.versions import version_diff
+
+    await _own_workflow(workflow_id, user)
+    diff = await version_diff(
+        workflow_id,
+        definition_id,
+        organization_id=user.selected_organization_id,
+        base_id=base,
+    )
+    if diff is None:
+        raise HTTPException(status_code=404, detail="Version not found")
+    return diff
+
+
+class VersionSummaryRequest(BaseModel):
+    base: int | None = None
+    language: str = "English"
+
+
+@router.post("/workflows/{workflow_id}/versions/{definition_id}/summary")
+async def summarize_agent_version(
+    workflow_id: int,
+    definition_id: int,
+    request: VersionSummaryRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Plain-language summary of the changes, written by the analysis model
+    (kept with the version)."""
+    from api.brand.versions import summarize
+
+    await _own_workflow(workflow_id, user)
+    try:
+        return await summarize(
+            workflow_id,
+            definition_id,
+            organization_id=user.selected_organization_id,
+            base_id=request.base,
+            language=request.language,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except (RuntimeError, httpx.HTTPError) as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+class RestoreVersionRequest(BaseModel):
+    replace_draft: bool = False
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/workflows/{workflow_id}/versions/{definition_id}/restore")
+async def restore_agent_version(
+    workflow_id: int,
+    definition_id: int,
+    request: RestoreVersionRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Create a draft with the content of an earlier version (graph, settings,
+    variables). The published version keeps running until the draft is
+    published (POST /api/v1/workflow/{id}/publish). 409 when a draft already
+    exists, unless ``replace_draft``."""
+    from api.brand.versions import DraftExists, restore
+
+    await _own_workflow(workflow_id, user)
+    try:
+        draft = await restore(
+            workflow_id,
+            definition_id,
+            user,
+            organization_id=user.selected_organization_id,
+            replace_draft=request.replace_draft,
+            note=request.note,
+        )
+    except DraftExists as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Draft v{e.draft.version_number} has unpublished changes; "
+            "pass replace_draft to discard it",
+        ) from e
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {
+        "id": draft.id,
+        "version_number": draft.version_number,
+        "status": draft.status,
+    }
+
+
+@router.delete("/workflows/{workflow_id}/draft")
+async def discard_agent_draft(
+    workflow_id: int,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Throw away the unpublished draft; the published version stays."""
+    from api.brand.versions import discard_draft
+
+    await _own_workflow(workflow_id, user)
+    try:
+        await discard_draft(workflow_id, organization_id=user.selected_organization_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return {"discarded": True}

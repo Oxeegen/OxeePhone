@@ -1,7 +1,8 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { FileDiff, FileText, LoaderCircle, X } from "lucide-react";
+import { ExternalLink, FileDiff, FileText, LoaderCircle, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect } from "react";
 
 import type { WorkflowVersionResponse } from "@/client/types.gen";
@@ -19,6 +20,8 @@ interface VersionHistoryPanelProps {
     hasMore: boolean;
     loadingMore: boolean;
     onLoadMore: () => void;
+    /** OxeePhone: link to the full versions page (origin, authors, diffs, restore). */
+    versionsPageHref?: string;
 }
 
 const statusLabel: Record<string, string> = {
@@ -45,6 +48,7 @@ export const VersionHistoryPanel = ({
     hasMore,
     loadingMore,
     onLoadMore,
+    versionsPageHref,
 }: VersionHistoryPanelProps) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -77,6 +81,15 @@ export const VersionHistoryPanel = ({
                         <X className="w-5 h-5" />
                     </Button>
                 </div>
+
+                {versionsPageHref && (
+                    <Link
+                        href={versionsPageHref}
+                        className="mb-4 flex items-center justify-center gap-2 rounded-lg border border-[#3a3a3a] px-3 py-2 text-sm text-gray-200 hover:bg-[#2a2a2a]"
+                    >
+                        <ExternalLink className="h-4 w-4" /> Open the versions page
+                    </Link>
+                )}
 
                 {loading ? (
                     <div className="flex items-center justify-center py-12">

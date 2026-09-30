@@ -158,6 +158,13 @@ def _add_public_embed_cors_middleware() -> None:
 
 _add_public_embed_cors_middleware()
 
+if BRAND.version_history:
+    # OxeePhone: tag requests with their channel (editor / API key / MCP) so
+    # agent versions record how they were made.
+    from api.brand.versions import ChannelMiddleware
+
+    app.add_middleware(ChannelMiddleware, api_prefix=API_PREFIX)
+
 api_router = APIRouter()
 
 # include subrouters here
