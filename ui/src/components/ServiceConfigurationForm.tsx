@@ -1,9 +1,10 @@
 "use client";
 
 import { ExternalLink, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { AnalysisModelTab, type AnalysisModelTabHandle } from "@/brand/AnalysisModelTab";
 import { localModelsOnly } from "@/brand/brand";
 import { LocalModelPicker } from "@/brand/LocalModelPicker";
 import { localFieldLabel, LocalSpeedSlider, LocalVoiceField, LocalVolumeSlider } from "@/brand/LocalVoiceControls";
@@ -116,6 +117,8 @@ export interface ServiceConfigurationFormProps {
      * Leave undefined to keep the user-controllable toggle (legacy + overrides).
      */
     forceRealtime?: boolean;
+    /** OxeePhone: extra "Analysis" tab (org Models page only). */
+    showAnalysisTab?: boolean;
 }
 
 function getProviderDisplayName(
@@ -169,7 +172,9 @@ export function ServiceConfigurationForm({
     configurationDefaults,
     initialConfig,
     forceRealtime,
+    showAnalysisTab = false,
 }: ServiceConfigurationFormProps) {
+    const analysisTab = useRef<AnalysisModelTabHandle>(null);
     const [apiError, setApiError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRealtime, setIsRealtime] = useState(forceRealtime ?? false);
@@ -554,6 +559,7 @@ export function ServiceConfigurationForm({
                     saveConfig.embeddings = buildServiceConfig("embeddings", data);
                 }
                 await onSave(saveConfig);
+                if (showAnalysisTab) await analysisTab.current?.save();
             }
             setApiError(null);
         } catch (error: unknown) {
@@ -998,6 +1004,7 @@ export function ServiceConfigurationForm({
     };
 
     const visibleTabs = getVisibleTabs();
+    const withAnalysisTab = showAnalysisTab && mode === "global" && !isRealtime;
     const defaultTab = isRealtime ? "realtime" : "llm";
 
     return (
@@ -1024,12 +1031,13 @@ export function ServiceConfigurationForm({
             <Card>
                 <CardContent className="pt-6">
                     <Tabs key={defaultTab} defaultValue={defaultTab} className="w-full">
-                        <TabsList className="grid w-full mb-6" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+                        <TabsList className="grid w-full mb-6" style={{ gridTemplateColumns: `repeat(${visibleTabs.length + (withAnalysisTab ? 1 : 0)}, 1fr)` }}>
                             {visibleTabs.map(({ key, label }) => (
                                 <TabsTrigger key={key} value={key}>
                                     {label}
                                 </TabsTrigger>
                             ))}
+                            {withAnalysisTab && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
                         </TabsList>
 
                         {visibleTabs.map(({ key, label }) => (
@@ -1038,6 +1046,11 @@ export function ServiceConfigurationForm({
                                 {(mode === 'global' || enabledOverrides[key]) && renderServiceFields(key)}
                             </TabsContent>
                         ))}
+                        {withAnalysisTab && (
+                            <TabsContent value="analysis" forceMount className="mt-0 data-[state=inactive]:hidden">
+                                <AnalysisModelTab ref={analysisTab} />
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </CardContent>
             </Card>

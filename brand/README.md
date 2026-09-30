@@ -80,14 +80,16 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/components/auth/AuthShell.tsx` — headline, highlights, no enterprise CTA
 - `ui/src/components/Footer.tsx` — hidden (dograh.com privacy/terms)
 - `ui/src/components/layout/AppLayout.tsx` — no Slack community link
-- `ui/src/components/layout/AppSidebar.tsx` — no Billing entry, no "Hire an Expert"
+- `ui/src/components/layout/AppSidebar.tsx` — no Billing entry, no "Hire an Expert", MANAGE › Analysis entry
+- `ui/src/app/analysis/page.tsx` — new route rendering `@/brand/analysis/AnalysisPage` (configuration analysis; `api/brand/analysis.py`, `/api/v1/oxee/analysis/*`)
 - `ui/src/components/layout/GitHubStarBadge.tsx` — hidden, no GitHub API call
 - `ui/src/app/overview/page.tsx` — welcome copy, no Dograh resources card
 - `ui/src/instrumentation-client.ts`, `ui/src/app/api/config/{posthog,sentry}/route.ts` — telemetry off
 - `ui/src/components/lead-forms/onboardingServiceClient.ts`, `HireExpertNudge.tsx`, `ui/src/context/LeadFormsContext.tsx` — no lead forms
 - `ui/src/hooks/useLatestReleaseVersion.ts` — no release check
-- `ui/src/components/AIModelConfigurationV2Editor.tsx` — BYOK only, no mode tabs, no third-party notice
-- `ui/src/components/ServiceConfigurationForm.tsx` — Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved; Voice tab uses `@/brand/LocalVoiceControls` (voice + Listen preview, speed slider)
+- `ui/src/components/AIModelConfigurationV2Editor.tsx` — BYOK only, no mode tabs, no third-party notice; passes `showAnalysisTab`
+- `ui/src/components/ModelConfigurationV2.tsx` — `showAnalysisTab` on the org Models page only (not workflow overrides)
+- `ui/src/components/ServiceConfigurationForm.tsx` — `showAnalysisTab` (Models › Analysis, saved with the form); Base URL in place of the provider select, `@/brand/LocalModelPicker` for `model`, keyless embeddings saved; Voice tab uses `@/brand/LocalVoiceControls` (voice + Listen preview, speed slider)
 - `ui/src/app/files/DocumentUpload.tsx` — no "sent to Dograh" notice, no `.doc`
 - `ui/src/app/workflow/[workflowId]/run/[runId]/page.tsx` — renders `@/brand/call-detail/CallDetailPage` (VAPI-style call detail, incl. Routing tab fed by `GET /api/v1/oxee/runs/{id}/routing`)
 - `ui/src/app/reports/page.tsx` — appends `@/brand/reports/CallInsights` (latency, consumption, quality, tools, routing; `GET /api/v1/oxee/reports/insights`)

@@ -106,3 +106,41 @@ async def get_runs_for_insights(
         }
         for r in rows
     ]
+
+
+async def list_configurations_by_prefix(
+    organization_id: int, prefix: str, *, limit: int = 50
+) -> list[dict]:
+    """Values of the organization's configurations whose key starts with ``prefix``
+    (newest first)."""
+    from api.db.models import OrganizationConfigurationModel
+
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(OrganizationConfigurationModel.value)
+                .where(
+                    OrganizationConfigurationModel.organization_id == organization_id,
+                    OrganizationConfigurationModel.key.startswith(prefix),
+                )
+                .order_by(OrganizationConfigurationModel.created_at.desc())
+                .limit(limit)
+            )
+        ).all()
+    return [r[0] for r in rows if r[0]]
+
+
+async def delete_configuration(organization_id: int, key: str) -> bool:
+    from sqlalchemy import delete
+
+    from api.db.models import OrganizationConfigurationModel
+
+    async with db_client.async_session() as session:
+        result = await session.execute(
+            delete(OrganizationConfigurationModel).where(
+                OrganizationConfigurationModel.organization_id == organization_id,
+                OrganizationConfigurationModel.key == key,
+            )
+        )
+        await session.commit()
+        return (result.rowcount or 0) > 0

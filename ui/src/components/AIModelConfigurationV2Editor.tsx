@@ -76,6 +76,8 @@ interface AIModelConfigurationV2EditorProps {
     pricing?: ModelConfigurationPricingResponse | null;
     onSave: (configuration: OrganizationAiModelConfigurationV2) => Promise<void>;
     submitLabel?: string;
+    /** OxeePhone: show the Models > Analysis tab (org Models page only). */
+    showAnalysisTab?: boolean;
 }
 
 function firstApiKey(value: unknown): string {
@@ -358,6 +360,7 @@ export function AIModelConfigurationV2Editor({
     pricing,
     onSave,
     submitLabel = "Save Configuration",
+    showAnalysisTab = false,
 }: AIModelConfigurationV2EditorProps) {
     const defaultsForByok = useMemo(() => byokDefaults(defaults), [defaults]);
     const [mode, setMode] = useState<ModelMode>("dograh");
@@ -591,6 +594,7 @@ export function AIModelConfigurationV2Editor({
                         initialConfig={pipelineInitialConfig}
                         submitLabel={submitLabel}
                         onSave={saveByokConfiguration}
+                        showAnalysisTab={showAnalysisTab}
                     />
                     {!localModelsOnly && <ThirdPartyProviderNotice />}
                 </TabsContent>

@@ -16,6 +16,7 @@ import {
   type LucideIcon,
   Megaphone,
   Phone,
+  SearchCheck,
   Settings,
   TrendingUp,
   UserRound,
@@ -26,7 +27,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 
-import { hideDograhServices } from "@/brand/brand";
+import { hideDograhServices, isBranded } from "@/brand/brand";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import ThemeToggle from "@/components/ThemeSwitcher";
@@ -154,11 +155,15 @@ const UPSTREAM_NAV_SECTIONS: SidebarNavSection[] = [
   },
 ];
 
-// OxeePhone: Billing is Dograh-hosted credits, nothing to show when cut.
-const NAV_SECTIONS: SidebarNavSection[] = hideDograhServices
+// OxeePhone: Billing is Dograh-hosted credits, nothing to show when cut;
+// Analysis (configuration review) is added under MANAGE.
+const NAV_SECTIONS: SidebarNavSection[] = isBranded
   ? UPSTREAM_NAV_SECTIONS.map((section) => ({
       ...section,
-      items: section.items.filter((item) => item.url !== "/billing"),
+      items: [
+        ...section.items.filter((item) => !(hideDograhServices && item.url === "/billing")),
+        ...(section.label === "MANAGE" ? [{ title: "Analysis", url: "/analysis", icon: SearchCheck }] : []),
+      ],
     }))
   : UPSTREAM_NAV_SECTIONS;
 

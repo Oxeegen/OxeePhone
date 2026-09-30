@@ -3,6 +3,7 @@
 import { ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { localModelsOnly } from "@/brand/brand";
 import {
     getModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Get,
     getModelConfigurationV2DefaultsApiV1OrganizationsModelConfigurationsV2DefaultsGet,
@@ -138,6 +139,7 @@ export default function ModelConfigurationV2({ docsUrl }: { docsUrl?: string }) 
                     effectiveConfiguration={response.effective_configuration}
                     pricing={pricing}
                     onSave={saveConfiguration}
+                    showAnalysisTab={localModelsOnly}
                 />
             )}
         </div>

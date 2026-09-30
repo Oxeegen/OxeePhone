@@ -14,7 +14,7 @@ import { detailFromError } from "@/lib/apiError";
 // backend so masked keys and private endpoints work). Falls back to free text
 // when the endpoint cannot be listed.
 
-type Service = "llm" | "tts" | "stt" | "embeddings";
+type Service = "llm" | "tts" | "stt" | "embeddings" | "analysis";
 
 const FETCH_DEBOUNCE_MS = 600;
 
