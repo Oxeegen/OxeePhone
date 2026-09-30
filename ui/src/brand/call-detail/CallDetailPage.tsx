@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowLeft, Clock, Copy, FileText, Gauge, List, MessagesSquare, Phone, ScrollText, Sparkles } from "lucide-react";
+import { ArrowLeft, Clock, Copy, FileText, Gauge, GitBranch, List, MessagesSquare, Phone, ScrollText, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { client } from "@/client/client.gen";
 import { getWorkflowApiV1WorkflowFetchWorkflowIdGet, getWorkflowRunApiV1WorkflowWorkflowIdRunsRunIdGet } from "@/client/sdk.gen";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,6 +26,8 @@ import {
   usageSummary,
 } from "./model";
 import { RecordingPlayer, type RecordingPlayerHandle } from "./RecordingPlayer";
+import { buildRouting, type RoutingGraphs, transitionToolCallIds } from "./routing";
+import { RoutingTab } from "./RoutingTab";
 import { TranscriptTab } from "./TranscriptTab";
 import { UsageTab } from "./UsageTab";
 
@@ -66,6 +69,8 @@ export function CallDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [time, setTime] = useState(0);
   const [agentOnset, setAgentOnset] = useState<number | null>(null);
+  const [graphs, setGraphs] = useState<RoutingGraphs | null>(null);
+  const [graphsLoading, setGraphsLoading] = useState(true);
   const player = useRef<RecordingPlayerHandle>(null);
 
   useEffect(() => {
@@ -82,6 +87,10 @@ export function CallDetailPage() {
         getWorkflowApiV1WorkflowFetchWorkflowIdGet({ path: { workflow_id: workflowId } }),
       ]);
       if (cancelled) return;
+      const routing = await client.get<{ 200: RoutingGraphs }, unknown>({ url: `/api/v1/oxee/runs/${runId}/routing` });
+      if (cancelled) return;
+      setGraphs(routing.error ? null : ((routing.data as RoutingGraphs) ?? null));
+      setGraphsLoading(false);
       if (runResponse.error || !runResponse.data) {
         setError("This call could not be loaded.");
       } else {
@@ -96,7 +105,17 @@ export function CallDetailPage() {
   }, [auth.loading, auth.isAuthenticated, workflowId, runId]);
 
   const anchor = useMemo(() => (run ? recordingAnchor(run, agentOnset) : null), [run, agentOnset]);
-  const timeline = useMemo(() => (run ? buildTimeline(run, anchor) : []), [run, anchor]);
+  const routing = useMemo(() => (run ? buildRouting(run, graphs, anchor) : null), [run, graphs, anchor]);
+  const timeline = useMemo(() => {
+    if (!run) return [];
+    const pathwayByNodeItem = new Map(
+      (routing?.steps ?? []).filter((s) => s.edge && s.cause === "condition").map((s) => [s.id.replace("step-", "node-"), s.edge!.label]),
+    );
+    return buildTimeline(run, anchor, {
+      hiddenToolCallIds: routing ? transitionToolCallIds(run, routing) : undefined,
+      pathwayByNodeItem,
+    });
+  }, [run, anchor, routing]);
   const turns = useMemo(() => (run ? latencyTurns(run) : []), [run]);
   const rows = useMemo(() => (run ? eventRows(run, anchor) : []), [run, anchor]);
   const usage = useMemo(() => (run ? usageSummary(run, timeline) : null), [run, timeline]);
@@ -172,6 +191,7 @@ export function CallDetailPage() {
       <Tabs defaultValue="transcript" className="gap-4">
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="transcript" className="gap-1.5"><MessagesSquare className="h-4 w-4" /> Transcript</TabsTrigger>
+          <TabsTrigger value="routing" className="gap-1.5"><GitBranch className="h-4 w-4" /> Routing</TabsTrigger>
           <TabsTrigger value="latency" className="gap-1.5"><Gauge className="h-4 w-4" /> Latency</TabsTrigger>
           <TabsTrigger value="events" className="gap-1.5"><List className="h-4 w-4" /> Events</TabsTrigger>
           <TabsTrigger value="analysis" className="gap-1.5"><Sparkles className="h-4 w-4" /> Analysis</TabsTrigger>
@@ -179,6 +199,9 @@ export function CallDetailPage() {
         </TabsList>
         <TabsContent value="transcript">
           <TranscriptTab items={timeline} agentName={agentName} activeId={activeId} onSeek={seek} />
+        </TabsContent>
+        <TabsContent value="routing">
+          <RoutingTab model={routing} onSeek={seek} loading={graphsLoading} />
         </TabsContent>
         <TabsContent value="latency">
           <LatencyTab turns={turns} />

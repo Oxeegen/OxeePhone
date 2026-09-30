@@ -128,6 +128,7 @@ export function TranscriptTab({
               <div className="h-px flex-1 bg-border" />
               <GitBranch className="h-3 w-3" />
               <span>{item.previous ? `${item.previous} → ${item.name}` : item.name}</span>
+              {item.pathway && <span className="rounded bg-[#8E80FF]/15 px-1.5 py-0.5 text-[#8E80FF]">{item.pathway}</span>}
               <span className="tabular-nums">{formatOffset(item.start)}</span>
               <div className="h-px flex-1 bg-border" />
             </div>

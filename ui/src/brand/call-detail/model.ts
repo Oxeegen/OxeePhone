@@ -108,6 +108,8 @@ export interface TimelineNode {
   id: string;
   name: string;
   previous?: string;
+  /** Label of the pathway (edge) the LLM took, when known. */
+  pathway?: string;
   startMs: number | null;
   start: number | null;
 }
@@ -134,7 +136,11 @@ function parseMaybeJson(value: unknown): unknown {
   }
 }
 
-export function buildTimeline(run: CallRun, anchor: RecordingAnchor | null): TimelineItem[] {
+export function buildTimeline(
+  run: CallRun,
+  anchor: RecordingAnchor | null,
+  options: { hiddenToolCallIds?: Set<string>; pathwayByNodeItem?: Map<string, string> } = {},
+): TimelineItem[] {
   const rel = (t: number | null) => (t !== null && anchor ? (t - anchor.epochMs) / 1000 : null);
   const latencyByTurn = new Map<number, number>();
   for (const e of events(run)) {
@@ -168,6 +174,7 @@ export function buildTimeline(run: CallRun, anchor: RecordingAnchor | null): Tim
       });
     } else if (e.type === "rtf-function-call-start") {
       const id = str(e.payload.tool_call_id) || `tool-${index}`;
+      if (options.hiddenToolCallIds?.has(id)) return; // node transitions, shown as markers
       const call: TimelineToolCall = {
         kind: "tool",
         id,
@@ -196,6 +203,7 @@ export function buildTimeline(run: CallRun, anchor: RecordingAnchor | null): Tim
         id: `node-${index}`,
         name: str(e.payload.node_name) || str(e.node_name) || "node",
         previous: str(e.payload.previous_node_name) || undefined,
+        pathway: options.pathwayByNodeItem?.get(`node-${index}`),
         startMs: eventMs,
         start: rel(eventMs),
       });

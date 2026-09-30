@@ -1,0 +1,819 @@
+{
+ "id": 10,
+ "mode": "smallwebrtc",
+ "created_at": "2026-09-30T17:16:00.505423Z",
+ "is_completed": true,
+ "usage_info": {
+  "llm": {
+   "SpeachesLLMService#0|||Oxee-flash": {
+    "prompt_tokens": 4549,
+    "completion_tokens": 1340,
+    "total_tokens": 5889,
+    "cache_read_input_tokens": 2368,
+    "cache_creation_input_tokens": null,
+    "reasoning_tokens": 0,
+    "input_audio_tokens": null,
+    "output_audio_tokens": null,
+    "cache_read_input_audio_tokens": null
+   }
+  },
+  "tts": {
+   "LocalModelsTTSService#0|||voxee-tts-pro": 422
+  },
+  "stt": {},
+  "call_duration_seconds": 57
+ },
+ "cost_info": {
+  "dograh_token_usage": 0,
+  "call_duration_seconds": 57
+ },
+ "gathered_context": {
+  "nodes_visited": [
+   "Accueil",
+   "Prise de rendez-vous",
+   "Fin d'appel"
+  ],
+  "call_status": "end_call",
+  "call_disposition": "end_call",
+  "mapped_call_disposition": "end_call",
+  "call_tags": [
+   "end_call",
+   "user_speech"
+  ],
+  "agent_visits": [
+   {
+    "visit_id": "visit-ed741320aa95",
+    "workflow_id": 3,
+    "workflow_name": "Cabinet Martin — routage",
+    "definition_id": 4,
+    "runtime_configuration": {
+     "stt_provider": "speaches",
+     "stt_model": "voxee-stt",
+     "tts_provider": "speaches",
+     "tts_model": "voxee-tts-pro",
+     "llm_provider": "speaches",
+     "llm_model": "Oxee-flash"
+    },
+    "entered_at": 1790788560.7579927,
+    "exited_at": 1790788612.130156,
+    "exit_reason": "end_call",
+    "error": null,
+    "node": "Fin d'appel"
+   }
+  ]
+ },
+ "annotations": {},
+ "logs": {
+  "realtime_feedback_events": [
+   {
+    "type": "oxee-recording-started",
+    "payload": {},
+    "timestamp": "2026-09-30T17:16:00.925+00:00"
+   },
+   {
+    "type": "rtf-node-transition",
+    "payload": {
+     "node_id": "1",
+     "node_name": "Accueil",
+     "previous_node_id": null,
+     "previous_node_name": null,
+     "allow_interrupt": true
+    },
+    "timestamp": "2026-09-30T17:16:01.435+00:00",
+    "turn": 1,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 0.6347565650939941,
+     "measured_from": "client_connected",
+     "user_turn_secs": null,
+     "contributions": [
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790788562.0129502,
+       "duration_secs": 0.03381609916687012
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790788561.4120097,
+       "duration_secs": 0.600940465927124
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790788561.4381557,
+       "duration_secs": 0.5745704174041748
+      }
+     ],
+     "function_calls": [],
+     "text_aggregation": null
+    },
+    "timestamp": "2026-09-30T17:16:02.047+00:00",
+    "turn": 1,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Bonjour, cabinet du docteur Martin, que puis-je faire pour vous ?",
+     "timestamp": "2026-09-30T17:16:02.046+00:00",
+     "end_timestamp": "2026-09-30T17:16:06.686+00:00"
+    },
+    "timestamp": "2026-09-30T17:16:06.648+00:00",
+    "turn": 1,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Bonjour, je voudrais prendre rendez-vous avec le Dr Martin. S'il vous plaît.",
+     "final": true,
+     "timestamp": "2026-09-30T17:16:07.501+00:00",
+     "end_timestamp": "2026-09-30T17:16:08.902+00:00"
+    },
+    "timestamp": "2026-09-30T17:16:08.902+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.346621036529541,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:09.251+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-node-transition",
+    "payload": {
+     "node_id": "2",
+     "node_name": "Prise de rendez-vous",
+     "previous_node_id": "1",
+     "previous_node_name": "Accueil",
+     "allow_interrupt": true
+    },
+    "timestamp": "2026-09-30T17:16:09.623+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-function-call-start",
+    "payload": {
+     "function_name": "prise_de_rendez_vous",
+     "tool_call_id": "call_3bfcca0f2808482597343891",
+     "arguments": {}
+    },
+    "timestamp": "2026-09-30T17:16:09.629+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-function-call-end",
+    "payload": {
+     "function_name": "prise_de_rendez_vous",
+     "tool_call_id": "call_3bfcca0f2808482597343891",
+     "result": "{'status': 'done'}"
+    },
+    "timestamp": "2026-09-30T17:16:09.633+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.28572845458984375,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:09.934+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 3.225850820541382
+    },
+    "timestamp": "2026-09-30T17:16:11.327+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 3.2258460521698,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.8011758327484131,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790788568.1009367,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790788568.3009367,
+       "duration_secs": 0.29884767532348633
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790788568.5997844,
+       "duration_secs": 0.36728572845458984
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790788568.1009367,
+       "duration_secs": 2.359712600708008
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790788568.1011,
+       "duration_secs": 0.2423088550567627
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790788568.9045622,
+       "duration_secs": 0.346621036529541
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790788569.6488142,
+       "duration_secs": 0.28572845458984375
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790788570.910845,
+       "duration_secs": 0.41484642028808594
+      }
+     ],
+     "function_calls": [
+      {
+       "function_name": "prise_de_rendez_vous",
+       "start_time": 1790788569.6289878,
+       "duration_secs": 0.004500389099121094
+      }
+     ],
+     "text_aggregation": {
+      "processor": "LocalModelsTTSService#0",
+      "start_time": 1790788569.462971,
+      "duration_secs": 0.16378378868103027
+     }
+    },
+    "timestamp": "2026-09-30T17:16:11.327+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Bien sûr, pour quel jour souhaitez-vous un rendez-vous ?",
+     "timestamp": "2026-09-30T17:16:11.326+00:00",
+     "end_timestamp": "2026-09-30T17:16:15.327+00:00"
+    },
+    "timestamp": "2026-09-30T17:16:15.329+00:00",
+    "turn": 2,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Mardi prochain. Encore une fois. en fin de matinée. Ce serait parfait.",
+     "final": true,
+     "timestamp": "2026-09-30T17:16:18.101+00:00",
+     "end_timestamp": "2026-09-30T17:16:22.081+00:00"
+    },
+    "timestamp": "2026-09-30T17:16:22.081+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.29334497451782227,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:22.377+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-function-call-start",
+    "payload": {
+     "function_name": "check_availability",
+     "tool_call_id": "call_15472acf73ac46649ba4fc74",
+     "arguments": {
+      "day": "mardi"
+     }
+    },
+    "timestamp": "2026-09-30T17:16:22.955+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-function-call-end",
+    "payload": {
+     "function_name": "check_availability",
+     "tool_call_id": "call_15472acf73ac46649ba4fc74",
+     "result": "{'status': 'success', 'status_code': 200, 'data': {'doctor': 'Dr Martin', 'day': 'mardi', 'slots': ['10h30', '11h15', '11h45'], 'duration_minutes': 20}}"
+    },
+    "timestamp": "2026-09-30T17:16:22.961+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.29401183128356934,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:23.262+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 3.565976619720459
+    },
+    "timestamp": "2026-09-30T17:16:24.847+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 3.5659713745117188,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.8011946678161621,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790788581.2806258,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790788581.4806259,
+       "duration_secs": 0.456820011138916
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790788581.9374459,
+       "duration_secs": 0.14808368682861328
+      },
+      {
+       "key": "function_handler",
+       "label": "function handler",
+       "owner": "check_availability",
+       "owner_kind": "service",
+       "start_time": 1790788582.954857,
+       "duration_secs": 0.005989551544189453
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790788584.827668,
+       "duration_secs": 0.018929243087768555
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790788581.2806258,
+       "duration_secs": 2.7361488342285156
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790788581.2808669,
+       "duration_secs": 0.65625
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790788582.0838828,
+       "duration_secs": 0.29334497451782227
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790788582.9686422,
+       "duration_secs": 0.29401183128356934
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790788584.295878,
+       "duration_secs": 0.5315093994140625
+      }
+     ],
+     "function_calls": [
+      {
+       "function_name": "check_availability",
+       "start_time": 1790788582.954857,
+       "duration_secs": 0.005989551544189453
+      }
+     ],
+     "text_aggregation": {
+      "processor": "LocalModelsTTSService#0",
+      "start_time": 1790788582.6983287,
+      "duration_secs": 0.2540156841278076
+     }
+    },
+    "timestamp": "2026-09-30T17:16:24.847+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Je m'appelle Julie Bernard, mon numéro est le 06. 12, 13, 54 56 78",
+     "final": true,
+     "timestamp": "2026-09-30T17:16:31.481+00:00",
+     "end_timestamp": "2026-09-30T17:16:35.611+00:00"
+    },
+    "timestamp": "2026-09-30T17:16:35.611+00:00",
+    "turn": 4,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.2848672866821289,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:35.898+00:00",
+    "turn": 4,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 7.516496419906616
+    },
+    "timestamp": "2026-09-30T17:16:42.328+00:00",
+    "turn": 4,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 7.516491889953613,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.8006103038787842,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790788594.8105292,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790788595.0105293,
+       "duration_secs": 0.43557238578796387
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790788595.4461017,
+       "duration_secs": 0.16915106773376465
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790788602.2978246,
+       "duration_secs": 0.029196500778198242
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790788594.8105292,
+       "duration_secs": 6.682571887969971
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790788594.8106399,
+       "duration_secs": 0.6350517272949219
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790788595.6131165,
+       "duration_secs": 0.2848672866821289
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790788601.7847419,
+       "duration_secs": 0.512831449508667
+      }
+     ],
+     "function_calls": [],
+     "text_aggregation": {
+      "processor": "LocalModelsTTSService#0",
+      "start_time": 1790788601.763307,
+      "duration_secs": 0.021485567092895508
+     }
+    },
+    "timestamp": "2026-09-30T17:16:42.328+00:00",
+    "turn": 4,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Merci, Julie.",
+     "timestamp": "2026-09-30T17:16:24.846+00:00",
+     "end_timestamp": "2026-09-30T17:16:31.484+00:00",
+     "interrupted": true
+    },
+    "timestamp": "2026-09-30T17:16:45.915+00:00",
+    "turn": 3,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Merci beaucoup, au revoir.",
+     "final": true,
+     "timestamp": "2026-09-30T17:16:45.911+00:00",
+     "end_timestamp": "2026-09-30T17:16:47.453+00:00"
+    },
+    "timestamp": "2026-09-30T17:16:47.454+00:00",
+    "turn": 5,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.4763522148132324,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:47.932+00:00",
+    "turn": 5,
+    "node_id": "2",
+    "node_name": "Prise de rendez-vous"
+   },
+   {
+    "type": "rtf-node-transition",
+    "payload": {
+     "node_id": "4",
+     "node_name": "Fin d'appel",
+     "previous_node_id": "2",
+     "previous_node_name": "Prise de rendez-vous",
+     "allow_interrupt": true
+    },
+    "timestamp": "2026-09-30T17:16:49.505+00:00",
+    "turn": 5,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   },
+   {
+    "type": "rtf-function-call-start",
+    "payload": {
+     "function_name": "rendez_vous_confirm_",
+     "tool_call_id": "call_c42ba369cd99407a9ef91ccf",
+     "arguments": {}
+    },
+    "timestamp": "2026-09-30T17:16:49.511+00:00",
+    "turn": 5,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   },
+   {
+    "type": "rtf-function-call-end",
+    "payload": {
+     "function_name": "rendez_vous_confirm_",
+     "tool_call_id": "call_c42ba369cd99407a9ef91ccf",
+     "result": "{'status': 'done'}"
+    },
+    "timestamp": "2026-09-30T17:16:49.511+00:00",
+    "turn": 5,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 3.317789316177368
+    },
+    "timestamp": "2026-09-30T17:16:49.929+00:00",
+    "turn": 5,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 3.317784309387207,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.8431921005249023,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790788606.6107867,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790788606.8107867,
+       "duration_secs": 0.6422171592712402
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790788607.453004,
+       "duration_secs": 0.0061914920806884766
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790788609.8991692,
+       "duration_secs": 0.029401779174804688
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790788606.6107867,
+       "duration_secs": 2.439973831176758
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790788606.610919,
+       "duration_secs": 0.8418254852294922
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790788607.4561782,
+       "duration_secs": 0.4763522148132324
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790788609.5127742,
+       "duration_secs": 0.38609886169433594
+      }
+     ],
+     "function_calls": [
+      {
+       "function_name": "rendez_vous_confirm_",
+       "start_time": 1790788609.5110626,
+       "duration_secs": 5.0067901611328125e-06
+      }
+     ],
+     "text_aggregation": {
+      "processor": "LocalModelsTTSService#0",
+      "start_time": 1790788609.3607972,
+      "duration_secs": 0.14800405502319336
+     }
+    },
+    "timestamp": "2026-09-30T17:16:49.929+00:00",
+    "turn": 5,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.3100926876068115,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T17:16:50.614+00:00",
+    "turn": 5,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Merci à vous, Julie. Bonne journée et au revoir !",
+     "timestamp": "2026-09-30T17:16:42.326+00:00",
+     "end_timestamp": "2026-09-30T17:16:45.913+00:00",
+     "interrupted": true
+    },
+    "timestamp": "2026-09-30T17:16:56.849+00:00",
+    "turn": 4,
+    "node_id": "4",
+    "node_name": "Fin d'appel"
+   }
+  ]
+ },
+ "initial_context": {
+  "direction": "inbound",
+  "workflow_run_id": 10,
+  "runtime_configuration": {
+   "stt_provider": "speaches",
+   "stt_model": "voxee-stt",
+   "tts_provider": "speaches",
+   "tts_model": "voxee-tts-pro",
+   "llm_provider": "speaches",
+   "llm_model": "Oxee-flash"
+  }
+ }
+}

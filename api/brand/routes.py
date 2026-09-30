@@ -91,3 +91,20 @@ async def preview_voice(
     except LocalModelsError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     return Response(content=audio, media_type="audio/wav")
+
+
+@router.get("/runs/{run_id}/routing")
+async def run_routing(
+    run_id: int,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Graphs (nodes, edges, conditions) used by a call, for the Routing tab."""
+    from api.brand.routing import run_routing_graphs
+    from api.db import db_client
+
+    run = await db_client.get_workflow_run(
+        run_id, organization_id=user.selected_organization_id
+    )
+    if run is None:
+        raise HTTPException(status_code=404, detail="Call not found")
+    return await run_routing_graphs(run, organization_id=user.selected_organization_id)
