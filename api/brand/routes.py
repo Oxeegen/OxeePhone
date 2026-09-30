@@ -59,18 +59,20 @@ class VoicePreviewRequest(BaseModel):
     speed: float | None = Field(default=None, ge=0.25, le=4.0)
     language: str | None = None
     text: str | None = None
+    volume_gain_db: float | None = Field(default=None, ge=-12.0, le=12.0)
+    pronunciations: str | None = None
 
 
 @router.post(
     "/tts/preview",
     response_class=Response,
-    responses={200: {"content": {"audio/mpeg": {}}}},
+    responses={200: {"content": {"audio/wav": {}}}},
 )
 async def preview_voice(
     request: VoicePreviewRequest,
     user: UserModel = Depends(get_user_with_selected_organization),
 ):
-    """Render a short MP3 sample with the Voice tab's current settings."""
+    """Render a WAV sample with the Voice tab's current (unsaved) settings."""
     stored = await get_organization_ai_model_configuration_v2(
         user.selected_organization_id
     )
@@ -83,7 +85,9 @@ async def preview_voice(
             speed=request.speed,
             language=request.language,
             text=request.text,
+            volume_gain_db=request.volume_gain_db,
+            pronunciations=request.pronunciations,
         )
     except LocalModelsError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
-    return Response(content=audio, media_type="audio/mpeg")
+    return Response(content=audio, media_type="audio/wav")

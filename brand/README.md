@@ -57,8 +57,8 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/posthog_client.py` — `get_posthog()` returns `None`
 - `api/requirements.txt` — `pypdf`, `python-docx` (local document parsing)
 - `api/services/configuration/registry.py` — new `SpeachesEmbeddingsConfiguration` (not gated: an extra provider, inert upstream)
-- `api/services/configuration/registry.py` — `language` field on `SpeachesTTSConfiguration` (not gated: inert upstream)
-- `api/services/pipecat/service_factory.py` — Speaches TTS built as `api/brand/tts.py` `LocalModelsTTSService` (forwards `language`)
+- `api/services/configuration/registry.py` — `language`, `volume_gain_db`, `pronunciations` fields on `SpeachesTTSConfiguration` (not gated: inert upstream)
+- `api/services/pipecat/service_factory.py` — Speaches TTS built as `api/brand/tts.py` `LocalModelsTTSService` (forwards `language`; pronunciation dictionary + French normalization from `api/brand/speech_text.py` on the synthesis text only; gain on the PCM)
 - `api/services/gen_ai/embedding/factory.py` — `speaches` → `api/brand/embeddings.py` (zero-padded to 1536)
 - `api/tasks/knowledge_base_processing.py` — local parsing/chunking (`api/brand/documents.py`) instead of MPS; no API key needed for Local Models
 - `api/services/workflow/tools/knowledge_base.py` — no API key needed for Local Models

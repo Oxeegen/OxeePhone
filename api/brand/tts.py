@@ -1,27 +1,58 @@
-"""Local Models TTS: the Speaches service plus a language hint.
+"""Local Models TTS: the Speaches service plus language, text preparation and gain.
 
 Oxeegen's ``voxee-tts-pro`` accepts ``language`` on ``/v1/audio/speech`` (as
 well as ``voice``, ``speed``, ``response_format`` and ``stream``); the pipecat
-Speaches service does not send it. The only change from
-``SpeachesTTSService.run_tts`` is the extra ``language`` body field, so pipecat
-itself stays untouched.
+Speaches service does not send it. The endpoint has no volume or pronunciation
+controls, so both are applied here: the text is rewritten before synthesis
+(pronunciation dictionary, French normalization; see ``speech_text``) and a
+gain is applied to the returned PCM. Transcripts keep the original text since
+only the synthesis request is rewritten. Pipecat itself stays untouched.
 """
 
+import numpy as np
 from loguru import logger
 from openai import BadRequestError
 from pipecat.frames.frames import ErrorFrame, TTSAudioRawFrame
 from pipecat.services.speaches.tts import SpeachesTTSService
 from pipecat.utils.tracing.service_decorators import traced_tts
 
+from api.brand.speech_text import parse_pronunciations, prepare_speech_text
+
+
+def gain_factor(volume_gain_db: float | None) -> float:
+    return 10 ** ((volume_gain_db or 0.0) / 20)
+
+
+def apply_gain(pcm: bytes, factor: float) -> bytes:
+    """Scale 16-bit little-endian PCM, clipping instead of wrapping around."""
+    if factor == 1.0 or not pcm:
+        return pcm
+    samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) * factor
+    return np.clip(samples, -32768, 32767).astype("<i2").tobytes()
+
 
 class LocalModelsTTSService(SpeachesTTSService):
-    def __init__(self, *, language: str | None = None, **kwargs):
+    def __init__(
+        self,
+        *,
+        language: str | None = None,
+        volume_gain_db: float | None = None,
+        pronunciations: str | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._language_hint = (language or "").strip() or None
+        self._gain = gain_factor(volume_gain_db)
+        self._pronunciations = parse_pronunciations(pronunciations)
+
+    def speech_text(self, text: str) -> str:
+        return prepare_speech_text(
+            text, language=self._language_hint, pronunciations=self._pronunciations
+        )
 
     def speech_params(self, text: str) -> dict:
         params = {
-            "input": text,
+            "input": self.speech_text(text),
             "model": self._settings.model,
             "voice": self._settings.voice,
             "response_format": "pcm",
@@ -51,11 +82,18 @@ class LocalModelsTTSService(SpeachesTTSService):
 
                 await self.start_tts_usage_metrics(text)
 
+                # Gain works on whole 16-bit samples: carry an odd trailing byte.
+                carry = b""
                 async for chunk in response.iter_bytes(self.chunk_size):
                     if len(chunk) > 0:
                         await self.stop_ttfb_metrics()
+                        data = carry + chunk
+                        cut = len(data) - (len(data) % 2)
+                        carry = data[cut:]
+                        if not cut:
+                            continue
                         yield TTSAudioRawFrame(
-                            chunk,
+                            apply_gain(data[:cut], self._gain),
                             self.sample_rate,
                             1,
                             context_id=context_id,

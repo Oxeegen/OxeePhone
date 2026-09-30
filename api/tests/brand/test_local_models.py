@@ -429,9 +429,13 @@ def test_tts_without_language_sends_no_extra_body():
     assert "extra_body" not in _tts_service(language="  ").speech_params("x")
 
 
-async def test_voice_preview_renders_mp3(mock_http):
+async def test_voice_preview_matches_call_rendering(mock_http):
+    import io
+    import wave
+
+    pcm = (1000).to_bytes(2, "little", signed=True) * 4
     mock_http["handler"] = lambda request: httpx.Response(
-        200, content=b"ID3fake", headers={"content-type": "audio/mpeg"}
+        200, content=pcm + b"\x01", headers={"content-type": "audio/pcm"}
     )
     audio = await local_models.synthesize_preview(
         base_url="http://tts/v1/",
@@ -440,19 +444,26 @@ async def test_voice_preview_renders_mp3(mock_http):
         voice="fr_cedric",
         speed=1.1,
         language="fr",
-        text=None,
+        text="Chez Oxeegen, RDV à 14h30.",
+        volume_gain_db=6.0,
+        pronunciations="Oxeegen = Oxy-jène",
     )
-    assert audio == b"ID3fake"
     request = mock_http["requests"][0]
     assert str(request.url) == "http://tts/v1/audio/speech"
     assert json.loads(request.content) == {
         "model": "voxee-tts-pro",
         "voice": "fr_cedric",
-        "input": local_models.PREVIEW_TEXT,
-        "response_format": "mp3",
+        "input": "Chez Oxy-jène, rendez-vous à quatorze heures trente.",
+        "response_format": "pcm",
         "speed": 1.1,
         "language": "fr",
     }
+    with wave.open(io.BytesIO(audio)) as wav:
+        assert (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) == (24000, 1, 2)
+        frames = wav.readframes(wav.getnframes())
+    # Odd trailing byte dropped, +6 dB ~ x1.995.
+    assert len(frames) == 8
+    assert int.from_bytes(frames[:2], "little", signed=True) == 1995
 
 
 async def test_voice_preview_surfaces_endpoint_errors(mock_http):
@@ -464,3 +475,78 @@ async def test_voice_preview_surfaces_endpoint_errors(mock_http):
             base_url="http://tts/v1", api_key=None, model="m", voice="x",
             speed=None, language=None, text="t",
         )
+
+
+# ------------------------------------------------------------ speech text
+
+
+@pytest.mark.parametrize(
+    "n, words",
+    [
+        (0, "zéro"), (21, "vingt et un"), (71, "soixante et onze"), (80, "quatre-vingts"),
+        (81, "quatre-vingt-un"), (91, "quatre-vingt-onze"), (200, "deux cents"),
+        (201, "deux cent un"), (1000, "mille"), (2026, "deux mille vingt-six"),
+        (80000, "quatre-vingt mille"), (1000000, "un million"), (2000000, "deux millions"),
+    ],
+)
+def test_french_numbers(n, words):
+    from api.brand.speech_text import number_to_words
+
+    assert number_to_words(n) == words
+
+
+@pytest.mark.parametrize(
+    "text, spoken",
+    [
+        ("RDV à 14h30", "rendez-vous à quatorze heures trente"),
+        ("de 9h05 à 21h", "de neuf heures cinq à vingt et une heures"),
+        ("à 12h ou 0h", "à midi ou minuit"),
+        ("à 18:30", "à dix-huit heures trente"),
+        ("au 06 12 34 56 78", "au zéro six, douze, trente-quatre, cinquante-six, soixante-dix-huit"),
+        ("au 01.45.67.89.00", "au zéro un, quarante-cinq, soixante-sept, quatre-vingt-neuf, zéro zéro"),
+        ("45,50 €", "quarante-cinq euros cinquante"),
+        ("1 250 euros", "mille deux cent cinquante euros"),
+        ("1 €", "un euro"),
+        ("15 %", "quinze pour cent"),
+        ("le 12/03/2026", "le douze mars deux mille vingt-six"),
+        ("le 1/04", "le premier avril"),
+        ("le 1er, la 1re, le 2e, le 21ème", "le premier, la première, le deuxième, le vingt et unième"),
+        ("Dr Martin, Mme Durand, M. Dupont", "docteur Martin, madame Durand, monsieur Dupont"),
+        ("n° 42, merci", "numéro quarante-deux, merci"),
+        ("3,14 km", "trois virgule quatorze km"),
+        ("dossier A123, code 75011", "dossier A123, code 75011"),
+    ],
+)
+def test_french_normalization(text, spoken):
+    from api.brand.speech_text import normalize_french
+
+    assert normalize_french(text) == spoken
+
+
+def test_pronunciations_override_and_other_languages_untouched():
+    from api.brand.speech_text import parse_pronunciations, prepare_speech_text
+
+    entries = parse_pronunciations("# comment\nDr Martin => docteur Martaine\nvLLM = vé elle elle aime\n\nbad line")
+    assert entries == [("Dr Martin", "docteur Martaine"), ("vLLM", "vé elle elle aime")]
+    assert (
+        prepare_speech_text("dr martin utilise VLLM à 9h", language="fr", pronunciations=entries)
+        == "docteur Martaine utilise vé elle elle aime à neuf heures"
+    )
+    assert prepare_speech_text("Meet at 9h, 2 people.", language="en") == "Meet at 9h, 2 people."
+
+
+def test_gain_scales_and_clips():
+    from api.brand.tts import apply_gain, gain_factor
+
+    pcm = b"".join(v.to_bytes(2, "little", signed=True) for v in (1000, -1000, 30000))
+    out = apply_gain(pcm, gain_factor(6.0))
+    values = [int.from_bytes(out[i : i + 2], "little", signed=True) for i in range(0, 6, 2)]
+    assert values == [1995, -1995, 32767]
+    assert apply_gain(pcm, gain_factor(0)) is pcm
+
+
+def test_tts_service_prepares_text_for_synthesis_only():
+    service = _tts_service(language="fr", pronunciations="Oxeegen = Oxy-jène", volume_gain_db=3)
+    assert service.speech_params("Oxeegen vous rappelle à 9h")["input"] == (
+        "Oxy-jène vous rappelle à neuf heures"
+    )

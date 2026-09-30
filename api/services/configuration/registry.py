@@ -1482,6 +1482,22 @@ class SpeachesTTSConfiguration(BaseTTSConfiguration):
             "allow_custom_input": True,
         },
     )
+    # OxeePhone: applied client-side by api/brand/tts.py (the endpoint has no
+    # volume or pronunciation controls).
+    volume_gain_db: float = Field(
+        default=0.0,
+        ge=-12.0,
+        le=12.0,
+        description="Volume adjustment applied to the generated audio, in dB.",
+    )
+    pronunciations: str | None = Field(
+        default=None,
+        description=(
+            "One entry per line: word = how to say it (e.g. Oxeegen = Oxy-jène). "
+            "Applied before speech; transcripts keep the original text."
+        ),
+        json_schema_extra={"multiline": True},
+    )
 
 
 MINIMAX_TTS_MODELS = ["speech-2.8-hd", "speech-2.8-turbo"]

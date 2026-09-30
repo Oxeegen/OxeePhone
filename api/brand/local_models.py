@@ -48,6 +48,17 @@ def restrict_provider_schemas(
         if name in properties:
             properties[name]["default"] = ""
             properties[name].pop("examples", None)
+    # Upstream help texts mention Ollama / Kokoro-FastAPI; keep them neutral.
+    if "base_url" in properties:
+        properties["base_url"]["description"] = (
+            "OpenAI-compatible endpoint, including /v1 (e.g. vLLM)."
+        )
+    if "model" in properties:
+        properties["model"]["description"] = (
+            "Model served by the endpoint (at most 1536 dimensions)."
+            if service_type == ServiceType.EMBEDDINGS
+            else "Model served by the endpoint."
+        )
     for name, value in _DEFAULT_OVERRIDES.get(service_type, {}).items():
         if name in properties:
             properties[name]["default"] = value
@@ -223,6 +234,22 @@ PREVIEW_TEXT = "Bonjour, je suis votre assistant vocal. Comment puis-je vous aid
 PREVIEW_MAX_CHARS = 300
 
 
+PREVIEW_SAMPLE_RATE = 24000
+
+
+def pcm_to_wav(pcm: bytes, sample_rate: int = PREVIEW_SAMPLE_RATE) -> bytes:
+    import io
+    import wave
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm)
+    return buffer.getvalue()
+
+
 async def synthesize_preview(
     *,
     base_url: str,
@@ -232,8 +259,17 @@ async def synthesize_preview(
     speed: float | None,
     language: str | None,
     text: str | None,
+    volume_gain_db: float | None = None,
+    pronunciations: str | None = None,
 ) -> bytes:
-    """Render a short MP3 sample with the given voice settings (Listen button)."""
+    """Render a WAV sample exactly as a call would (Listen button).
+
+    Same text preparation (dictionary, French normalization) and gain as
+    ``LocalModelsTTSService``; PCM is requested like during calls.
+    """
+    from api.brand.speech_text import parse_pronunciations, prepare_speech_text
+    from api.brand.tts import apply_gain, gain_factor
+
     base_url = (base_url or "").strip().rstrip("/")
     if not base_url or not model or not voice:
         raise LocalModelsError("Fill in the base URL, model and voice first.")
@@ -245,8 +281,12 @@ async def synthesize_preview(
     body = {
         "model": model,
         "voice": voice,
-        "input": (text or PREVIEW_TEXT).strip()[:PREVIEW_MAX_CHARS],
-        "response_format": "mp3",
+        "input": prepare_speech_text(
+            (text or PREVIEW_TEXT).strip()[:PREVIEW_MAX_CHARS],
+            language=language,
+            pronunciations=parse_pronunciations(pronunciations),
+        ),
+        "response_format": "pcm",
     }
     if speed:
         body["speed"] = speed
@@ -271,4 +311,5 @@ async def synthesize_preview(
             f"{url} answered HTTP {response.status_code}"
             + (f": {detail}" if isinstance(detail, str) and detail else ".")
         )
-    return response.content
+    pcm = response.content[: len(response.content) - len(response.content) % 2]
+    return pcm_to_wav(apply_gain(pcm, gain_factor(volume_gain_db)))

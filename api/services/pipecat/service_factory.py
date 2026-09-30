@@ -823,7 +823,11 @@ def create_tts_service(
             from api.brand.tts import LocalModelsTTSService
 
             tts_service_cls = LocalModelsTTSService
-            tts_extra_kwargs = {"language": getattr(user_config.tts, "language", None)}
+            tts_extra_kwargs = {
+                "language": getattr(user_config.tts, "language", None),
+                "volume_gain_db": getattr(user_config.tts, "volume_gain_db", None),
+                "pronunciations": getattr(user_config.tts, "pronunciations", None),
+            }
         return tts_service_cls(
             **tts_extra_kwargs,
             base_url=user_config.tts.base_url,

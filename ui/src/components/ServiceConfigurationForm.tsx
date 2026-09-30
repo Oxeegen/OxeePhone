@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 
 import { localModelsOnly } from "@/brand/brand";
 import { LocalModelPicker } from "@/brand/LocalModelPicker";
-import { LocalSpeedSlider, LocalVoiceField } from "@/brand/LocalVoiceControls";
+import { localFieldLabel, LocalSpeedSlider, LocalVoiceField, LocalVolumeSlider } from "@/brand/LocalVoiceControls";
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -633,7 +633,7 @@ export function ServiceConfigurationForm({
 
                     {currentProvider && providerSchema && configFields[0] && (
                         <div className="space-y-2">
-                            <Label className="capitalize">{configFields[0].replace(/_/g, ' ')}</Label>
+                            <Label className="capitalize">{localModelsOnly ? localFieldLabel(configFields[0]) : configFields[0].replace(/_/g, ' ')}</Label>
                             {renderField(service, configFields[0], providerSchema)}
                         </div>
                     )}
@@ -649,7 +649,7 @@ export function ServiceConfigurationForm({
                             const fullWidth = actualFieldSchema?.multiline;
                             return (
                                 <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
-                                    <Label className="capitalize">{field.replace(/_/g, ' ')}</Label>
+                                    <Label className="capitalize">{localModelsOnly ? localFieldLabel(field) : field.replace(/_/g, ' ')}</Label>
                                     {renderField(service, field, providerSchema)}
                                 </div>
                             );
@@ -767,6 +767,8 @@ export function ServiceConfigurationForm({
                         model: watch("tts_model") as string || "",
                         speed: Number(watch("tts_speed")) || undefined,
                         language: watch("tts_language") as string || undefined,
+                        volumeGainDb: Number(watch("tts_volume_gain_db")) || 0,
+                        pronunciations: watch("tts_pronunciations") as string || undefined,
                     }}
                 />
             );
@@ -779,6 +781,17 @@ export function ServiceConfigurationForm({
                     min={numberSchema?.minimum ?? 0.5}
                     max={numberSchema?.maximum ?? 2}
                     onChange={(speed) => setValue("tts_speed", speed, { shouldDirty: true })}
+                />
+            );
+        }
+
+        if (localModelsOnly && service === "tts" && field === "volume_gain_db") {
+            return (
+                <LocalVolumeSlider
+                    value={Number(watch("tts_volume_gain_db") ?? 0)}
+                    min={numberSchema?.minimum ?? -12}
+                    max={numberSchema?.maximum ?? 12}
+                    onChange={(db) => setValue("tts_volume_gain_db", db, { shouldDirty: true })}
                 />
             );
         }
