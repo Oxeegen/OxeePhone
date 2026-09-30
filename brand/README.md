@@ -1,0 +1,85 @@
+# OxeePhone brand layer
+
+OxeePhone is Oxeegen's fork of [Dograh](https://github.com/dograh-hq/dograh)
+(BSD-2-Clause), forked from release **v1.47.0**.
+
+## Rules
+
+1. **Minimal footprint on upstream files.** Brand code lives in new files only:
+   - `api/brand/` — backend flags (`BRAND`) and helpers
+   - `ui/src/brand/` — UI flags (`BRAND`), logo, runtime rebrander, theme CSS
+   - `ui/public/brand/` — brand assets served by the UI
+   - `brand/assets/` — logo sources (direction B "Signal"; `logo-proposals.png` keeps the other options)
+   - `brand/` — deployment overlay and this guide
+2. **Every edit to an upstream file is gated** by a `BRAND` flag and keeps the
+   upstream behaviour when the flag is off (`BRAND.enabled` in the UI,
+   `OXEE_DISABLE_*` env vars on the API).
+3. **Sync upstream by merge, never rebase.** `upstream-tracking` mirrors
+   `dograh-hq/dograh` `main`; the upstream remote has push disabled.
+
+```bash
+git fetch upstream --tags
+git merge dograh-vX.Y.Z   # merge a release tag, then re-check the patch list below
+```
+
+## Run
+
+```bash
+docker compose -f docker-compose.yaml -f brand/docker-compose.brand.yaml up -d --build
+```
+
+The overlay builds the OxeePhone images from this repo (upstream compose pulls
+`dograhai/*` images, which do not contain the brand layer) and blanks every
+telemetry / Dograh-hosted endpoint in the environment as a second safety net.
+
+## Flags
+
+| Where | Flag | Default | Effect |
+| --- | --- | --- | --- |
+| API | `OXEE_DISABLE_DOGRAH_SERVICES` | `true` | MPS client replaced by `DisabledMPSClient`; org bootstrap (managed key, Cloudonix SIP) skipped |
+| API | `OXEE_DISABLE_TELEMETRY` | `true` | PostHog and Sentry never initialised |
+| UI | `BRAND.enabled` | `true` | Name, logo, theme, runtime rebrand of "Dograh" in copy |
+| UI | `BRAND.hideDocs` | `true` | Links to `dograh.com` / docs / GitHub / Slack hidden (`brand.css`) |
+| UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
+
+## Gated patches on upstream files
+
+Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
+
+**API**
+- `api/app.py` — Sentry gate, OpenAPI title/description/servers
+- `api/errors/mps.py` — public message when a Dograh-hosted feature is used
+- `api/mcp_server/server.py` — MCP server name
+- `api/services/mps_service_key_client.py` — singleton swapped for `DisabledMPSClient`
+- `api/services/organization_bootstrap.py` — early return (no managed provisioning)
+- `api/services/posthog_client.py` — `get_posthog()` returns `None`
+
+**UI**
+- `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
+- `ui/src/app/layout.tsx` — brand CSS, metadata, `<BrandRuntime/>`, no Chatwoot
+- `ui/src/components/BrandLogo.tsx` — delegates to `@/brand/BrandLogo`
+- `ui/src/components/auth/AuthShell.tsx` — headline, highlights, no enterprise CTA
+- `ui/src/components/Footer.tsx` — hidden (dograh.com privacy/terms)
+- `ui/src/components/layout/AppLayout.tsx` — no Slack community link
+- `ui/src/components/layout/AppSidebar.tsx` — no Billing entry, no "Hire an Expert"
+- `ui/src/components/layout/GitHubStarBadge.tsx` — hidden, no GitHub API call
+- `ui/src/app/overview/page.tsx` — welcome copy, no Dograh resources card
+- `ui/src/instrumentation-client.ts`, `ui/src/app/api/config/{posthog,sentry}/route.ts` — telemetry off
+- `ui/src/components/lead-forms/onboardingServiceClient.ts`, `HireExpertNudge.tsx`, `ui/src/context/LeadFormsContext.tsx` — no lead forms
+- `ui/src/hooks/useLatestReleaseVersion.ts` — no release check
+
+## Do not rename
+
+Internal identifiers stay as upstream so data and integrations keep working:
+`ServiceProviders.DOGRAH`, `X-Dograh-*` webhook headers, `DOGRAH_*` env vars,
+`dograh_auth_*` cookies, `sdk/`, `deploy/helm/dograh`, `window.DograhWidget`.
+
+## Tests
+
+```bash
+# upstream suite, upstream behaviour
+OXEE_DISABLE_DOGRAH_SERVICES=false OXEE_DISABLE_TELEMETRY=false \
+  python -m pytest -c api/pytest.ini --rootdir api api/tests
+# brand gates (force the flags on themselves)
+python -m pytest -c api/pytest.ini --rootdir api api/tests/brand
+```

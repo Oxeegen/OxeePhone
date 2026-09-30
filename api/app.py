@@ -2,6 +2,7 @@
 
 import sentry_sdk
 
+from api.brand import BRAND
 from api.constants import (
     CORS_ALLOWED_ORIGINS,
     DEPLOYMENT_MODE,
@@ -14,8 +15,10 @@ from api.logging_config import ENVIRONMENT, setup_logging
 setup_logging()
 
 
-if SENTRY_DSN and (
-    DEPLOYMENT_MODE != "oss" or (DEPLOYMENT_MODE == "oss" and ENABLE_TELEMETRY)
+if (
+    SENTRY_DSN
+    and not BRAND.disable_telemetry
+    and (DEPLOYMENT_MODE != "oss" or (DEPLOYMENT_MODE == "oss" and ENABLE_TELEMETRY))
 ):
     sentry_sdk.init(
         dsn=SENTRY_DSN,
@@ -88,13 +91,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Dograh API",
-    description="API for the Dograh app",
+    title=f"{BRAND.product_name} API",
+    description=BRAND.api_description,
     version="1.0.0",
     openapi_url=f"{API_PREFIX}/openapi.json",
     lifespan=lifespan,
     servers=[
-        {"url": "https://app.dograh.com", "description": "Production"},
+        *(
+            []
+            if BRAND.disable_dograh_services
+            else [{"url": "https://app.dograh.com", "description": "Production"}]
+        ),
         {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )

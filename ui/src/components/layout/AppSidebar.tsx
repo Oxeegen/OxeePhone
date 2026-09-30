@@ -26,6 +26,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 
+import { hideDograhServices } from "@/brand/brand";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import ThemeToggle from "@/components/ThemeSwitcher";
@@ -75,7 +76,7 @@ type SidebarNavSection = {
 
 const TELEPHONY_WARNING_COPY = "Action required";
 
-const NAV_SECTIONS: SidebarNavSection[] = [
+const UPSTREAM_NAV_SECTIONS: SidebarNavSection[] = [
   {
     items: [
       {
@@ -152,6 +153,14 @@ const NAV_SECTIONS: SidebarNavSection[] = [
     ],
   },
 ];
+
+// OxeePhone: Billing is Dograh-hosted credits, nothing to show when cut.
+const NAV_SECTIONS: SidebarNavSection[] = hideDograhServices
+  ? UPSTREAM_NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.url !== "/billing"),
+    }))
+  : UPSTREAM_NAV_SECTIONS;
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -290,7 +299,7 @@ export function AppSidebar() {
 
   // "Hire an Expert" CTA, rendered INSIDE the shared footer pill next to the
   // profile icon. Expanded: label pill filling the row. Collapsed: icon-only.
-  const hireExpertButton = isCollapsed ? (
+  const hireExpertButton = hideDograhServices ? null : isCollapsed ? (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button

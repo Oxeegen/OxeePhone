@@ -1,3 +1,5 @@
+import { isBranded } from "@/brand/brand";
+import { OxeeBrandLogo } from "@/brand/BrandLogo";
 import { cn } from "@/lib/utils";
 
 // Reusable Dograh wordmark. Theme-aware by default: the dark logo shows on light
@@ -15,6 +17,9 @@ export function BrandLogo({
   inverse?: boolean;
   mark?: boolean;
 }) {
+  if (isBranded) {
+    return <OxeeBrandLogo className={className} inverse={inverse} mark={mark} />;
+  }
   if (mark) {
     return (
       // eslint-disable-next-line @next/next/no-img-element

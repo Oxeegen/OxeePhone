@@ -3,6 +3,7 @@
 import posthog from "posthog-js";
 import { createContext, type ReactNode,useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
+import { hideDograhServices } from "@/brand/brand";
 import { getWorkflowCountApiV1WorkflowCountGet } from "@/client/sdk.gen";
 import { EnterpriseModal } from "@/components/lead-forms/EnterpriseModal";
 import { HireExpertModal } from "@/components/lead-forms/HireExpertModal";
@@ -58,6 +59,7 @@ export function LeadFormsProvider({ children }: { children: ReactNode }) {
 
     onboardingCheckedRef.current = true;
     if (onboardingDoneRef.current) return; // already done — never show
+    if (hideDograhServices) return; // OxeePhone: no Dograh lead forms
 
     // Only brand-new users (no workflows yet) see the form. The count is
     // org-scoped (the user's selected organization), so a new user joining an

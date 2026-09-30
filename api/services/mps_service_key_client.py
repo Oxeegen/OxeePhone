@@ -994,3 +994,11 @@ class MPSServiceKeyClient:
 
 # Create a singleton instance
 mps_service_key_client = MPSServiceKeyClient()
+
+# OxeePhone brand: never reach Dograh-hosted services.
+from api.brand import BRAND
+
+if BRAND.disable_dograh_services:
+    from api.brand.mps import DisabledMPSClient
+
+    mps_service_key_client = DisabledMPSClient()  # type: ignore[assignment]

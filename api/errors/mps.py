@@ -1,7 +1,12 @@
 """Errors raised at the Model Proxy Service boundary."""
 
+from api.brand import BRAND
+
 MPS_UNAVAILABLE_PUBLIC_MESSAGE = (
-    "A Dograh service is temporarily unavailable. Please try again later."
+    "This feature relies on a Dograh-hosted service, which is disabled in "
+    f"{BRAND.product_name}."
+    if BRAND.disable_dograh_services
+    else "A Dograh service is temporarily unavailable. Please try again later."
 )
 
 

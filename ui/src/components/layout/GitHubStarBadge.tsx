@@ -3,6 +3,7 @@
 import posthog from "posthog-js";
 import { useEffect, useState } from "react";
 
+import { hideDograhServices } from "@/brand/brand";
 import { PostHogEvent } from "@/constants/posthog-events";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +18,7 @@ export function GitHubStarBadge({ className, label, showCount, source }: GitHubS
   const [starCount, setStarCount] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!showCount) return;
+    if (!showCount || hideDograhServices) return;
     fetch("https://api.github.com/repos/dograh-hq/dograh")
       .then((res) => res.json())
       .then((data) => {
@@ -30,6 +31,8 @@ export function GitHubStarBadge({ className, label, showCount, source }: GitHubS
   }, [showCount]);
 
   const hasCount = showCount && starCount;
+
+  if (hideDograhServices) return null;
 
   return (
     <a

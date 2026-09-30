@@ -1,0 +1,36 @@
+# OxeePhone overlay on the upstream docker-compose.yaml.
+#
+#   docker compose -f docker-compose.yaml -f brand/docker-compose.brand.yaml up -d --build
+#
+# Builds OxeePhone images from this repo (upstream pulls dograhai/* images,
+# which do not contain the brand layer) and cuts every Dograh telemetry /
+# hosted-service endpoint at the environment level too. The code-level gates
+# (api/brand, ui/src/brand) already block them; this is defence in depth.
+# Relative paths resolve against the first compose file, i.e. the repo root.
+
+services:
+  api:
+    image: ${OXEE_REGISTRY:-oxeegen}/oxeephone-api:${OXEE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      OXEE_DISABLE_DOGRAH_SERVICES: "true"
+      OXEE_DISABLE_TELEMETRY: "true"
+      ENABLE_TELEMETRY: "false"
+      POSTHOG_API_KEY: ""
+      POSTHOG_HOST: ""
+      SENTRY_DSN: ""
+      # Unroutable on purpose: nothing may reach services.dograh.com.
+      MPS_API_URL: "http://mps.disabled.invalid"
+
+  ui:
+    image: ${OXEE_REGISTRY:-oxeegen}/oxeephone-ui:${OXEE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    environment:
+      ENABLE_TELEMETRY: "false"
+      POSTHOG_KEY: ""
+      POSTHOG_HOST: ""
+      SENTRY_DSN: ""
