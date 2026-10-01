@@ -34,6 +34,10 @@ services:
 
   minio:
     container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-minio
+    # MinIO no longer publishes its community images (quay.io/minio/minio and
+    # minio/minio refuse anonymous pulls): pgsty/minio is the maintained
+    # community rebuild, same binary, command and health endpoint.
+    image: ${OXEE_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
     ports: !override
       - "127.0.0.1:${OXEE_MINIO_PORT:-9000}:9000"
       - "127.0.0.1:${OXEE_MINIO_CONSOLE_PORT:-9001}:9001"
