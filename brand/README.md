@@ -22,6 +22,8 @@ git fetch upstream --tags
 git merge dograh-vX.Y.Z   # merge a release tag, then re-check the patch list below
 ```
 
+The repository page shows `.github/README.md` (GitHub reads it before the root `README.md`, which stays Dograh's, untouched for merges). Screenshots and GIFs: `brand/assets/screenshots/`.
+
 ## Install / run
 
 On an Ubuntu server (22.04 / 24.04), one command installs or completes an
