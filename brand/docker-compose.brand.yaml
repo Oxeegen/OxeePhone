@@ -14,10 +14,69 @@
 # for every name but localhost, since browsers only allow the microphone in a
 # secure context; set OXEE_TLS_NAMES. Port 8000 stays published for webhooks,
 # MCP and scripts. See brand/proxy/.
+#
+# Every published port comes from .env (OXEE_*_PORT), with upstream's value
+# as default, and container names derive from the project name: an OxeePhone
+# stack can run next to an official Dograh one on the same host (shift the
+# ports, see brand/install.sh). OxeePhone runs its own TURN server on
+# OXEE_TURN_PORT / OXEE_TURNS_PORT / OXEE_TURN_RELAY_MIN-MAX.
+
+name: oxeephone
 
 services:
+  postgres:
+    ports: !override
+      - "${OXEE_DB_BIND:-0.0.0.0}:${OXEE_POSTGRES_PORT:-5432}:5432"
+
+  redis:
+    ports: !override
+      - "${OXEE_DB_BIND:-0.0.0.0}:${OXEE_REDIS_PORT:-6379}:6379"
+
+  minio:
+    container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-minio
+    # MinIO no longer publishes its community images (quay.io/minio/minio and
+    # minio/minio refuse anonymous pulls): pgsty/minio is the maintained
+    # community rebuild, same binary, command and health endpoint.
+    image: ${OXEE_MINIO_IMAGE:-pgsty/minio:RELEASE.2026-08-04T00-00-00Z}
+    ports: !override
+      - "127.0.0.1:${OXEE_MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${OXEE_MINIO_CONSOLE_PORT:-9001}:9001"
+
+  dograh-init:
+    container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-init
+
+  nginx:
+    container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-nginx
+
+  coturn:
+    container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-coturn
+    # Same port numbers inside and outside: coturn hands its relay addresses
+    # to the peers, a remapped port would not match.
+    ports: !override
+      - "${OXEE_TURN_PORT:-3478}:${OXEE_TURN_PORT:-3478}/udp"
+      - "${OXEE_TURN_PORT:-3478}:${OXEE_TURN_PORT:-3478}/tcp"
+      - "${OXEE_TURNS_PORT:-5349}:${OXEE_TURNS_PORT:-5349}/udp"
+      - "${OXEE_TURNS_PORT:-5349}:${OXEE_TURNS_PORT:-5349}/tcp"
+      - "${OXEE_TURN_RELAY_MIN:-49152}-${OXEE_TURN_RELAY_MAX:-49200}:${OXEE_TURN_RELAY_MIN:-49152}-${OXEE_TURN_RELAY_MAX:-49200}/udp"
+    # The rendered turnserver.conf, with the ports overridden on the command line.
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --listening-port=${OXEE_TURN_PORT:-3478}
+      - --tls-listening-port=${OXEE_TURNS_PORT:-5349}
+      - --min-port=${OXEE_TURN_RELAY_MIN:-49152}
+      - --max-port=${OXEE_TURN_RELAY_MAX:-49200}
+
+  cloudflared:
+    container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-cloudflared
+    ports: !override
+      - "${OXEE_TUNNEL_METRICS_PORT:-2000}:2000"
+
   api:
     image: ${OXEE_REGISTRY:-oxeegen}/oxeephone-api:${OXEE_TAG:-latest}
+    # Direct API (telephony webhooks, MCP, scripts); browsers use the proxy.
+    ports: !override
+      - "${OXEE_API_PORT:-8000}:8000"
     build:
       context: .
       dockerfile: api/Dockerfile
@@ -26,6 +85,14 @@ services:
       OXEE_DISABLE_TELEMETRY: "true"
       OXEE_LOCAL_MODELS_ONLY: "true"
       OXEE_SAME_ORIGIN: "true"
+      # TURN URIs handed to browsers and to the API's own peer.
+      TURN_PORT: "${OXEE_TURN_PORT:-3478}"
+      TURN_TLS_PORT: "${OXEE_TURNS_PORT:-5349}"
+      # Docker Desktop / no hairpin: the API reaches coturn on the Docker
+      # network ("coturn"); browsers keep TURN_HOST (see api/brand/webrtc.py).
+      OXEE_SERVER_TURN_HOST: "${OXEE_SERVER_TURN_HOST:-}"
+      # true only with the `tunnel` profile (upstream's Cloudflare quick tunnel).
+      OXEE_CLOUDFLARED_TUNNEL: "${OXEE_CLOUDFLARED_TUNNEL:-false}"
       ENABLE_TELEMETRY: "false"
       POSTHOG_API_KEY: ""
       POSTHOG_HOST: ""
@@ -48,13 +115,13 @@ services:
 
   proxy:
     image: nginx:1.27-alpine
-    container_name: oxeephone-proxy
+    container_name: ${COMPOSE_PROJECT_NAME:-oxeephone}-proxy
     restart: unless-stopped
     depends_on:
       - ui
       - api
     ports:
-      - "${OXEE_HTTP_PORT:-3010}:80"
+      - "${OXEE_UI_PORT:-3010}:80"
       - "${OXEE_HTTPS_PORT:-3443}:443"
     environment:
       # Every name browsers use to reach the server, for the certificate

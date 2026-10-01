@@ -27,7 +27,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 
-import { BRAND, hideDograhServices, isBranded } from "@/brand/brand";
+import { hideDograhServices, isBranded } from "@/brand/brand";
+import { VersionBadge } from "@/brand/release/VersionBadge";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import ThemeToggle from "@/components/ThemeSwitcher";
@@ -342,17 +343,17 @@ export function AppSidebar() {
               translate="no"
             >
               <BrandLogo mark className="h-6" />
-              {versionInfo && (
+              {versionInfo && !isBranded && (
                 <span
                   className="notranslate text-xs font-normal text-muted-foreground"
                   translate="no"
-                  title={isBranded ? `${BRAND.productName} ${BRAND.version} — based on Dograh ${versionInfo.ui}` : undefined}
-                  data-no-rebrand={isBranded ? "" : undefined}
                 >
-                  v{isBranded ? BRAND.version : versionInfo.ui}
+                  v{versionInfo.ui}
                 </span>
               )}
             </Link>
+            {/* OxeePhone: version, release notes and update check. */}
+            {isBranded && <VersionBadge baseVersion={versionInfo?.ui} />}
             {isBehind && latestRelease && (
               <Tooltip>
                 <TooltipTrigger asChild>

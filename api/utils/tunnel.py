@@ -7,6 +7,8 @@ from typing import Optional
 import aiohttp
 from loguru import logger
 
+from api.brand import BRAND
+
 
 class TunnelURLProvider:
     """Provider for getting tunnel URLs from cloudflared service."""
@@ -44,6 +46,9 @@ class TunnelURLProvider:
         Returns:
             Optional[tuple[str, str]]: (https_url, wss_url) with full protocols, or None if not found
         """
+        if not BRAND.cloudflared_tunnel:
+            # OxeePhone: no tunnel service in this deployment (api/brand/config.py).
+            return None
         try:
             # Try to connect to cloudflared metrics endpoint
             # The service name in docker-compose is 'cloudflared'

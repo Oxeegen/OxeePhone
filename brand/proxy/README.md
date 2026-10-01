@@ -33,7 +33,7 @@ The `proxy` service of `brand/docker-compose.brand.yaml` fixes all of it:
 # Every name users type to reach the server, for the HTTPS certificate.
 OXEE_TLS_NAMES=10.100.21.41,sngi-ai-phone-01.nb.us
 # Optional (defaults shown)
-OXEE_HTTP_PORT=3010          # http://localhost:3010 works as before
+OXEE_UI_PORT=3010            # http://localhost:3010 works as before
 OXEE_HTTPS_PORT=3443         # https://<any name>:3443 for everyone else
 OXEE_HTTPS_REDIRECT=true     # http on another name than localhost -> https
 # CORS_ALLOWED_ORIGINS=https://intranet.example.com   # only if another site must call the API cross-origin (with credentials)

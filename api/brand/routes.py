@@ -817,3 +817,15 @@ async def rollback_agent_fix(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except fixes.FixError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@router.get("/releases")
+async def oxeephone_releases(
+    refresh: bool = False,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Current OxeePhone version, its release notes, and newer releases
+    published on GitHub (checked by the server, cached for an hour)."""
+    from api.brand.releases import release_info
+
+    return await release_info(force=refresh)

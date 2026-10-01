@@ -78,3 +78,20 @@ def test_ui_and_api_carry_the_same_oxeephone_version():
     ui_version = re.search(r'version: "([^"]+)"', brand_ts.read_text()).group(1)
     assert BRAND.version == ui_version
     assert re.fullmatch(r"\d+\.\d+\.\d+", BRAND.version)
+
+
+@pytest.mark.asyncio
+async def test_no_tunnel_lookup_when_the_deployment_has_none(monkeypatch):
+    import dataclasses
+
+    from api.brand import BRAND
+    from api.utils import tunnel
+
+    monkeypatch.setattr(tunnel, "BRAND", dataclasses.replace(BRAND, cloudflared_tunnel=False))
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise AssertionError("cloudflared must not be queried")
+
+    monkeypatch.setattr(tunnel.aiohttp, "ClientSession", Boom)
+    assert await tunnel.TunnelURLProvider._get_cloudflared_urls() is None
