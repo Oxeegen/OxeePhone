@@ -1,8 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-  <stop offset="0" stop-color="#6D5BFF"/><stop offset="1" stop-color="#4A2BF0"/></linearGradient></defs><mask id="m4" maskUnits="userSpaceOnUse" x="0" y="0" width="240" height="240">
-        <rect width="240" height="240" fill="#000"/><circle cx="96" cy="120" r="80" fill="#fff"/>
-        <rect x="58" y="0" width="26" height="240" fill="#000"/><rect x="108" y="0" width="26" height="240" fill="#000"/></mask>
-        <rect width="240" height="240" fill="url(#g)" mask="url(#m4)"/>
-        <rect x="84" y="28" width="24" height="184" rx="4" fill="url(#g)"/>
-        <path d="M 190 82 A 52 52 0 0 1 190 158" stroke="url(#g)" stroke-width="16" stroke-linecap="round" fill="none"/>
-        <path d="M 214 56 A 86 86 0 0 1 214 184" stroke="url(#g)" stroke-width="16" stroke-linecap="round" fill="none"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><linearGradient id="oxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A44E2"/><stop offset="1" stop-color="#7F5CFB"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#oxg)"/><g fill="none" stroke="#fff" stroke-width="118" stroke-linecap="round"><path d="M 332.4 419.3 A 153.4 153.4 0 0 1 332.4 604.7"/><path d="M 463.0 320.1 A 317.4 317.4 0 0 1 463.0 703.9"/><path d="M 593.7 221.0 A 481.4 481.4 0 0 1 593.7 803.0"/></g></svg>

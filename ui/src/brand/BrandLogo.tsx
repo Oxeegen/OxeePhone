@@ -1,7 +1,7 @@
 import { BRAND } from "@/brand/brand";
 import { cn } from "@/lib/utils";
 
-// OxeePhone lockup: the Oxeegen-derived mark + "Oxee" in the foreground colour
+// OxeePhone lockup: the signal tile (three arcs) + "Oxee" in the foreground colour
 // and "Phone" in brand violet. Same props as the upstream BrandLogo (height via
 // className, `inverse` for always-dark surfaces, `mark` for the square mark).
 // Inline SVG so the wordmark uses the app font; `textLength` pins its width so

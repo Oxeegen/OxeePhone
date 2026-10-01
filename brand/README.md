@@ -9,7 +9,7 @@ OxeePhone is Oxeegen's fork of [Dograh](https://github.com/dograh-hq/dograh)
    - `api/brand/` — backend flags (`BRAND`) and helpers
    - `ui/src/brand/` — UI flags (`BRAND`), logo, runtime rebrander, theme CSS
    - `ui/public/brand/` — brand assets served by the UI
-   - `brand/assets/` — logo sources (direction B "Signal"; `logo-proposals.png` keeps the other options)
+   - `brand/assets/` — logo sources: the signal tile (three concentric arcs on the indigo → violet gradient, variant A, generated geometry); `oxeephone-tile-variant-B/C.svg` and `logo-proposals-signal.png` keep the alternatives, `logo-proposals.png` the first round
    - `brand/` — deployment overlay and this guide
 2. **Every edit to an upstream file is gated** by a `BRAND` flag and keeps the
    upstream behaviour when the flag is off (`BRAND.enabled` in the UI,
