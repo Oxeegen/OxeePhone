@@ -55,7 +55,7 @@ class BrandConfig:
 
 BRAND = BrandConfig(
     product_name="OxeePhone",
-    version="0.8.0",
+    version="0.8.1",
     api_description="API for the OxeePhone voice agent platform",
     mcp_server_name="oxeephone",
     disable_dograh_services=_env_flag("OXEE_DISABLE_DOGRAH_SERVICES", True),
