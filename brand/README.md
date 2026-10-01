@@ -75,6 +75,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
 - `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown` (minus turns falsely measured from the call start); speaking plan: VAD `start_secs`, turn start/stop strategies, stop timeout, `SpeakingPlanGate` before the output transport
 - `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
+- `api/app.py` — OpenAPI version = `BRAND.version`
 - `api/app.py` — registers the OxeePhone MCP tools (`api/brand/mcp_tools.py`) when `agent_fixes`
 - `api/app.py` — `ChannelMiddleware` (request channel: editor / API key / MCP) when `version_history`
 - `api/routes/workflow.py` — records version edits (update, create-draft) and publications in `api/brand/versions.py`
@@ -83,6 +84,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 
 **UI**
+- `ui/src/components/layout/AppSidebar.tsx` — shows the OxeePhone version (`BRAND.version`, Dograh base version in the tooltip)
 - `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
 - `ui/src/app/layout.tsx` — brand CSS, metadata, `<BrandRuntime/>`, no Chatwoot
 - `ui/src/components/BrandLogo.tsx` — delegates to `@/brand/BrandLogo`
@@ -133,3 +135,7 @@ committed: in `.env` set `ENABLE_COTURN=true`, `TURN_SECRET`, `TURN_HOST=<LAN
 IP>`, `FORCE_TURN_RELAY=true`; in `docker-compose.local.yaml` set
 `OXEE_SERVER_TURN_HOST: coturn` on `api` and mount a `turnserver.conf` without
 `external-ip` on `coturn`; start with `--profile local-turn`.
+
+## Versions
+
+OxeePhone releases are numbered on their own (`BRAND.version`, UI and API kept equal by a test); see `brand/CHANGELOG.md`. Release tags are `oxeephone-vX.Y.Z` (upstream tags are `dograh-v*`).

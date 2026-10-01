@@ -27,7 +27,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
 
-import { hideDograhServices, isBranded } from "@/brand/brand";
+import { BRAND, hideDograhServices, isBranded } from "@/brand/brand";
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
 import ThemeToggle from "@/components/ThemeSwitcher";
@@ -346,8 +346,10 @@ export function AppSidebar() {
                 <span
                   className="notranslate text-xs font-normal text-muted-foreground"
                   translate="no"
+                  title={isBranded ? `${BRAND.productName} ${BRAND.version} — based on Dograh ${versionInfo.ui}` : undefined}
+                  data-no-rebrand={isBranded ? "" : undefined}
                 >
-                  v{versionInfo.ui}
+                  v{isBranded ? BRAND.version : versionInfo.ui}
                 </span>
               )}
             </Link>

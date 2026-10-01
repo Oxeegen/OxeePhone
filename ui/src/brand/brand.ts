@@ -9,6 +9,9 @@ export const BRAND = {
   enabled: true,
 
   productName: "OxeePhone",
+  // OxeePhone release, independent of the Dograh base version (package.json).
+  // Keep in line with api/brand/config.py.
+  version: "0.8.0",
   upstreamName: "Dograh",
   description: "Oxeegen voice agent platform",
 

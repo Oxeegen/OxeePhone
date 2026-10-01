@@ -18,6 +18,9 @@ def _env_flag(name: str, default: bool) -> bool:
 @dataclass(frozen=True)
 class BrandConfig:
     product_name: str
+    # OxeePhone release (semver), independent of the Dograh base version in
+    # pyproject.toml / package.json. Keep in line with ui/src/brand/brand.ts.
+    version: str
     api_description: str
     mcp_server_name: str
     # Cut every call to Dograh-hosted services (Model Proxy Service at
@@ -44,6 +47,7 @@ class BrandConfig:
 
 BRAND = BrandConfig(
     product_name="OxeePhone",
+    version="0.8.0",
     api_description="API for the OxeePhone voice agent platform",
     mcp_server_name="oxeephone",
     disable_dograh_services=_env_flag("OXEE_DISABLE_DOGRAH_SERVICES", True),

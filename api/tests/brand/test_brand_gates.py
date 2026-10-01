@@ -66,3 +66,15 @@ def test_posthog_is_never_initialised_when_telemetry_is_cut(monkeypatch):
     assert posthog_client.get_posthog() is None
     # Helpers stay silent no-ops.
     posthog_client.capture_event("user", "event")
+
+
+def test_ui_and_api_carry_the_same_oxeephone_version():
+    import re
+    from pathlib import Path
+
+    from api.brand import BRAND
+
+    brand_ts = Path(__file__).resolve().parents[3] / "ui" / "src" / "brand" / "brand.ts"
+    ui_version = re.search(r'version: "([^"]+)"', brand_ts.read_text()).group(1)
+    assert BRAND.version == ui_version
+    assert re.fullmatch(r"\d+\.\d+\.\d+", BRAND.version)
