@@ -118,11 +118,12 @@ primary_ip() {
 default_names() {
     local ip="$1" names="$1" n
     for n in $(hostname -I 2>/dev/null) $(hostname -f 2>/dev/null) $(hostname 2>/dev/null); do
+        n="${n%.}"
         case "$n" in
             ""|127.*|::1|localhost|*:*) continue ;;                 # loopback, IPv6 (add them by hand)
             172.1[7-9].*|172.2[0-9].*|172.3[01].*) continue ;;     # Docker bridges
         esac
-        case ",$names," in *",$n,"*) ;; *) names="$names,$n" ;; esac
+        case ",${names,,}," in *",${n,,},"*) ;; *) names="$names,$n" ;; esac
     done
     echo "$names"
 }
@@ -143,13 +144,25 @@ used_ports() {
 
 is_used() { grep -qx "$1" <<<"$USED"; }
 
-pick_port() {  # key default -> PICKED: .env value, else given, else default or next free
+# Docker Desktop publishes ports on the host OS, out of sight of `ss`: there,
+# a port is only kept once a throwaway container managed to bind it.
+docker_desktop() {
+    [ -z "${DOCKER_DESKTOP:-}" ] && DOCKER_DESKTOP="$(docker info --format '{{.OperatingSystem}}' 2>/dev/null | grep -qi 'docker desktop' && echo 1 || echo 0)"
+    [ "$DOCKER_DESKTOP" = 1 ]
+}
+
+bindable() {  # port [ip]
+    docker_desktop || return 0
+    docker run --rm -p "${2:+$2:}$1:$1" --entrypoint true nginx:1.27-alpine >/dev/null 2>&1
+}
+
+pick_port() {  # key default [bind ip] -> PICKED: .env value, else given, else default or next free
     # Sets a global (no subshell) so ports handed out earlier stay taken.
-    local key="$1" port="$2" current
+    local key="$1" port="$2" ip="${3:-}" current
     current="$(env_get "$key")"
     if [ -n "$current" ]; then PICKED="$current"; TAKEN+=$'\n'"$current"; return; fi
     if [ -n "${!key:-}" ]; then PICKED="${!key}"; TAKEN+=$'\n'"$PICKED"; return; fi
-    while is_used "$port" || grep -qx "$port" <<<"$TAKEN"; do port=$((port + 1)); done
+    while is_used "$port" || grep -qx "$port" <<<"$TAKEN" || ! bindable "$port" "$ip"; do port=$((port + 1)); done
     TAKEN+=$'\n'"$port"
     PICKED="$port"
 }
@@ -189,10 +202,10 @@ configure() {
     pick_port OXEE_UI_PORT 3010; ui=$PICKED
     pick_port OXEE_HTTPS_PORT 3443; https=$PICKED
     pick_port OXEE_API_PORT 8000; api=$PICKED
-    pick_port OXEE_POSTGRES_PORT 5432; pg=$PICKED
-    pick_port OXEE_REDIS_PORT 6379; redis=$PICKED
-    pick_port OXEE_MINIO_PORT 9000; minio=$PICKED
-    pick_port OXEE_MINIO_CONSOLE_PORT 9001; minio_console=$PICKED
+    pick_port OXEE_POSTGRES_PORT 5432 127.0.0.1; pg=$PICKED
+    pick_port OXEE_REDIS_PORT 6379 127.0.0.1; redis=$PICKED
+    pick_port OXEE_MINIO_PORT 9000 127.0.0.1; minio=$PICKED
+    pick_port OXEE_MINIO_CONSOLE_PORT 9001 127.0.0.1; minio_console=$PICKED
     pick_port OXEE_TURN_PORT 3478; turn=$PICKED
     pick_port OXEE_TURNS_PORT 5349; turns=$PICKED
     pick_port OXEE_TUNNEL_METRICS_PORT 2000; tunnel=$PICKED
