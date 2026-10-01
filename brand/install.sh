@@ -281,7 +281,7 @@ start_stack() {
     local api; api="$(env_get OXEE_API_PORT)"
     say "Waiting for the API (migrations run at first start)"
     for _ in $(seq 1 90); do
-        if curl -fsS -m 3 "http://127.0.0.1:${api:-8000}/api/v1/health" >/dev/null 2>&1; then
+        if curl -fsS -m 10 "http://127.0.0.1:${api:-8000}/api/v1/health" >/dev/null 2>&1; then
             ok "API is up"; return
         fi
         sleep 4
@@ -310,7 +310,7 @@ EOF
 status() {
     compose ps
     local api; api="$(env_get OXEE_API_PORT)"
-    if curl -fsS -m 3 "http://127.0.0.1:${api:-8000}/api/v1/health" >/dev/null 2>&1; then ok "API healthy"; else warn "API not answering"; fi
+    if curl -fsS -m 10 "http://127.0.0.1:${api:-8000}/api/v1/health" >/dev/null 2>&1; then ok "API healthy"; else warn "API not answering"; fi
 }
 
 update() {

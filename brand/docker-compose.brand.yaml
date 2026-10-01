@@ -91,6 +91,8 @@ services:
       # Docker Desktop / no hairpin: the API reaches coturn on the Docker
       # network ("coturn"); browsers keep TURN_HOST (see api/brand/webrtc.py).
       OXEE_SERVER_TURN_HOST: "${OXEE_SERVER_TURN_HOST:-}"
+      # true only with the `tunnel` profile (upstream's Cloudflare quick tunnel).
+      OXEE_CLOUDFLARED_TUNNEL: "${OXEE_CLOUDFLARED_TUNNEL:-false}"
       ENABLE_TELEMETRY: "false"
       POSTHOG_API_KEY: ""
       POSTHOG_HOST: ""
