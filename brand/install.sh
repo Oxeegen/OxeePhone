@@ -22,6 +22,7 @@
 #   OXEE_TLS_NAMES      every name users type, comma-separated         (IP + host names)
 #   OXEE_PROJECT        Docker Compose project name    (oxeephone)
 #   OXEE_*_PORT, OXEE_TURN_RELAY_MIN/MAX, OXEE_DB_BIND  (see brand/README.md)
+#   OXEE_SERVER_TURN_HOST=coturn  Docker Desktop / no hairpin NAT
 #   OXEE_YES=1          accept the proposed values without asking
 set -euo pipefail
 
@@ -238,6 +239,9 @@ EOF
     # browsers use the name they typed, through the proxy.
     env_set_default BACKEND_API_ENDPOINT "http://$ip:$api"
     env_set_default MINIO_PUBLIC_ENDPOINT "https://$ip:$https"
+    # Docker Desktop / hosts without hairpin NAT: the API reaches coturn on
+    # the Docker network ("coturn"); only when asked.
+    [ -n "${OXEE_SERVER_TURN_HOST:-}" ] && env_set_default OXEE_SERVER_TURN_HOST "$OXEE_SERVER_TURN_HOST"
 
     if [ "${#ADDED[@]}" -gt 0 ]; then ok ".env: added ${ADDED[*]}"; else ok ".env: unchanged"; fi
 }
