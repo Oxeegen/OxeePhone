@@ -43,6 +43,10 @@ class BrandConfig:
     # Automatic fixes of analysis findings, tested by text simulation
     # (see brand/fixes.py, brand/simulation.py).
     agent_fixes: bool
+    # Browser stays on the page's origin (LAN IP, VPN name…): TURN and
+    # recording URLs follow the request when it comes through the OxeePhone
+    # proxy; CORS_ALLOWED_ORIGINS also applies in OSS mode (see brand/origin.py).
+    same_origin: bool
 
 
 BRAND = BrandConfig(
@@ -57,4 +61,5 @@ BRAND = BrandConfig(
     speaking_plan=_env_flag("OXEE_SPEAKING_PLAN", True),
     version_history=_env_flag("OXEE_VERSION_HISTORY", True),
     agent_fixes=_env_flag("OXEE_AGENT_FIXES", True),
+    same_origin=_env_flag("OXEE_SAME_ORIGIN", True),
 )

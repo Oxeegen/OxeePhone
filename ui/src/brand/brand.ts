@@ -35,8 +35,13 @@ export const BRAND = {
   // OpenAI-compatible provider ("speaches", shown as Local Models). Must match
   // the API's OXEE_LOCAL_MODELS_ONLY.
   localModelsOnly: true,
+  // The browser calls the API on the page's own origin (HTTP and WebSocket
+  // through the OxeePhone proxy) instead of the backend-reported
+  // BACKEND_API_ENDPOINT, so every network name of the server works.
+  sameOriginApi: true,
 } as const;
 
 export const isBranded = BRAND.enabled;
 export const hideDograhServices = BRAND.enabled && BRAND.disableDograhServices;
 export const localModelsOnly = BRAND.enabled && BRAND.localModelsOnly;
+export const sameOriginApi = BRAND.enabled && BRAND.sameOriginApi;

@@ -46,6 +46,8 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
 | API | `OXEE_AGENT_FIXES` | `true` | Automatic fixes of analysis findings (model proposal → draft → text simulation → publish; `api/brand/fixes.py`, `api/brand/simulation.py`, `/api/v1/oxee/fixes*`); simulation runs are named `OXEE-SIM-…` and left out of reports / analyses |
 | API | `OXEE_MCP_CAN_PUBLISH` | unset (false) | Adds the `oxee_publish_draft` / `oxee_rollback_fix` MCP tools (see `brand/agent-vm/README.md`) |
+| API | `OXEE_SAME_ORIGIN` | `true` | Browser TURN / recording URLs on the page's origin for requests through the OxeePhone proxy; `CORS_ALLOWED_ORIGINS` honoured in OSS mode (see `brand/proxy/README.md`) |
+| UI | `BRAND.sameOriginApi` | `true` | The browser calls the API on the page's origin, not the backend-reported `BACKEND_API_ENDPOINT` |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -75,7 +77,9 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
 - `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown` (minus turns falsely measured from the call start); speaking plan: VAD `start_secs`, turn start/stop strategies, stop timeout, `SpeakingPlanGate` before the output transport
 - `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
-- `api/app.py` — OpenAPI version = `BRAND.version`
+- `api/app.py` — OpenAPI version = `BRAND.version`; `RequestOriginMiddleware`; `CORS_ALLOWED_ORIGINS` allowlist with credentials in OSS mode when set
+- `api/services/filesystem/minio.py` — public object URLs on the browser's origin (`/voice-audio/…` through the proxy)
+- `api/routes/turn_credentials.py`, `api/routes/public_embed.py` — browser TURN URIs on the page's hostname
 - `api/app.py` — registers the OxeePhone MCP tools (`api/brand/mcp_tools.py`) when `agent_fixes`
 - `api/app.py` — `ChannelMiddleware` (request channel: editor / API key / MCP) when `version_history`
 - `api/routes/workflow.py` — records version edits (update, create-draft) and publications in `api/brand/versions.py`
@@ -85,6 +89,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 
 **UI**
 - `ui/src/components/layout/AppSidebar.tsx` — shows the OxeePhone version (`BRAND.version`, Dograh base version in the tooltip)
+- `ui/src/lib/apiClient.ts` — `resolveBrowserBackendUrl` ignores the backend-reported endpoint when `sameOriginApi`
 - `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
 - `ui/src/app/layout.tsx` — brand CSS, metadata, `<BrandRuntime/>`, no Chatwoot
 - `ui/src/components/BrandLogo.tsx` — delegates to `@/brand/BrandLogo`

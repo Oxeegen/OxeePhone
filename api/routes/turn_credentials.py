@@ -23,6 +23,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 from pydantic import BaseModel
 
+from api.brand import BRAND
+from api.brand.origin import browser_turn_uris
 from api.constants import (
     ENABLE_COTURN,
     ENVIRONMENT,
@@ -161,6 +163,9 @@ async def get_turn_credentials(
 
     try:
         credentials = generate_turn_credentials(str(user.id))
+        if BRAND.same_origin:
+            # OxeePhone: TURN on the hostname the browser used (api/brand/origin.py).
+            credentials["uris"] = browser_turn_uris(credentials["uris"])
         logger.debug(f"Generated TURN credentials for user {user.id}")
         return TurnCredentialsResponse(**credentials)
     except Exception as e:

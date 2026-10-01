@@ -7,6 +7,13 @@
 # hosted-service endpoint at the environment level too. The code-level gates
 # (api/brand, ui/src/brand) already block them; this is defence in depth.
 # Relative paths resolve against the first compose file, i.e. the repo root.
+#
+# Browsers reach everything through the `proxy` service: UI, /api/v1 (HTTP +
+# WebSocket) and /voice-audio on one origin, so the server works under every
+# name it has (LAN IP, VPN hostname...). HTTPS (OXEE_HTTPS_PORT, default 3443)
+# for every name but localhost, since browsers only allow the microphone in a
+# secure context; set OXEE_TLS_NAMES. Port 8000 stays published for webhooks,
+# MCP and scripts. See brand/proxy/.
 
 services:
   api:
@@ -18,6 +25,7 @@ services:
       OXEE_DISABLE_DOGRAH_SERVICES: "true"
       OXEE_DISABLE_TELEMETRY: "true"
       OXEE_LOCAL_MODELS_ONLY: "true"
+      OXEE_SAME_ORIGIN: "true"
       ENABLE_TELEMETRY: "false"
       POSTHOG_API_KEY: ""
       POSTHOG_HOST: ""
@@ -27,6 +35,8 @@ services:
 
   ui:
     image: ${OXEE_REGISTRY:-oxeegen}/oxeephone-ui:${OXEE_TAG:-latest}
+    # Served by `proxy` on the same port, never directly.
+    ports: !reset []
     build:
       context: .
       dockerfile: ui/Dockerfile
@@ -35,3 +45,34 @@ services:
       POSTHOG_KEY: ""
       POSTHOG_HOST: ""
       SENTRY_DSN: ""
+
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: oxeephone-proxy
+    restart: unless-stopped
+    depends_on:
+      - ui
+      - api
+    ports:
+      - "${OXEE_HTTP_PORT:-3010}:80"
+      - "${OXEE_HTTPS_PORT:-3443}:443"
+    environment:
+      # Every name browsers use to reach the server, for the certificate
+      # (comma-separated), e.g. "10.100.21.41,sngi-ai-phone-01.nb.us".
+      OXEE_TLS_NAMES: "${OXEE_TLS_NAMES:-}"
+      # true: your own server.crt / server.key in the oxeephone-certs volume.
+      OXEE_TLS_CUSTOM: "${OXEE_TLS_CUSTOM:-false}"
+      OXEE_HTTPS_PORT: "${OXEE_HTTPS_PORT:-3443}"
+      # Plain HTTP on another name than localhost goes to HTTPS (microphone).
+      OXEE_HTTPS_REDIRECT: "${OXEE_HTTPS_REDIRECT:-true}"
+      NGINX_ENVSUBST_FILTER: "^OXEE_"
+    volumes:
+      - ./brand/proxy/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./brand/proxy/locations.conf:/etc/nginx/oxee/locations.conf:ro
+      - ./brand/proxy/cert.sh:/docker-entrypoint.d/05-oxee-cert.sh:ro
+      - oxeephone-certs:/etc/nginx/oxee-certs
+    networks:
+      - app-network
+
+volumes:
+  oxeephone-certs:

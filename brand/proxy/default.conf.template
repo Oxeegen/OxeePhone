@@ -1,0 +1,49 @@
+# OxeePhone single entry point (service `proxy` in brand/docker-compose.brand.yaml).
+#
+# The browser stays on the origin it loaded the page from, whatever name it
+# used to reach the server (LAN IP, VPN hostname...): the API (HTTP and the
+# WebRTC signaling WebSocket) and the recordings are served on that same
+# origin, so there is no CORS and nothing depends on one absolute address.
+# `X-Oxee-Proxy: 1` + the original Host let the API build TURN and recording
+# URLs on that origin (api/brand/origin.py).
+#
+# Browsers only give web pages the microphone in a secure context (HTTPS, or
+# http://localhost): HTTPS on ${OXEE_HTTPS_PORT}, and plain HTTP on another name
+# than localhost is redirected there when OXEE_HTTPS_REDIRECT is true.
+# Rendered by the nginx image's envsubst (only the OXEE_* variables).
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+map $http_x_forwarded_proto $forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    set $oxee_redirect "${OXEE_HTTPS_REDIRECT}";
+    if ($host ~* "^(localhost|127\.0\.0\.1|\[::1\])$") {
+        set $oxee_redirect "false";
+    }
+    if ($oxee_redirect = "true") {
+        return 301 https://$host:${OXEE_HTTPS_PORT}$request_uri;
+    }
+
+    include /etc/nginx/oxee/locations.conf;
+}
+
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/oxee-certs/server.crt;
+    ssl_certificate_key /etc/nginx/oxee-certs/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    include /etc/nginx/oxee/locations.conf;
+}

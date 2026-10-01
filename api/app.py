@@ -133,10 +133,12 @@ async def handle_mps_unavailable_error(
 # (same-origin, so CORS does not apply). Keep it permissive without
 # credentials — wildcard + credentials is rejected by browsers and unsafe.
 # SaaS deployments must set CORS_ALLOWED_ORIGINS to an explicit allowlist.
-if DEPLOYMENT_MODE == "oss":
+if DEPLOYMENT_MODE == "oss" and not (BRAND.same_origin and CORS_ALLOWED_ORIGINS):
     cors_origins: list[str] = ["*"]
     cors_allow_credentials = False
 else:
+    # OxeePhone: in OSS too, an explicit CORS_ALLOWED_ORIGINS allowlist enables
+    # credentialed cross-origin calls (another hostname than the page's).
     if not CORS_ALLOWED_ORIGINS:
         raise RuntimeError(
             "CORS_ALLOWED_ORIGINS must be set to an explicit origin allowlist "
@@ -165,6 +167,12 @@ def _add_public_embed_cors_middleware() -> None:
 
 
 _add_public_embed_cors_middleware()
+
+if BRAND.same_origin:
+    # OxeePhone: TURN / recording URLs on the browser's origin (api/brand/origin.py).
+    from api.brand.origin import RequestOriginMiddleware
+
+    app.add_middleware(RequestOriginMiddleware)
 
 if BRAND.version_history:
     # OxeePhone: tag requests with their channel (editor / API key / MCP) so

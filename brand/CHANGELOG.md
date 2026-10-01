@@ -37,6 +37,13 @@ First OxeePhone release, based on Dograh 1.47.0.
   breakdown, events, analysis, usage, routing graph (path and conditions).
 - Reports: latency, token consumption, quality, tools and routing indicators.
 
+### Deployment
+- One entry point for every network (`proxy` service, `brand/proxy/`): UI,
+  API (HTTP + WebSocket) and recordings on the page's own origin, so the
+  server works under each of its names (LAN IP, VPN hostname…) without CORS
+  issues; TURN and recording URLs follow the name used; HTTPS with a generated
+  certificate for all names (browsers only allow the microphone over HTTPS).
+
 ### Analysis and automatic fixes
 - Configuration analysis of recorded calls: rules (latency, silences, stalled
   nodes, loops, misrouting, tools…) reviewed by the analysis model; detection
