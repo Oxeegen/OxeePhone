@@ -84,6 +84,7 @@ ones. Volumes and networks are per project, so data stays separate.
 | API | `OXEE_SAME_ORIGIN` | `true` | Browser TURN / recording URLs on the page's origin for requests through the OxeePhone proxy; `CORS_ALLOWED_ORIGINS` honoured in OSS mode (see `brand/proxy/README.md`) |
 | UI | `BRAND.sameOriginApi` | `true` | The browser calls the API on the page's origin, not the backend-reported `BACKEND_API_ENDPOINT` |
 | API | `OXEE_CLOUDFLARED_TUNNEL` | `true` (`false` in the overlay) | Look for upstream's Cloudflare quick tunnel; off unless the `tunnel` profile runs (otherwise /health waits seconds on DNS) |
+| API | `OXEE_UPDATE_CHECK` | `true` | The server checks the GitHub releases of `OXEE_RELEASES_REPO` (default `Oxeegen/OxeePhone`, cached 1 h) for the sidebar version: release notes and update notice |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -125,7 +126,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 
 **UI**
-- `ui/src/components/layout/AppSidebar.tsx` — shows the OxeePhone version (`BRAND.version`, Dograh base version in the tooltip)
+- `ui/src/components/layout/AppSidebar.tsx` — the OxeePhone version (`@/brand/release/VersionBadge`): release notes of the running version, update notice and command (`GET /api/v1/oxee/releases`)
 - `ui/src/lib/apiClient.ts` — `resolveBrowserBackendUrl` ignores the backend-reported endpoint when `sameOriginApi`
 - `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
 - `ui/src/app/layout.tsx` — brand CSS, metadata, `<BrandRuntime/>`, no Chatwoot
@@ -180,4 +181,4 @@ IP>`, `FORCE_TURN_RELAY=true`; in `docker-compose.local.yaml` set
 
 ## Versions
 
-OxeePhone releases are numbered on their own (`BRAND.version`, UI and API kept equal by a test); see `brand/CHANGELOG.md`. Release tags are `oxeephone-vX.Y.Z` (upstream tags are `dograh-v*`).
+OxeePhone releases are numbered on their own (`BRAND.version`, UI and API kept equal by a test); see `brand/CHANGELOG.md`. Release tags are `oxeephone-vX.Y.Z` (upstream tags are `dograh-v*`). The GitHub release body is what the app shows as release notes: publish each release with its `brand/CHANGELOG.md` section.

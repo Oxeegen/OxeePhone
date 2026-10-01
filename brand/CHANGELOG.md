@@ -7,6 +7,9 @@ keeps them equal).
 
 ## Unreleased
 
+- Click the version in the sidebar: release notes of the running version and,
+  when GitHub has a newer OxeePhone release, an "Update" badge with its notes
+  and the update command (checked by the server, `OXEE_UPDATE_CHECK`).
 - Installer for Ubuntu (`brand/install.sh`): Docker, code at the latest
   release, generated secrets, free ports, build, start; `update` and `status`.
 - Every published port configurable in `.env` (upstream values by default) and
