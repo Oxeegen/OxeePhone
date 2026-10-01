@@ -29,6 +29,7 @@ from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
 from pipecat.utils.run_context import set_current_org_id, set_current_run_id
 from starlette.websockets import WebSocketState
 
+from api.brand.webrtc import server_turn_uris
 from api.constants import ENABLE_COTURN, ENVIRONMENT, FORCE_TURN_RELAY, SERVER_IP
 from api.db import db_client
 from api.db.models import UserModel
@@ -270,7 +271,8 @@ def get_ice_servers(user_id: Optional[str] = None) -> List[RTCIceServer]:
             credentials = generate_turn_credentials(user_id)
             servers.append(
                 RTCIceServer(
-                    urls=credentials["uris"],
+                    # OxeePhone: optional server-side TURN host (api/brand/webrtc.py).
+                    urls=server_turn_uris(credentials["uris"]),
                     username=credentials["username"],
                     credential=credentials["password"],
                 )

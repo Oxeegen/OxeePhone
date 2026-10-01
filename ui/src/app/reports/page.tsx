@@ -4,6 +4,8 @@ import { addDays, format, subDays } from 'date-fns';
 import { Calendar, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { isBranded } from '@/brand/brand';
+import { CallInsights } from '@/brand/reports/CallInsights';
 import {
   getDailyReportApiV1OrganizationsReportsDailyGet,
   getDailyRunsDetailApiV1OrganizationsReportsDailyRunsGet,
@@ -327,6 +329,15 @@ export default function ReportsPage() {
             </Card>
           )}
         </>
+      )}
+
+      {/* OxeePhone: latency, consumption and quality insights */}
+      {isBranded && (
+        <CallInsights
+          date={selectedDate}
+          timezone={timezone}
+          workflowId={selectedWorkflow === 'all' ? undefined : parseInt(selectedWorkflow)}
+        />
       )}
     </div>
   );

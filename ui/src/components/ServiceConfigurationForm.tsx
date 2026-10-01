@@ -1,9 +1,13 @@
 "use client";
 
 import { ExternalLink, Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { AnalysisModelTab, type AnalysisModelTabHandle } from "@/brand/AnalysisModelTab";
+import { localModelsOnly } from "@/brand/brand";
+import { LocalModelPicker } from "@/brand/LocalModelPicker";
+import { localFieldLabel, LocalSpeedSlider, LocalVoiceField, LocalVolumeSlider } from "@/brand/LocalVoiceControls";
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -113,6 +117,8 @@ export interface ServiceConfigurationFormProps {
      * Leave undefined to keep the user-controllable toggle (legacy + overrides).
      */
     forceRealtime?: boolean;
+    /** OxeePhone: extra "Analysis" tab (org Models page only). */
+    showAnalysisTab?: boolean;
 }
 
 function getProviderDisplayName(
@@ -166,7 +172,9 @@ export function ServiceConfigurationForm({
     configurationDefaults,
     initialConfig,
     forceRealtime,
+    showAnalysisTab = false,
 }: ServiceConfigurationFormProps) {
+    const analysisTab = useRef<AnalysisModelTabHandle>(null);
     const [apiError, setApiError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRealtime, setIsRealtime] = useState(forceRealtime ?? false);
@@ -545,10 +553,13 @@ export function ServiceConfigurationForm({
                     saveConfig.realtime = buildServiceConfig("realtime", data);
                 }
                 const embeddingsKeys = apiKeys.embeddings.map(k => k.trim()).filter(k => k.length > 0);
-                if (embeddingsKeys.length > 0) {
+                const hasLocalEmbeddings = localModelsOnly
+                    && String(data.embeddings_base_url ?? "").trim().length > 0;
+                if (embeddingsKeys.length > 0 || hasLocalEmbeddings) {
                     saveConfig.embeddings = buildServiceConfig("embeddings", data);
                 }
                 await onSave(saveConfig);
+                if (showAnalysisTab) await analysisTab.current?.save();
             }
             setApiError(null);
         } catch (error: unknown) {
@@ -569,6 +580,7 @@ export function ServiceConfigurationForm({
         const model = watch(`${service}_model`) as string;
         return Object.keys(providerSchema.properties).filter(
             field => field !== "provider" && field !== "api_key"
+                && !(localModelsOnly && field === "base_url")
                 && isVisibleForModel(providerSchema.properties[field], model)
         );
     };
@@ -582,6 +594,12 @@ export function ServiceConfigurationForm({
         return (
             <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
+                    {localModelsOnly && providerSchema?.properties.base_url ? (
+                    <div className="space-y-2">
+                        <Label>Base URL</Label>
+                        {renderField(service, "base_url", providerSchema)}
+                    </div>
+                    ) : (
                     <div className="space-y-2">
                         <Label>Provider</Label>
                         <Select
@@ -617,10 +635,11 @@ export function ServiceConfigurationForm({
                             </p>
                         )}
                     </div>
+                    )}
 
                     {currentProvider && providerSchema && configFields[0] && (
                         <div className="space-y-2">
-                            <Label className="capitalize">{configFields[0].replace(/_/g, ' ')}</Label>
+                            <Label className="capitalize">{localModelsOnly ? localFieldLabel(configFields[0]) : configFields[0].replace(/_/g, ' ')}</Label>
                             {renderField(service, configFields[0], providerSchema)}
                         </div>
                     )}
@@ -636,7 +655,7 @@ export function ServiceConfigurationForm({
                             const fullWidth = actualFieldSchema?.multiline;
                             return (
                                 <div key={field} className={`space-y-2 ${fullWidth ? "col-span-2" : ""}`}>
-                                    <Label className="capitalize">{field.replace(/_/g, ' ')}</Label>
+                                    <Label className="capitalize">{localModelsOnly ? localFieldLabel(field) : field.replace(/_/g, ' ')}</Label>
                                     {renderField(service, field, providerSchema)}
                                 </div>
                             );
@@ -742,6 +761,58 @@ export function ServiceConfigurationForm({
             watch(`${service}_model`) as string | undefined,
         );
         const numberSchema = getNumberSchema(actualSchema);
+
+        if (localModelsOnly && service === "tts" && field === "voice") {
+            return (
+                <LocalVoiceField
+                    value={watch("tts_voice") as string || ""}
+                    onChange={(voice) => setValue("tts_voice", voice, { shouldDirty: true })}
+                    preview={{
+                        baseUrl: watch("tts_base_url") as string || "",
+                        apiKey: apiKeys.tts?.[0] || "",
+                        model: watch("tts_model") as string || "",
+                        speed: Number(watch("tts_speed")) || undefined,
+                        language: watch("tts_language") as string || undefined,
+                        volumeGainDb: Number(watch("tts_volume_gain_db")) || 0,
+                        pronunciations: watch("tts_pronunciations") as string || undefined,
+                    }}
+                />
+            );
+        }
+
+        if (localModelsOnly && service === "tts" && field === "speed") {
+            return (
+                <LocalSpeedSlider
+                    value={Number(watch("tts_speed") ?? 1)}
+                    min={numberSchema?.minimum ?? 0.5}
+                    max={numberSchema?.maximum ?? 2}
+                    onChange={(speed) => setValue("tts_speed", speed, { shouldDirty: true })}
+                />
+            );
+        }
+
+        if (localModelsOnly && service === "tts" && field === "volume_gain_db") {
+            return (
+                <LocalVolumeSlider
+                    value={Number(watch("tts_volume_gain_db") ?? 0)}
+                    min={numberSchema?.minimum ?? -12}
+                    max={numberSchema?.maximum ?? 12}
+                    onChange={(db) => setValue("tts_volume_gain_db", db, { shouldDirty: true })}
+                />
+            );
+        }
+
+        if (localModelsOnly && field === "model" && service !== "realtime") {
+            return (
+                <LocalModelPicker
+                    service={service}
+                    baseUrl={watch(`${service}_base_url`) as string || ""}
+                    apiKey={apiKeys[service]?.[0] || ""}
+                    value={watch(`${service}_model`) as string || ""}
+                    onChange={(model) => setValue(`${service}_model`, model, { shouldDirty: true })}
+                />
+            );
+        }
 
         if (service === "tts" && field === "voice" && !actualSchema?.allow_custom_input) {
             if (!dropdownOptions) {
@@ -933,6 +1004,7 @@ export function ServiceConfigurationForm({
     };
 
     const visibleTabs = getVisibleTabs();
+    const withAnalysisTab = showAnalysisTab && mode === "global" && !isRealtime;
     const defaultTab = isRealtime ? "realtime" : "llm";
 
     return (
@@ -959,12 +1031,13 @@ export function ServiceConfigurationForm({
             <Card>
                 <CardContent className="pt-6">
                     <Tabs key={defaultTab} defaultValue={defaultTab} className="w-full">
-                        <TabsList className="grid w-full mb-6" style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, 1fr)` }}>
+                        <TabsList className="grid w-full mb-6" style={{ gridTemplateColumns: `repeat(${visibleTabs.length + (withAnalysisTab ? 1 : 0)}, 1fr)` }}>
                             {visibleTabs.map(({ key, label }) => (
                                 <TabsTrigger key={key} value={key}>
                                     {label}
                                 </TabsTrigger>
                             ))}
+                            {withAnalysisTab && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
                         </TabsList>
 
                         {visibleTabs.map(({ key, label }) => (
@@ -973,6 +1046,11 @@ export function ServiceConfigurationForm({
                                 {(mode === 'global' || enabledOverrides[key]) && renderServiceFields(key)}
                             </TabsContent>
                         ))}
+                        {withAnalysisTab && (
+                            <TabsContent value="analysis" forceMount className="mt-0 data-[state=inactive]:hidden">
+                                <AnalysisModelTab ref={analysisTab} />
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </CardContent>
             </Card>

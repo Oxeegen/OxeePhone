@@ -1,0 +1,837 @@
+{
+ "id": 8,
+ "mode": "smallwebrtc",
+ "created_at": "2026-09-30T16:45:55.662040Z",
+ "is_completed": true,
+ "usage_info": {
+  "llm": {
+   "SpeachesLLMService#0|||Oxee-flash": {
+    "prompt_tokens": 4290,
+    "completion_tokens": 1089,
+    "total_tokens": 5379,
+    "cache_read_input_tokens": 2752,
+    "cache_creation_input_tokens": null,
+    "reasoning_tokens": 0,
+    "input_audio_tokens": null,
+    "output_audio_tokens": null,
+    "cache_read_input_audio_tokens": null
+   }
+  },
+  "tts": {
+   "LocalModelsTTSService#0|||voxee-tts-pro": 461
+  },
+  "stt": {},
+  "call_duration_seconds": 83
+ },
+ "cost_info": {
+  "dograh_token_usage": 0,
+  "call_duration_seconds": 83
+ },
+ "gathered_context": {
+  "nodes_visited": [
+   "Accueil"
+  ],
+  "call_status": "user_hangup",
+  "call_disposition": "user_hangup",
+  "mapped_call_disposition": "user_hangup",
+  "call_tags": [
+   "user_hangup",
+   "user_speech"
+  ],
+  "agent_visits": [
+   {
+    "visit_id": "visit-c705ef612a99",
+    "workflow_id": 2,
+    "workflow_name": "Accueil cabinet Martin",
+    "definition_id": 2,
+    "runtime_configuration": {
+     "stt_provider": "speaches",
+     "stt_model": "voxee-stt",
+     "tts_provider": "speaches",
+     "tts_model": "voxee-tts-pro",
+     "llm_provider": "speaches",
+     "llm_model": "Oxee-flash"
+    },
+    "entered_at": 1790786755.884324,
+    "exited_at": 1790786839.5285723,
+    "exit_reason": "user_hangup",
+    "error": null,
+    "node": "Accueil"
+   }
+  ]
+ },
+ "annotations": {},
+ "logs": {
+  "realtime_feedback_events": [
+   {
+    "type": "oxee-recording-started",
+    "payload": {},
+    "timestamp": "2026-09-30T16:45:56.099+00:00"
+   },
+   {
+    "type": "rtf-node-transition",
+    "payload": {
+     "node_id": "1",
+     "node_name": "Accueil",
+     "previous_node_id": null,
+     "previous_node_name": null,
+     "allow_interrupt": true
+    },
+    "timestamp": "2026-09-30T16:45:56.494+00:00",
+    "turn": 1,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 0.5989015102386475,
+     "measured_from": "client_connected",
+     "user_turn_secs": null,
+     "contributions": [
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790786757.0636082,
+       "duration_secs": 0.0070209503173828125
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790786756.4717276,
+       "duration_secs": 0.5918805599212646
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790786756.501189,
+       "duration_secs": 0.5621707439422607
+      }
+     ],
+     "function_calls": []
+    },
+    "timestamp": "2026-09-30T16:45:57.071+00:00",
+    "turn": 1,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Bonjour, cabinet du docteur Martin, que puis-je faire pour vous ?",
+     "timestamp": "2026-09-30T16:45:57.070+00:00",
+     "end_timestamp": "2026-09-30T16:46:01.551+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:01.511+00:00",
+    "turn": 1,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Bonjour, je voudrais prendre rendez-vous avec le Dr Martin. S'il vous plaît.",
+     "final": true,
+     "timestamp": "2026-09-30T16:46:01.793+00:00",
+     "end_timestamp": "2026-09-30T16:46:06.233+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:06.233+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.3292665481567383,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:46:06.565+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 2.1587600708007812
+    },
+    "timestamp": "2026-09-30T16:46:07.591+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 2.158752202987671,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.801349401473999,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790786765.4319303,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790786765.6319304,
+       "duration_secs": 0.2908339500427246
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790786765.9227643,
+       "duration_secs": 0.3504617214202881
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790786767.569519,
+       "duration_secs": 0.021163463592529297
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790786765.4319303,
+       "duration_secs": 1.296293020248413
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790786765.43206,
+       "duration_secs": 0.256070613861084
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790786766.2354088,
+       "duration_secs": 0.3292665481567383
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790786767.186235,
+       "duration_secs": 0.3830544948577881
+      }
+     ],
+     "function_calls": []
+    },
+    "timestamp": "2026-09-30T16:46:07.591+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Bien sûr. Quel jour souhaitez-vous venir ?",
+     "timestamp": "2026-09-30T16:46:07.590+00:00",
+     "end_timestamp": "2026-09-30T16:46:11.390+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:11.393+00:00",
+    "turn": 2,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Mardi prochain. prochaines En fin de matinée, Ce serait parfait.",
+     "final": true,
+     "timestamp": "2026-09-30T16:46:15.432+00:00",
+     "end_timestamp": "2026-09-30T16:46:19.132+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:19.132+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.28423333168029785,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:46:19.418+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-function-call-start",
+    "payload": {
+     "function_name": "check_availability",
+     "tool_call_id": "call_82e27dbf71c24f2eaf1cbee0",
+     "arguments": {
+      "day": "mardi"
+     }
+    },
+    "timestamp": "2026-09-30T16:46:19.943+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-function-call-end",
+    "payload": {
+     "function_name": "check_availability",
+     "tool_call_id": "call_82e27dbf71c24f2eaf1cbee0",
+     "result": "{'status': 'success', 'status_code': 200, 'data': {'doctor': 'Dr Martin', 'day': 'mardi', 'slots': ['10h30', '11h15', '11h45'], 'duration_minutes': 20}}"
+    },
+    "timestamp": "2026-09-30T16:46:19.948+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.28278017044067383,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:46:20.235+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 2.778441905975342
+    },
+    "timestamp": "2026-09-30T16:46:21.111+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 2.778437614440918,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.8007843494415283,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790786778.3317454,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790786778.5317454,
+       "duration_secs": 0.32378411293029785
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790786778.8555295,
+       "duration_secs": 0.2803938388824463
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790786781.1005445,
+       "duration_secs": 0.009638547897338867
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790786778.3317454,
+       "duration_secs": 1.9646210670471191
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790786778.3318417,
+       "duration_secs": 0.5234110355377197
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790786779.1344068,
+       "duration_secs": 0.28423333168029785
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790786779.9521961,
+       "duration_secs": 0.28278017044067383
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790786780.7299592,
+       "duration_secs": 0.3703022003173828
+      }
+     ],
+     "function_calls": [
+      {
+       "function_name": "check_availability",
+       "start_time": 1790786779.9430556,
+       "duration_secs": 0.004995107650756836
+      }
+     ]
+    },
+    "timestamp": "2026-09-30T16:46:21.111+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "J'ai 11h15 ou 11h45 en fin de matinée mardi.",
+     "timestamp": "2026-09-30T16:46:21.110+00:00",
+     "end_timestamp": "2026-09-30T16:46:26.922+00:00",
+     "interrupted": true
+    },
+    "timestamp": "2026-09-30T16:46:26.924+00:00",
+    "turn": 3,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Je m'appelle Julie Bernard, mon numéro est le 06. 12, 34, 56, 78.",
+     "final": true,
+     "timestamp": "2026-09-30T16:46:26.919+00:00",
+     "end_timestamp": "2026-09-30T16:46:33.100+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:33.100+00:00",
+    "turn": 4,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.331798791885376,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:46:33.435+00:00",
+    "turn": 4,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 2.211843252182007
+    },
+    "timestamp": "2026-09-30T16:46:34.512+00:00",
+    "turn": 4,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 2.211838483810425,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.801161527633667,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790786792.2993205,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790786792.4993205,
+       "duration_secs": 0.5790004730224609
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790786793.078321,
+       "duration_secs": 0.02686452865600586
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790786794.5055478,
+       "duration_secs": 0.0056111812591552734
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790786792.2993205,
+       "duration_secs": 1.400362253189087
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790786792.2994323,
+       "duration_secs": 0.7785117626190186
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790786793.1030924,
+       "duration_secs": 0.331798791885376
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790786794.115265,
+       "duration_secs": 0.39003634452819824
+      }
+     ],
+     "function_calls": []
+    },
+    "timestamp": "2026-09-30T16:46:34.512+00:00",
+    "turn": 4,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Très bien. Quel créneau préférez-vous, 11h15 ou 11h45 ?",
+     "timestamp": "2026-09-30T16:46:34.511+00:00",
+     "end_timestamp": "2026-09-30T16:46:40.510+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:40.512+00:00",
+    "turn": 4,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Merci beaucoup. Au revoir.",
+     "final": true,
+     "timestamp": "2026-09-30T16:46:43.380+00:00",
+     "end_timestamp": "2026-09-30T16:46:45.095+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:45.095+00:00",
+    "turn": 5,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.35908055305480957,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:46:45.457+00:00",
+    "turn": 5,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 3.591635227203369
+    },
+    "timestamp": "2026-09-30T16:46:47.791+00:00",
+    "turn": 5,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 3.591630458831787,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.8963420391082764,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790786804.1992095,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790786804.3992095,
+       "duration_secs": 0.6956024169921875
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790786805.094812,
+       "duration_secs": 0.006346940994262695
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790786807.7679834,
+       "duration_secs": 0.022856473922729492
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790786804.1992095,
+       "duration_secs": 2.6668245792388916
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790786804.1993492,
+       "duration_secs": 0.8951528072357178
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790786805.0981052,
+       "duration_secs": 0.35908055305480957
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790786807.3873026,
+       "duration_secs": 0.38048553466796875
+      }
+     ],
+     "function_calls": []
+    },
+    "timestamp": "2026-09-30T16:46:47.791+00:00",
+    "turn": 5,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Avec plaisir, Madame Bernard. Pour confirmer, quel créneau choisissez-vous : 11h15 ou 11h45 ?",
+     "timestamp": "2026-09-30T16:46:47.790+00:00",
+     "end_timestamp": "2026-09-30T16:46:55.630+00:00"
+    },
+    "timestamp": "2026-09-30T16:46:55.632+00:00",
+    "turn": 5,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "« Bonjour, je voudrais prendre rendez-vous avec le Dr Martin. » S'il vous plaît.",
+     "final": true,
+     "timestamp": "2026-09-30T16:47:00.505+00:00",
+     "end_timestamp": "2026-09-30T16:47:04.946+00:00"
+    },
+    "timestamp": "2026-09-30T16:47:04.947+00:00",
+    "turn": 6,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.299013614654541,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:47:05.248+00:00",
+    "turn": 6,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-latency-measured",
+    "payload": {
+     "latency_seconds": 5.3240344524383545
+    },
+    "timestamp": "2026-09-30T16:47:09.470+00:00",
+    "turn": 6,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "oxee-latency-breakdown",
+    "payload": {
+     "total_secs": 5.324029445648193,
+     "measured_from": "user_silence",
+     "user_turn_secs": 0.800823450088501,
+     "contributions": [
+      {
+       "key": "endpointing_wait",
+       "label": "endpointing wait",
+       "owner": "config: VAD stop_secs",
+       "owner_kind": "setting",
+       "start_time": 1790786824.1460915,
+       "duration_secs": 0.20000004768371582
+      },
+      {
+       "key": "transcription",
+       "label": "transcription",
+       "owner": "SpeachesSTTService#0",
+       "owner_kind": "service",
+       "start_time": 1790786824.3460915,
+       "duration_secs": 0.23174571990966797
+      },
+      {
+       "key": "turn_detection",
+       "label": "turn detection",
+       "owner": "config: user turn strategies",
+       "owner_kind": "setting",
+       "start_time": 1790786824.5778372,
+       "duration_secs": 0.37477540969848633
+      },
+      {
+       "key": "output_transport",
+       "label": "output transport",
+       "owner": "SmallWebRTCOutputTransport#0",
+       "owner_kind": "service",
+       "start_time": 1790786829.433596,
+       "duration_secs": 0.03652501106262207
+      },
+      {
+       "key": "pipeline",
+       "label": "pipeline",
+       "owner": "pipecat",
+       "owner_kind": "pipeline",
+       "start_time": 1790786824.1460915,
+       "duration_secs": 4.480983257293701
+      }
+     ],
+     "ttfb": [
+      {
+       "processor": "SpeachesSTTService#0",
+       "model": "voxee-stt",
+       "start_time": 1790786824.1462276,
+       "duration_secs": 0.43121862411499023
+      },
+      {
+       "processor": "SpeachesLLMService#0",
+       "model": "Oxee-flash",
+       "start_time": 1790786824.9491043,
+       "duration_secs": 0.299013614654541
+      },
+      {
+       "processor": "LocalModelsTTSService#0",
+       "model": "voxee-tts-pro",
+       "start_time": 1790786828.89688,
+       "duration_secs": 0.5364842414855957
+      }
+     ],
+     "function_calls": []
+    },
+    "timestamp": "2026-09-30T16:47:09.471+00:00",
+    "turn": 6,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-bot-text",
+    "payload": {
+     "text": "Très bien.",
+     "timestamp": "2026-09-30T16:47:09.470+00:00",
+     "end_timestamp": "2026-09-30T16:47:14.149+00:00",
+     "interrupted": true
+    },
+    "timestamp": "2026-09-30T16:47:14.150+00:00",
+    "turn": 6,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-user-transcription",
+    "payload": {
+     "text": "Mardi prochain. prochaines en fin de matinée. Ce serait parfait.",
+     "final": true,
+     "timestamp": "2026-09-30T16:47:14.146+00:00",
+     "end_timestamp": "2026-09-30T16:47:17.707+00:00"
+    },
+    "timestamp": "2026-09-30T16:47:17.708+00:00",
+    "turn": 7,
+    "node_id": "1",
+    "node_name": "Accueil"
+   },
+   {
+    "type": "rtf-ttfb-metric",
+    "payload": {
+     "ttfb_seconds": 0.2927742004394531,
+     "processor": "SpeachesLLMService#0",
+     "model": "Oxee-flash"
+    },
+    "timestamp": "2026-09-30T16:47:18.003+00:00",
+    "turn": 7,
+    "node_id": "1",
+    "node_name": "Accueil"
+   }
+  ]
+ },
+ "initial_context": {
+  "direction": "inbound",
+  "workflow_run_id": 8,
+  "runtime_configuration": {
+   "stt_provider": "speaches",
+   "stt_model": "voxee-stt",
+   "tts_provider": "speaches",
+   "tts_model": "voxee-tts-pro",
+   "llm_provider": "speaches",
+   "llm_model": "Oxee-flash"
+  }
+ }
+}

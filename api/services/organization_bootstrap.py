@@ -16,6 +16,7 @@ from datetime import timedelta
 
 from loguru import logger
 
+from api.brand import BRAND
 from api.constants import AUTH_PROVIDER, DEPLOYMENT_MODE
 from api.db import db_client
 from api.db.organization_configuration_client import LEASE_COMPLETED
@@ -61,6 +62,10 @@ async def ensure_organization_bootstrapped(
     Never raises. A provisioning failure must not fail authentication — the
     caller is a legitimately authenticated user either way.
     """
+    if BRAND.disable_dograh_services:
+        # OxeePhone: no Dograh-managed keys or SIP; organizations are BYOK.
+        return True
+
     if await _is_bootstrap_complete(organization_id):
         return True
 

@@ -2,6 +2,8 @@
 
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
+import { isBranded } from '@/brand/brand';
+import { registerSessionGuard } from '@/brand/sessionGuard';
 import { client } from '@/client/client.gen';
 import { getCurrentOrganizationContextApiV1OrganizationsContextGet, getPreferencesApiV1OrganizationsPreferencesGet, getUserConfigurationsApiV1UserConfigurationsUserGet } from '@/client/sdk.gen';
 import type { OrganizationContextResponse, OrganizationPreferences, UserConfigurationRequestResponseSchema } from '@/client/types.gen';
@@ -68,6 +70,7 @@ export function OrgConfigProvider({ children }: { children: ReactNode }) {
 
     if (!auth.loading && auth.isAuthenticated) {
         setupAuthInterceptor(client, auth.getAccessToken);
+        if (isBranded) registerSessionGuard(client, auth);
     }
 
     useEffect(() => {

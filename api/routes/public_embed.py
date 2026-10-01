@@ -20,6 +20,8 @@ from pydantic import BaseModel
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from api.brand import BRAND
+from api.brand.origin import browser_turn_uris
 from api.constants import ENABLE_COTURN, FORCE_TURN_RELAY
 from api.db import db_client
 from api.enums import CallType, WorkflowRunMode
@@ -553,6 +555,9 @@ async def get_public_turn_credentials(
     try:
         # Use session token as identifier for TURN credentials
         credentials = generate_turn_credentials(f"embed:{session_token[:16]}")
+        if BRAND.same_origin:
+            # OxeePhone: TURN on the hostname the browser used (api/brand/origin.py).
+            credentials["uris"] = browser_turn_uris(credentials["uris"])
         return TurnCredentialsResponse(**credentials)
     except Exception as e:
         logger.error(f"Failed to generate TURN credentials for embed session: {e}")

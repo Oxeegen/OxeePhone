@@ -5,6 +5,8 @@ from fastapi import APIRouter, Header, HTTPException, status
 from loguru import logger
 from pydantic import BaseModel
 
+from api.brand import BRAND
+from api.brand.routes import router as oxee_router
 from api.routes.agent_stream import router as agent_stream_router
 from api.routes.auth import router as auth_router
 from api.routes.campaign import router as campaign_router
@@ -64,6 +66,13 @@ router.include_router(folder_router)
 router.include_router(auth_router)
 router.include_router(node_types_router)
 router.include_router(agent_stream_router)
+if (
+    BRAND.local_models_only
+    or BRAND.call_insights
+    or BRAND.version_history
+    or BRAND.agent_fixes
+):
+    router.include_router(oxee_router)
 
 for _integration_router in all_routers():
     router.include_router(_integration_router)

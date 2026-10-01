@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { LastRunCell, PublishedVersionCell, useAgentListInfo } from '@/brand/agents/AgentListInfo';
+import { isBranded } from '@/brand/brand';
 import {
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut,
     updateWorkflowStatusApiV1WorkflowWorkflowIdStatusPut,
@@ -71,6 +73,8 @@ export function WorkflowTable({
     const [isPending, startTransition] = useTransition();
     const [loadingWorkflowId, setLoadingWorkflowId] = useState<number | null>(null);
     const [movingWorkflowId, setMovingWorkflowId] = useState<number | null>(null);
+    // OxeePhone: last run and published version columns.
+    const agentInfo = useAgentListInfo(isBranded);
 
     const handleEdit = (id: number) => {
         router.push(`/workflow/${id}`);
@@ -140,6 +144,8 @@ export function WorkflowTable({
                             <TableHead className="font-semibold">Agent Name</TableHead>
                             <TableHead className="font-semibold">Created At</TableHead>
                             <TableHead className="font-semibold text-center">Total Runs</TableHead>
+                            {isBranded && <TableHead className="font-semibold">Last Run</TableHead>}
+                            {isBranded && <TableHead className="font-semibold text-center">Published Version</TableHead>}
                             <TableHead className="font-semibold text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -160,9 +166,19 @@ export function WorkflowTable({
                                 </TableCell>
                                 <TableCell className="text-center">
                                     <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 text-sm font-semibold bg-muted rounded-full">
-                                        {workflow.total_runs || 0}
+                                        {(isBranded ? agentInfo[String(workflow.id)]?.runs : undefined) ?? (workflow.total_runs || 0)}
                                     </span>
                                 </TableCell>
+                                {isBranded && (
+                                    <TableCell>
+                                        <LastRunCell info={agentInfo[String(workflow.id)]} timezone={organizationTimezone} />
+                                    </TableCell>
+                                )}
+                                {isBranded && (
+                                    <TableCell className="text-center">
+                                        <PublishedVersionCell workflowId={workflow.id} info={agentInfo[String(workflow.id)]} />
+                                    </TableCell>
+                                )}
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
                                         <Button

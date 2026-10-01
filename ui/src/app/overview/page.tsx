@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import { BRAND, hideDograhServices, isBranded } from '@/brand/brand';
 import { GitHubStarBadge } from '@/components/layout/GitHubStarBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +27,11 @@ export default function OverviewPage() {
                         </CardTitle>
                         <CardDescription className="text-lg mt-2">
                             {isOSSMode ? (
+                                isBranded ? `${BRAND.description}.` : (
                                 <>
                                     Open source alternative to Vapi. Help us support the project by giving us a star on GitHub.
                                 </>
+                                )
                             ) : (
                                 "Get started with building voice AI workflows"
                             )}
@@ -79,6 +82,7 @@ export default function OverviewPage() {
                 </div>
 
                 {/* Resources Section */}
+                {!hideDograhServices && (
                 <Card className="mt-8">
                     <CardHeader>
                         <CardTitle>Resources</CardTitle>
@@ -109,6 +113,7 @@ export default function OverviewPage() {
                         </div>
                     </CardContent>
                 </Card>
+                )}
             </div>
         </div>
     );

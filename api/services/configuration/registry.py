@@ -1442,6 +1442,7 @@ class RimeTTSConfiguration(BaseTTSConfiguration):
 
 
 SPEACHES_TTS_MODELS = ["hexgrad/Kokoro-82M"]
+SPEACHES_TTS_LANGUAGES = ["fr", "en", "es", "de", "it", "nl", "pt"]
 
 
 @register_tts
@@ -1471,6 +1472,31 @@ class SpeachesTTSConfiguration(BaseTTSConfiguration):
     api_key: str | list[str] | None = Field(
         default=None,
         description="Usually not required for self-hosted TTS. Leave blank unless enforced.",
+    )
+    # OxeePhone: language hint forwarded to the endpoint (api/brand/tts.py).
+    language: str | None = Field(
+        default=None,
+        description="Language of the speech, sent to the TTS endpoint.",
+        json_schema_extra={
+            "examples": SPEACHES_TTS_LANGUAGES,
+            "allow_custom_input": True,
+        },
+    )
+    # OxeePhone: applied client-side by api/brand/tts.py (the endpoint has no
+    # volume or pronunciation controls).
+    volume_gain_db: float = Field(
+        default=0.0,
+        ge=-12.0,
+        le=12.0,
+        description="Volume adjustment applied to the generated audio, in dB.",
+    )
+    pronunciations: str | None = Field(
+        default=None,
+        description=(
+            "One entry per line: word = how to say it (e.g. Oxeegen = Oxy-jène). "
+            "Applied before speech; transcripts keep the original text."
+        ),
+        json_schema_extra={"multiline": True},
     )
 
 
@@ -2238,6 +2264,32 @@ class AzureOpenAIEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
     )
 
 
+# OxeePhone: self-hosted OpenAI-compatible embeddings (vLLM, TEI, Infinity...),
+# the embeddings counterpart of the Speaches LLM/TTS/STT providers. Vectors of
+# up to 1536 dimensions are zero-padded to the fixed pgvector column (cosine
+# similarity is preserved exactly); see api/brand/embeddings.py.
+@register_embeddings
+class SpeachesEmbeddingsConfiguration(BaseEmbeddingsConfiguration):
+    model_config = SPEACHES_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.SPEACHES] = ServiceProviders.SPEACHES
+    model: str = Field(
+        default="",
+        description=(
+            "Embedding model name as exposed by your OpenAI-compatible server "
+            "(at most 1536 dimensions)."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+    base_url: str = Field(
+        default="",
+        description="OpenAI-compatible endpoint (vLLM, TEI, Infinity, etc.).",
+    )
+    api_key: str | list[str] | None = Field(
+        default=None,
+        description="Usually not required for self-hosted endpoints. Leave blank unless your server enforces one.",
+    )
+
+
 DOGRAH_EMBEDDING_MODELS = ["dograh_embedding_v1"]
 
 
@@ -2258,6 +2310,7 @@ EmbeddingsConfig = Annotated[
         OpenRouterEmbeddingsConfiguration,
         AzureOpenAIEmbeddingsConfiguration,
         DograhEmbeddingsConfiguration,
+        SpeachesEmbeddingsConfiguration,
     ],
     Field(discriminator="provider"),
 ]

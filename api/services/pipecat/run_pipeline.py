@@ -4,6 +4,8 @@ from typing import Optional
 from fastapi import HTTPException
 from loguru import logger
 
+from api.brand import BRAND
+from api.brand import speaking_plan as brand_speaking_plan
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.errors.failure import mark_failure_reported
@@ -977,7 +979,14 @@ async def _run_pipeline_impl(
         get_parent_context=engine._get_otel_context,
     )
     user_mute_strategies = _create_user_mute_strategies(engine, answer_supervisor)
-    user_vad_analyzer = SileroVADAnalyzer(params=VADParams(stop_secs=0.2))
+    # OxeePhone: the agent's speaking plan (None keeps the upstream settings).
+    speaking_plan = brand_speaking_plan.resolve_speaking_plan(run_configs)
+    vad_params = VADParams(stop_secs=0.2)
+    if speaking_plan is not None:
+        vad_params = VADParams(
+            stop_secs=0.2, start_secs=brand_speaking_plan.vad_start_secs(speaking_plan)
+        )
+    user_vad_analyzer = SileroVADAnalyzer(params=vad_params)
 
     # Configure turn strategies based on STT provider, model, and workflow configuration
     if is_realtime:
@@ -1012,6 +1021,19 @@ async def _run_pipeline_impl(
             run_configs,
             uses_external_turns=uses_external_turns,
         )
+        if speaking_plan is not None and not uses_external_turns:
+            user_turn_start_strategies = brand_speaking_plan.user_turn_start_strategies(
+                speaking_plan
+            )
+            user_turn_stop_strategies = brand_speaking_plan.user_turn_stop_strategies(
+                speaking_plan
+            ) or _create_non_realtime_user_turn_stop_strategies(
+                {**run_configs, "turn_stop_strategy": "turn_analyzer"},
+                uses_external_turns=False,
+            )
+            logger.info(
+                f"[run {workflow_run_id}] Speaking plan {speaking_plan.model_dump()}"
+            )
         user_turn_strategies = UserTurnStrategies(
             start=user_turn_start_strategies,
             stop=user_turn_stop_strategies,
@@ -1021,6 +1043,10 @@ async def _run_pipeline_impl(
         run_configs,
         uses_external_turns=uses_external_turns,
     )
+    if speaking_plan is not None and not is_realtime:
+        user_turn_stop_timeout = brand_speaking_plan.user_turn_stop_timeout(
+            speaking_plan, user_turn_stop_timeout
+        )
 
     user_params = LLMUserAggregatorParams(
         user_turn_strategies=user_turn_strategies,
@@ -1148,7 +1174,9 @@ async def _run_pipeline_impl(
                     selected_visit=lambda: engine.selected_visit_id,
                     allow_inference=lambda: not engine.transfer_in_progress,
                     name=f"{call_worker_name}::AgentBridge",
-                )
+                ),
+                # OxeePhone: wait / back-off before the agent speaks.
+                *brand_speaking_plan.speaking_plan_gate(speaking_plan),
             ],
             pipeline_metrics_aggregator,
             termination_funnel,
@@ -1258,6 +1286,26 @@ async def _run_pipeline_impl(
                 await in_memory_logs_buffer.append(message)
             except Exception as e:
                 logger.error(f"Failed to append latency to logs buffer: {e}")
+
+    if BRAND.call_insights and task.user_bot_latency_observer:
+        # OxeePhone: keep pipecat's per-stage latency breakdown for each turn.
+        from api.brand.call_insights import (
+            LatencyBreakdownFilter,
+            build_latency_breakdown_event,
+        )
+
+        latency_breakdown_filter = LatencyBreakdownFilter()
+
+        @task.user_bot_latency_observer.event_handler("on_latency_breakdown")
+        async def on_latency_breakdown(observer, breakdown):
+            if not latency_breakdown_filter.keep(breakdown):
+                return
+            try:
+                await in_memory_logs_buffer.append(
+                    build_latency_breakdown_event(breakdown)
+                )
+            except Exception as e:
+                logger.error(f"Failed to append latency breakdown to logs buffer: {e}")
 
     # Register turn log handlers for all call types (WebRTC and telephony)
     register_turn_log_handlers(

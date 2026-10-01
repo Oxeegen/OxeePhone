@@ -1,3 +1,4 @@
+import { sameOriginApi } from '@/brand/brand';
 import type { Client } from '@/client/client';
 import type { CreateClientConfig } from '@/client/client.gen';
 
@@ -25,7 +26,10 @@ export function getServerBackendUrl() {
 export function resolveBrowserBackendUrl(backendApiEndpoint?: string | null): string {
     return (
         process.env.NEXT_PUBLIC_BACKEND_URL ||
-        backendApiEndpoint ||
+        // OxeePhone: same origin — the browser keeps the address it loaded the
+        // page from (LAN IP, VPN name…); the OxeePhone proxy routes /api/v1
+        // (HTTP + WebSocket). See api/brand/origin.py.
+        (sameOriginApi ? null : backendApiEndpoint) ||
         (typeof window !== 'undefined' ? window.location.origin : '')
     );
 }

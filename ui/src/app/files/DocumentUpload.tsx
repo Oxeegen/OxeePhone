@@ -4,6 +4,7 @@ import { FileText, Info, Upload, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { hideDograhServices } from "@/brand/brand";
 import {
   getUploadUrlApiV1KnowledgeBaseUploadUrlPost,
   processDocumentApiV1KnowledgeBaseProcessDocumentPost,
@@ -21,7 +22,10 @@ interface DocumentUploadProps {
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_FILE_TYPES = ['.pdf', '.docx', '.doc', '.txt', '.json', '.md'];
+// OxeePhone parses locally (api/brand/documents.py): no legacy .doc.
+const ACCEPTED_FILE_TYPES = hideDograhServices
+  ? ['.pdf', '.docx', '.txt', '.json', '.md']
+  : ['.pdf', '.docx', '.doc', '.txt', '.json', '.md'];
 
 export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps) {
   const { config } = useAppConfig();
@@ -33,7 +37,7 @@ export default function DocumentUpload({ onUploadSuccess }: DocumentUploadProps)
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ossNotice = isOSS ? (
+  const ossNotice = isOSS && !hideDograhServices ? (
     <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
       <Info className="h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
       <div className="text-xs text-amber-900 dark:text-amber-200">

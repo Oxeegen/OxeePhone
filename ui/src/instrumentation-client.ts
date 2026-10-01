@@ -5,6 +5,8 @@
 import * as Sentry from "@sentry/nextjs";
 import posthog from "posthog-js";
 
+import { hideDograhServices } from "@/brand/brand";
+
 // Drop errors originating from browser extensions (MetaMask's inpage.js,
 // injected widgets, etc.) by matching their URL scheme.
 const sharedSentryOptions = {
@@ -50,7 +52,7 @@ const initSentry = () => {
   }
 };
 
-if (process.env.NEXT_PUBLIC_NODE_ENV !== 'development') {
+if (process.env.NEXT_PUBLIC_NODE_ENV !== 'development' && !hideDograhServices) {
   initSentry();
 }
 

@@ -1,3 +1,5 @@
+import { hideDograhServices } from "@/brand/brand";
+
 // Thin client for the SEPARATE user_onboarding service (its own base URL).
 // Not part of the generated Dograh SDK — a different host. All endpoints are PUBLIC
 // (no auth token); identity is the email carried in the body. Every call is
@@ -24,6 +26,7 @@ export type LeadResult = {
 // POST a JSON body to the onboarding service (public — no auth header). Returns the parsed
 // body on success, or null on a non-2xx / network error / timeout (best-effort, never throws).
 async function post(path: string, body: unknown): Promise<LeadResult | null> {
+  if (hideDograhServices) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {

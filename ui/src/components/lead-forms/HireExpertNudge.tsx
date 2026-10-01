@@ -4,6 +4,7 @@ import { UserRound, X } from "lucide-react";
 import posthog from "posthog-js";
 import { useEffect, useRef, useState } from "react";
 
+import { hideDograhServices } from "@/brand/brand";
 import { PostHogEvent } from "@/constants/posthog-events";
 import { useLeadForms } from "@/context/LeadFormsContext";
 
@@ -26,7 +27,7 @@ export function HireExpertNudge({ workflowId }: HireExpertNudgeProps) {
 
   // Arm the 5-minute show timer (once per mount / workflow).
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || hideDograhServices) return;
     // Already shown+consumed for this workflow → skip.
     if (localStorage.getItem(nudgeDoneKey(workflowId))) return;
 

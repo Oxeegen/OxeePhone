@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { hideDograhServices } from "@/brand/brand";
+
 interface Options {
     enabled: boolean;
 }
@@ -40,7 +42,7 @@ export function useLatestReleaseVersion(
     const [latest, setLatest] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!enabled || !currentVersion) return;
+        if (!enabled || !currentVersion || hideDograhServices) return;
 
         try {
             const raw = localStorage.getItem(CACHE_KEY);

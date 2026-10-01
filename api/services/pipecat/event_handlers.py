@@ -2,6 +2,7 @@ import asyncio
 
 from loguru import logger
 
+from api.brand import BRAND
 from api.constants import ENABLE_CALL_RECORDING_UPLOAD
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
@@ -201,6 +202,12 @@ def register_event_handlers(
     async def on_client_connected(_transport, _participant):
         logger.debug("In on_client_connected callback handler")
         await audio_buffer.start_recording()
+        if BRAND.call_insights:
+            # OxeePhone: anchor transcript timestamps to the recordings. Best
+            # effort: must never get in the way of the call starting.
+            from api.brand.call_insights import mark_recording_started
+
+            await mark_recording_started(in_memory_logs_buffer)
         ready_state["client_connected"] = True
         await maybe_trigger_initial_response()
 

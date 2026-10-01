@@ -6,6 +6,7 @@ import aiohttp
 from fastapi import HTTPException
 from loguru import logger
 
+from api.brand import BRAND
 from api.constants import MPS_API_URL
 from api.errors.failure import (
     ErrorSource,
@@ -816,7 +817,19 @@ def create_tts_service(
         return tts
     elif user_config.tts.provider == ServiceProviders.SPEACHES.value:
         _validate_runtime_service_url(user_config.tts.base_url, "base_url")
-        return SpeachesTTSService(
+        tts_service_cls, tts_extra_kwargs = SpeachesTTSService, {}
+        if BRAND.local_models_only:
+            # OxeePhone: also forward the language hint to the endpoint.
+            from api.brand.tts import LocalModelsTTSService
+
+            tts_service_cls = LocalModelsTTSService
+            tts_extra_kwargs = {
+                "language": getattr(user_config.tts, "language", None),
+                "volume_gain_db": getattr(user_config.tts, "volume_gain_db", None),
+                "pronunciations": getattr(user_config.tts, "pronunciations", None),
+            }
+        return tts_service_cls(
+            **tts_extra_kwargs,
             base_url=user_config.tts.base_url,
             api_key=user_config.tts.api_key or "none",
             settings=SpeachesTTSSettings(

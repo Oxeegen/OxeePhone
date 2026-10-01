@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import posthog from "posthog-js";
 import React, { ReactNode } from "react";
 
+import { hideDograhServices } from "@/brand/brand";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { PostHogEvent } from "@/constants/posthog-events";
@@ -27,6 +28,7 @@ function AppHeader() {
         <Link href="/" className="text-lg font-bold md:hidden">Dograh</Link>
       </div>
       <div className="flex items-center gap-3">
+        {!hideDograhServices && (
         <Button variant="ghost" size="sm" asChild>
           <a
             href="https://join.slack.com/t/dograh-community/shared_invite/zt-4787daqcn-3TDiQUh~3xrr3pwAqR9wpQ"
@@ -41,6 +43,7 @@ function AppHeader() {
             <span className="hidden sm:inline">Join Slack</span>
           </a>
         </Button>
+        )}
         <GitHubStarBadge source="app_header" />
       </div>
     </header>

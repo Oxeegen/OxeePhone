@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from api.brand import BRAND
 from api.services.pipecat.realtime_feedback_events import (
     build_bot_text_event,
     build_user_transcription_event,
@@ -273,6 +274,8 @@ class TranscriptLogCoordinator:
             timestamp=side.speech_start_timestamp or side.transcript_timestamp,
             end_timestamp=side.speech_end_timestamp,
         )
+        if BRAND.call_insights and state.interrupted:
+            event["payload"]["interrupted"] = True  # OxeePhone call detail
         await self._append(state, side, event)
 
     async def _append(

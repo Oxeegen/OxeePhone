@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { isBranded } from "@/brand/brand";
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse, WorkflowVersionResponse } from '@/client/types.gen';
 import { useNodeSpecs } from "@/components/flow/renderer";
@@ -797,6 +798,7 @@ function RenderWorkflow({
                     hasMore={versionsHasMore}
                     loadingMore={versionsLoadingMore}
                     onLoadMore={handleLoadMoreVersions}
+                    versionsPageHref={isBranded ? `/workflow/${workflowId}/versions` : undefined}
                 />
 
                 {versionDiffPair && (

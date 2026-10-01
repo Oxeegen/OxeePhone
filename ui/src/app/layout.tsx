@@ -1,10 +1,13 @@
 import "./globals.css";
+import "@/brand/brand.css";
 
 import { GoogleTagManager } from "@next/third-parties/google";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 
+import { BRAND, hideDograhServices, isBranded } from "@/brand/brand";
+import { BrandRuntime } from "@/brand/BrandRuntime";
 import ChatwootWidget from "@/components/ChatwootWidget";
 import { EventBanner } from "@/components/EventBanner";
 import AppLayout from "@/components/layout/AppLayout";
@@ -33,8 +36,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dograh",
-  description: "Open Source Voice Assistant Workflow Builder",
+  title: isBranded ? BRAND.productName : "Dograh",
+  description: isBranded ? BRAND.description : "Open Source Voice Assistant Workflow Builder",
 };
 
 export default function RootLayout({
@@ -95,7 +98,8 @@ export default function RootLayout({
                           {children}
                         </AppLayout>
                         <Toaster />
-                        <ChatwootWidget />
+                        {hideDograhServices ? null : <ChatwootWidget />}
+                        {isBranded ? <BrandRuntime /> : null}
                       </OnboardingProvider>
                     </TelephonyConfigWarningsProvider>
                   </OrgConfigProvider>

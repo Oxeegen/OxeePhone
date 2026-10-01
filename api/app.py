@@ -2,6 +2,7 @@
 
 import sentry_sdk
 
+from api.brand import BRAND
 from api.constants import (
     CORS_ALLOWED_ORIGINS,
     DEPLOYMENT_MODE,
@@ -14,8 +15,10 @@ from api.logging_config import ENVIRONMENT, setup_logging
 setup_logging()
 
 
-if SENTRY_DSN and (
-    DEPLOYMENT_MODE != "oss" or (DEPLOYMENT_MODE == "oss" and ENABLE_TELEMETRY)
+if (
+    SENTRY_DSN
+    and not BRAND.disable_telemetry
+    and (DEPLOYMENT_MODE != "oss" or (DEPLOYMENT_MODE == "oss" and ENABLE_TELEMETRY))
 ):
     sentry_sdk.init(
         dsn=SENTRY_DSN,
@@ -48,6 +51,14 @@ from api.services.worker_sync.protocol import WorkerSyncEventType
 from api.tasks.arq import get_arq_redis
 
 API_PREFIX = "/api/v1"
+
+if BRAND.agent_fixes:
+    # OxeePhone: analysis, automatic fixes and versions for external agents
+    # (api/brand/mcp_tools.py). Registered here: the MCP package imports its
+    # server, which that module needs.
+    from api.brand.mcp_tools import register as register_oxee_mcp_tools
+
+    register_oxee_mcp_tools(mcp)
 
 mcp_app = mcp.http_app(path="/", stateless_http=True)
 
@@ -88,13 +99,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Dograh API",
-    description="API for the Dograh app",
-    version="1.0.0",
+    title=f"{BRAND.product_name} API",
+    description=BRAND.api_description,
+    version=BRAND.version,
     openapi_url=f"{API_PREFIX}/openapi.json",
     lifespan=lifespan,
     servers=[
-        {"url": "https://app.dograh.com", "description": "Production"},
+        *(
+            []
+            if BRAND.disable_dograh_services
+            else [{"url": "https://app.dograh.com", "description": "Production"}]
+        ),
         {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )
@@ -118,10 +133,12 @@ async def handle_mps_unavailable_error(
 # (same-origin, so CORS does not apply). Keep it permissive without
 # credentials — wildcard + credentials is rejected by browsers and unsafe.
 # SaaS deployments must set CORS_ALLOWED_ORIGINS to an explicit allowlist.
-if DEPLOYMENT_MODE == "oss":
+if DEPLOYMENT_MODE == "oss" and not (BRAND.same_origin and CORS_ALLOWED_ORIGINS):
     cors_origins: list[str] = ["*"]
     cors_allow_credentials = False
 else:
+    # OxeePhone: in OSS too, an explicit CORS_ALLOWED_ORIGINS allowlist enables
+    # credentialed cross-origin calls (another hostname than the page's).
     if not CORS_ALLOWED_ORIGINS:
         raise RuntimeError(
             "CORS_ALLOWED_ORIGINS must be set to an explicit origin allowlist "
@@ -150,6 +167,19 @@ def _add_public_embed_cors_middleware() -> None:
 
 
 _add_public_embed_cors_middleware()
+
+if BRAND.same_origin:
+    # OxeePhone: TURN / recording URLs on the browser's origin (api/brand/origin.py).
+    from api.brand.origin import RequestOriginMiddleware
+
+    app.add_middleware(RequestOriginMiddleware)
+
+if BRAND.version_history:
+    # OxeePhone: tag requests with their channel (editor / API key / MCP) so
+    # agent versions record how they were made.
+    from api.brand.versions import ChannelMiddleware
+
+    app.add_middleware(ChannelMiddleware, api_prefix=API_PREFIX)
 
 api_router = APIRouter()
 

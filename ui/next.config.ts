@@ -1,9 +1,25 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import path from "path";
+
+import { hideDograhServices } from "./src/brand/brand";
+
+// OxeePhone: Stack Auth pulls @stripe/stripe-js, whose import side effect loads
+// js.stripe.com (+ fingerprinting) even with local auth. Swap it for a stub.
+const BRAND_ALIASES: Record<string, string> = hideDograhServices
+  ? { "@stripe/stripe-js": "./src/brand/stubs/stripe-js.ts" }
+  : {};
 
 const nextConfig: NextConfig = {
   /* config options here */
   output: 'standalone',
+  turbopack: { resolveAlias: BRAND_ALIASES },
+  webpack: (config) => {
+    for (const [name, target] of Object.entries(BRAND_ALIASES)) {
+      config.resolve.alias[name] = path.resolve(__dirname, target);
+    }
+    return config;
+  },
   experimental: {
     serverSourceMaps: true,
   },

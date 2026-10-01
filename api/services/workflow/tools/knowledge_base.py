@@ -259,7 +259,8 @@ async def _perform_retrieval(
 
         # Perform vector similarity search on chunked documents
         if chunked_uuids is None or len(chunked_uuids) > 0:
-            if not embeddings_api_key:
+            # Self-hosted "Local Models" (speaches) embeddings need no API key.
+            if not embeddings_api_key and embeddings_provider != "speaches":
                 raise ValueError(
                     "Embeddings API key not configured. Please set your API key in "
                     "Model Configurations > Embedding."

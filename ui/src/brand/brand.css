@@ -1,0 +1,59 @@
+/* OxeePhone theme + visibility overrides, loaded after globals.css.
+   `:root:root` / `.dark.dark` out-rank the upstream token blocks without
+   depending on stylesheet order. */
+
+:root:root {
+  /* Brand accent (upstream: warm amber) — primary CTAs + focus rings. */
+  --cta: #5e4af5;
+  --cta-foreground: #ffffff;
+  --ring: #5e4af5;
+  --sidebar-ring: #5e4af5;
+  --brand-imprint: url("/brand/oxeephone-imprint-light.svg");
+}
+
+.dark.dark {
+  --cta: #7a6bff;
+  --cta-foreground: #ffffff;
+  --ring: #7a6bff;
+  --sidebar-primary: #6d5bff;
+  --sidebar-ring: #7a6bff;
+  --brand-imprint: url("/brand/oxeephone-imprint-dark.svg");
+}
+
+/* Hide every link to Dograh docs, site, GitHub and community. They are all
+   trailing "Learn more" style links, so the surrounding copy stays intact. */
+a[href*="dograh.com"],
+a[href*="github.com/dograh-hq"],
+a[href*="dograh-community"] {
+  display: none !important;
+}
+
+/* Data-viz tokens (reference palette, validated for CVD in both modes):
+   latency stages and chart series. "Other" is a deliberate neutral. */
+:root:root {
+  --viz-endpointing: #2a78d6;
+  --viz-transcriber: #eb6834;
+  --viz-llm: #1baf7a;
+  --viz-tools: #eda100;
+  --viz-sentence: #e87ba4;
+  --viz-voice: #008300;
+  --viz-transport: #4a3aa7;
+  --viz-other: #8a8984;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-grid: #e4e3df;
+}
+
+.dark.dark {
+  --viz-endpointing: #3987e5;
+  --viz-transcriber: #d95926;
+  --viz-llm: #199e70;
+  --viz-tools: #c98500;
+  --viz-sentence: #d55181;
+  --viz-voice: #008300;
+  --viz-transport: #9085e9;
+  --viz-other: #77766f;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-grid: #2e2e2c;
+}

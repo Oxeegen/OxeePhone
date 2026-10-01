@@ -7,6 +7,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { isBranded } from "@/brand/brand";
+import { speakingPlanConfig, speakingPlanFrom,SpeakingPlanSection } from "@/brand/SpeakingPlanSection";
 import {
     downloadWorkflowReportApiV1WorkflowWorkflowIdReportGet,
     getAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPost,
@@ -283,6 +285,8 @@ function GeneralSection({
     const [turnStopStrategy, setTurnStopStrategy] = useState<TurnStopStrategy>(
         workflowConfigurations.turn_stop_strategy,
     );
+    // OxeePhone: Vapi-style speaking plans replace Turn Detection / Interruption.
+    const [speakingPlan, setSpeakingPlan] = useState(() => speakingPlanFrom(workflowConfigurations));
     const [contextCompactionEnabled, setContextCompactionEnabled] = useState(
         workflowConfigurations.context_compaction_enabled,
     );
@@ -344,9 +348,11 @@ function GeneralSection({
             JSON.stringify(externalPbxFieldMappings) !==
             JSON.stringify(workflowConfigurations.external_pbx_field_mappings) ||
             JSON.stringify(externalPbxLeadHeaders) !==
-            JSON.stringify(workflowConfigurations.external_pbx_lead_headers)
+            JSON.stringify(workflowConfigurations.external_pbx_lead_headers) ||
+            (isBranded &&
+                JSON.stringify(speakingPlan) !== JSON.stringify(speakingPlanFrom(workflowConfigurations)))
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, turnStopStrategy, contextCompactionEnabled, normalizedCallDispositions, includeTranscriptEndTimestamps, externalPbxFieldMappings, externalPbxLeadHeaders, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, turnStopStrategy, contextCompactionEnabled, normalizedCallDispositions, includeTranscriptEndTimestamps, externalPbxFieldMappings, externalPbxLeadHeaders, speakingPlan, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -430,6 +436,7 @@ function GeneralSection({
                     },
                     external_pbx_field_mappings: externalPbxFieldMappings,
                     external_pbx_lead_headers: externalPbxLeadHeaders.map((field) => field.trim()),
+                    ...(isBranded ? speakingPlanConfig(speakingPlan) : {}),
                 },
                 name,
             );
@@ -601,6 +608,15 @@ function GeneralSection({
 
                 <Separator />
 
+                {isBranded ? (
+                    <SpeakingPlanSection
+                        value={speakingPlan}
+                        onChange={setSpeakingPlan}
+                        smartTurnStopSecs={smartTurnStopSecs}
+                        onSmartTurnStopSecsChange={setSmartTurnStopSecs}
+                    />
+                ) : (
+                <>
                 {/* Turn Detection */}
                 <div className="space-y-4">
                     <div>
@@ -707,6 +723,9 @@ function GeneralSection({
                         </div>
                     )}
                 </div>
+
+                </>
+                )}
 
                 <Separator />
 

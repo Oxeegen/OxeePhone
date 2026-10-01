@@ -5,11 +5,13 @@ this task downloads the file from S3, calls MPS, then handles the embedding
 and DB writes locally.
 """
 
+import asyncio
 import os
 import tempfile
 
 from loguru import logger
 
+from api.brand import BRAND
 from api.db import db_client
 from api.db.models import KnowledgeBaseChunkModel
 from api.services.gen_ai import build_embedding_service
@@ -174,16 +176,41 @@ async def process_knowledge_base_document(
                     f"model={embeddings_model}"
                 )
 
-        logger.info(f"Delegating document processing to MPS (mode={retrieval_mode})")
-        mps_response = await mps_service_key_client.process_document(
-            file_path=temp_file_path,
-            filename=filename,
-            content_type=mime_type or "application/octet-stream",
-            retrieval_mode=retrieval_mode,
-            max_tokens=max_tokens,
-            organization_id=organization_id,
-            created_by=created_by_provider_id,
-        )
+        if BRAND.disable_dograh_services:
+            # OxeePhone: parse and chunk in process instead of Dograh's MPS.
+            from api.brand.documents import (
+                DocumentProcessingError,
+                process_document_locally,
+            )
+
+            logger.info(f"Processing document locally (mode={retrieval_mode})")
+            try:
+                mps_response = await asyncio.to_thread(
+                    process_document_locally,
+                    file_path=temp_file_path,
+                    filename=filename,
+                    retrieval_mode=retrieval_mode,
+                    max_tokens=max_tokens,
+                )
+            except DocumentProcessingError as e:
+                logger.warning(f"Document {document_id}: {e}")
+                await db_client.update_document_status(
+                    document_id, "failed", error_message=str(e)
+                )
+                return
+        else:
+            logger.info(
+                f"Delegating document processing to MPS (mode={retrieval_mode})"
+            )
+            mps_response = await mps_service_key_client.process_document(
+                file_path=temp_file_path,
+                filename=filename,
+                content_type=mime_type or "application/octet-stream",
+                retrieval_mode=retrieval_mode,
+                max_tokens=max_tokens,
+                organization_id=organization_id,
+                created_by=created_by_provider_id,
+            )
 
         docling_metadata = mps_response.get("docling_metadata", {})
 
@@ -202,7 +229,8 @@ async def process_knowledge_base_document(
             )
             return
 
-        if not embeddings_api_key:
+        # Self-hosted "Local Models" (speaches) embeddings need no API key.
+        if not embeddings_api_key and embeddings_provider != "speaches":
             error_message = (
                 "API key not configured. Please set your API key in "
                 "Model Configurations > Embedding to process documents."

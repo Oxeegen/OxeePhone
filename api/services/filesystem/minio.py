@@ -7,6 +7,9 @@ from loguru import logger
 from minio import Minio
 from minio.error import S3Error
 
+from api.brand import BRAND
+from api.brand.origin import media_base
+
 from .base import AsyncReadable, BaseFileSystem
 
 
@@ -130,6 +133,9 @@ class MinioFileSystem(BaseFileSystem):
             if use_internal_endpoint:
                 protocol = "https" if self.secure else "http"
                 base = f"{protocol}://{self.endpoint}"
+            elif BRAND.same_origin:
+                # OxeePhone: the browser's origin when it came through the proxy.
+                base = media_base(self.public_endpoint)
             else:
                 base = self.public_endpoint
             return f"{base}/{self.bucket_name}/{file_path}"
@@ -173,7 +179,12 @@ class MinioFileSystem(BaseFileSystem):
         The bucket policy allows anonymous s3:PutObject, so no signature is needed.
         """
         try:
-            url = f"{self.public_endpoint}/{self.bucket_name}/{file_path}"
+            base = (
+                media_base(self.public_endpoint)
+                if BRAND.same_origin
+                else self.public_endpoint
+            )
+            url = f"{base}/{self.bucket_name}/{file_path}"
             logger.debug(f"Generated unsigned upload URL: {url}")
             return url
         except Exception as e:

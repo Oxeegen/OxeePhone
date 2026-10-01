@@ -3,6 +3,7 @@
 import { Info, KeyRound, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { localModelsOnly } from "@/brand/brand";
 import type {
     ModelConfigurationMetricPrice,
     ModelConfigurationPricingResponse,
@@ -75,6 +76,8 @@ interface AIModelConfigurationV2EditorProps {
     pricing?: ModelConfigurationPricingResponse | null;
     onSave: (configuration: OrganizationAiModelConfigurationV2) => Promise<void>;
     submitLabel?: string;
+    /** OxeePhone: show the Models > Analysis tab (org Models page only). */
+    showAnalysisTab?: boolean;
 }
 
 function firstApiKey(value: unknown): string {
@@ -220,6 +223,7 @@ function preferredMode(
     configuration: Record<string, unknown> | null,
     effectiveConfiguration: Record<string, unknown> | null,
 ): ModelMode {
+    if (localModelsOnly) return "byok";
     if (configuration?.mode === "dograh") return "dograh";
     if (configuration?.mode === "byok") {
         return asRecord(configuration.byok)?.mode === "realtime" ? "realtime" : "byok";
@@ -356,6 +360,7 @@ export function AIModelConfigurationV2Editor({
     pricing,
     onSave,
     submitLabel = "Save Configuration",
+    showAnalysisTab = false,
 }: AIModelConfigurationV2EditorProps) {
     const defaultsForByok = useMemo(() => byokDefaults(defaults), [defaults]);
     const [mode, setMode] = useState<ModelMode>("dograh");
@@ -458,11 +463,13 @@ export function AIModelConfigurationV2Editor({
             )}
 
             <Tabs value={mode} onValueChange={(value) => setMode(value as ModelMode)} className="space-y-6">
+                {!localModelsOnly && (
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="realtime">Speech to Speech</TabsTrigger>
                     <TabsTrigger value="dograh">Dograh</TabsTrigger>
                     <TabsTrigger value="byok">BYOK</TabsTrigger>
                 </TabsList>
+                )}
 
                 <TabsContent value="realtime" className="mt-0">
                     <p className="mb-4 text-sm text-muted-foreground">
@@ -574,7 +581,9 @@ export function AIModelConfigurationV2Editor({
 
                 <TabsContent value="byok" className="mt-0">
                     <p className="mb-4 text-sm text-muted-foreground">
-                        Configure separate transcriber, LLM, and voice providers using your own API keys. An embeddings model can also be configured for knowledge retrieval.
+                        {localModelsOnly
+                            ? "Point each service at an OpenAI-compatible endpoint (vLLM or similar), then pick the model it serves. An embeddings model can also be configured for knowledge retrieval."
+                            : "Configure separate transcriber, LLM, and voice providers using your own API keys. An embeddings model can also be configured for knowledge retrieval."}
                     </p>
                     <PricingSummary pricing={pricing} includeDograhModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
@@ -585,8 +594,9 @@ export function AIModelConfigurationV2Editor({
                         initialConfig={pipelineInitialConfig}
                         submitLabel={submitLabel}
                         onSave={saveByokConfiguration}
+                        showAnalysisTab={showAnalysisTab}
                     />
-                    <ThirdPartyProviderNotice />
+                    {!localModelsOnly && <ThirdPartyProviderNotice />}
                 </TabsContent>
             </Tabs>
         </div>
