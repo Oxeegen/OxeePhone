@@ -5,6 +5,18 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## Unreleased
+
+- Installer for Ubuntu (`brand/install.sh`): Docker, code at the latest
+  release, generated secrets, free ports, build, start; `update` and `status`.
+- Every published port configurable in `.env` (upstream values by default) and
+  container names per project: OxeePhone runs next to an official Dograh, with
+  its own TURN server on its own ports.
+- MinIO from the maintained community rebuild (`pgsty/minio`): the official
+  images are no longer published, fresh installs could not start.
+- No Cloudflare tunnel lookup without a tunnel: `/health` answered in ~6 s and
+  the UI showed the backend down on LAN installs.
+
 ## 0.8.0 — 2026-10-01
 
 First OxeePhone release, based on Dograh 1.47.0.

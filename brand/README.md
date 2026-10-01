@@ -22,15 +22,50 @@ git fetch upstream --tags
 git merge dograh-vX.Y.Z   # merge a release tag, then re-check the patch list below
 ```
 
-## Run
+## Install / run
+
+On an Ubuntu server (22.04 / 24.04), one command installs or completes an
+install: Docker if missing, the code at the latest release, `.env` with
+generated secrets (never overwritten), free ports, build, start, health check.
 
 ```bash
-docker compose -f docker-compose.yaml -f brand/docker-compose.brand.yaml up -d --build
+curl -fsSL https://raw.githubusercontent.com/Oxeegen/OxeePhone/main/brand/install.sh | sudo bash
+```
+
+From a clone: `sudo ./brand/install.sh` (install), `sudo ./brand/install.sh update`
+(latest `oxeephone-v*` release, or `OXEE_REF=…`), `./brand/install.sh status`.
+Every question can be answered ahead in the environment (see the header of
+`brand/install.sh`), e.g. `OXEE_SERVER_IP`, `OXEE_TLS_NAMES`, `OXEE_YES=1`.
+
+By hand, with a `.env` of your own:
+
+```bash
+docker compose -f docker-compose.yaml -f brand/docker-compose.brand.yaml --profile local-turn up -d --build
 ```
 
 The overlay builds the OxeePhone images from this repo (upstream compose pulls
 `dograhai/*` images, which do not contain the brand layer) and blanks every
 telemetry / Dograh-hosted endpoint in the environment as a second safety net.
+MinIO comes from `pgsty/minio` (MinIO no longer publishes community images;
+override with `OXEE_MINIO_IMAGE`).
+
+### Ports (`.env`, upstream values by default)
+
+| Variable | Default | What |
+|---|---|---|
+| `OXEE_UI_PORT` | 3010 | Proxy HTTP (redirects to HTTPS except on localhost) |
+| `OXEE_HTTPS_PORT` | 3443 | Proxy HTTPS: UI, API, MCP, recordings |
+| `OXEE_API_PORT` | 8000 | Direct API: telephony webhooks, MCP, scripts |
+| `OXEE_POSTGRES_PORT` / `OXEE_REDIS_PORT` | 5432 / 6379 | Published on `OXEE_DB_BIND` (default 0.0.0.0; the installer sets 127.0.0.1) |
+| `OXEE_MINIO_PORT` / `OXEE_MINIO_CONSOLE_PORT` | 9000 / 9001 | MinIO, on 127.0.0.1 |
+| `OXEE_TURN_PORT` / `OXEE_TURNS_PORT` | 3478 / 5349 | OxeePhone's own coturn (TCP + UDP) |
+| `OXEE_TURN_RELAY_MIN` - `MAX` | 49152 - 49200 | TURN relay range (UDP), same numbers inside and outside |
+| `OXEE_TUNNEL_METRICS_PORT` | 2000 | cloudflared metrics (profile `tunnel` only) |
+
+Container names derive from the project name (`oxeephone`, or
+`COMPOSE_PROJECT_NAME`), so an official Dograh can run on the same host: the
+installer detects the ports it (or anything else) uses and takes the next free
+ones. Volumes and networks are per project, so data stays separate.
 
 ## Flags
 
@@ -48,6 +83,7 @@ telemetry / Dograh-hosted endpoint in the environment as a second safety net.
 | API | `OXEE_MCP_CAN_PUBLISH` | unset (false) | Adds the `oxee_publish_draft` / `oxee_rollback_fix` MCP tools (see `brand/agent-vm/README.md`) |
 | API | `OXEE_SAME_ORIGIN` | `true` | Browser TURN / recording URLs on the page's origin for requests through the OxeePhone proxy; `CORS_ALLOWED_ORIGINS` honoured in OSS mode (see `brand/proxy/README.md`) |
 | UI | `BRAND.sameOriginApi` | `true` | The browser calls the API on the page's origin, not the backend-reported `BACKEND_API_ENDPOINT` |
+| API | `OXEE_CLOUDFLARED_TUNNEL` | `true` (`false` in the overlay) | Look for upstream's Cloudflare quick tunnel; off unless the `tunnel` profile runs (otherwise /health waits seconds on DNS) |
 | API | `OXEE_SERVER_TURN_HOST` | unset | Host the API uses for TURN when it differs from the browsers' `TURN_HOST` (single Docker host: `coturn`) |
 | UI | `BRAND.localModelsOnly` | `true` | No mode tabs / provider choice; Base URL + model list from the endpoint (must match `OXEE_LOCAL_MODELS_ONLY`) |
 | UI | `BRAND.disableDograhServices` | `true` | No PostHog, Sentry, Chatwoot, lead forms, GitHub badge, release check, Billing entry |
@@ -77,6 +113,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/event_handlers.py` — recording-start marker on client connect (best effort)
 - `api/services/pipecat/run_pipeline.py` — persists pipecat's `on_latency_breakdown` (minus turns falsely measured from the call start); speaking plan: VAD `start_secs`, turn start/stop strategies, stop timeout, `SpeakingPlanGate` before the output transport
 - `api/services/pipecat/transcript_log_coordinator.py` — `interrupted` flag on bot messages
+- `api/utils/tunnel.py` — no cloudflared lookup when `cloudflared_tunnel` is off
 - `api/app.py` — OpenAPI version = `BRAND.version`; `RequestOriginMiddleware`; `CORS_ALLOWED_ORIGINS` allowlist with credentials in OSS mode when set
 - `api/services/filesystem/minio.py` — public object URLs on the browser's origin (`/voice-audio/…` through the proxy)
 - `api/routes/turn_credentials.py`, `api/routes/public_embed.py` — browser TURN URIs on the page's hostname
