@@ -50,6 +50,9 @@ class BrandConfig:
     # Test campaigns: scenarios played by a simulated caller against an agent
     # version, by phone or as text, judged and compared (brand/test_*.py).
     test_campaigns: bool
+    # Per-agent voice override and low-level performance settings
+    # (brand/agent_tuning.py), versioned with the agent.
+    agent_tuning: bool
     # Look for upstream's Cloudflare quick tunnel (service `cloudflared`, profile
     # `tunnel`). Off in the OxeePhone overlay: without that service the lookup
     # waits on DNS for seconds and /health (hence the UI) looks down.
@@ -70,5 +73,6 @@ BRAND = BrandConfig(
     agent_fixes=_env_flag("OXEE_AGENT_FIXES", True),
     same_origin=_env_flag("OXEE_SAME_ORIGIN", True),
     test_campaigns=_env_flag("OXEE_TEST_CAMPAIGNS", True),
+    agent_tuning=_env_flag("OXEE_AGENT_TUNING", True),
     cloudflared_tunnel=_env_flag("OXEE_CLOUDFLARED_TUNNEL", True),
 )

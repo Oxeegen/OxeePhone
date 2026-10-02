@@ -83,6 +83,7 @@ ones. Volumes and networks are per project, so data stays separate.
 | API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
 | API | `OXEE_AGENT_FIXES` | `true` | Automatic fixes of analysis findings (model proposal → draft → text simulation → publish; `api/brand/fixes.py`, `api/brand/simulation.py`, `/api/v1/oxee/fixes*`); simulation runs are named `OXEE-SIM-…` and left out of reports / analyses |
 | API | `OXEE_TEST_CAMPAIGNS` | `true` | Test campaigns (Manage › Test campaigns; `api/brand/test_campaigns.py`, `test_runs.py`, `test_calls.py`, `/api/v1/oxee/tests/*`): scenarios written by the analysis model, played by a simulated caller by phone (tester agent, CallerID-name token → version under test on the agent side) or as text, judged, reported, compared; calls of both sides are named `OXEE-TEST-…` and left out of reports / analyses |
+| API | `OXEE_AGENT_TUNING` | `true` | Per-agent Voice (voice, speed, language, gain on top of the organization's voice model) and Performance settings (first audio chunk, VAD stop / confidence / volume, LLM temperature / max tokens, mute during tools / first reply), stored in the agent's configuration: versioned (`api/brand/agent_tuning.py`) |
 | API | `OXEE_MCP_CAN_PUBLISH` | unset (false) | Adds the `oxee_publish_draft` / `oxee_rollback_fix` MCP tools (see `brand/agent-vm/README.md`) |
 | API | `OXEE_SAME_ORIGIN` | `true` | Browser TURN / recording URLs on the page's origin for requests through the OxeePhone proxy; `CORS_ALLOWED_ORIGINS` honoured in OSS mode (see `brand/proxy/README.md`) |
 | UI | `BRAND.sameOriginApi` | `true` | The browser calls the API on the page's origin, not the backend-reported `BACKEND_API_ENDPOINT` |
@@ -132,6 +133,9 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/event_handlers.py` — the test caller does not open the conversation (`test_calls.listens_first`)
 - `api/services/telephony/ari_manager.py` — inbound ARI call with a test token in its CallerID name: agent, version and run name of the pending test call (`test_calls.claim_inbound`)
 - `api/tasks/run_integrations.py` — no webhook or integration after a test call whose tools are simulated
+- `api/services/configuration/ai_model_configuration.py` — `get_effective_ai_model_configuration_for_workflow` applies the agent's `voice_override` (`agent_tuning.apply_voice_override`)
+- `api/services/pipecat/run_pipeline.py` — the agent's `performance`: VAD params, mute strategies, LLM sampling, first TTS chunk (`agent_tuning`)
+- `ui/src/app/workflow/[workflowId]/settings/page.tsx` — Voice and Performance sections (`@/brand/AgentTuningSection`) after the speaking plan
 
 **UI**
 - `ui/src/components/layout/AppSidebar.tsx` — Manage › Analysis and Manage › Test campaigns (`ui/src/app/test-campaigns`, `ui/src/brand/tests`)

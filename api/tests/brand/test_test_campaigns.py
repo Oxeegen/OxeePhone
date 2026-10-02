@@ -130,8 +130,8 @@ def test_tester_configs_only_change_the_tester():
             }
         },
     )
-    assert tester["model_overrides"]["tts"] == {"voice": "fr_lea", "speed": 1.2}
-    assert tester["model_overrides"]["llm"] == {"model": "m"}
+    assert tester["voice_override"] == {"voice": "fr_lea", "speed": 1.2}
+    assert tester["model_overrides"] == {"llm": {"model": "m"}}
     assert tester["speaking_plan"]["start"]["on_punctuation_seconds"] == 0.05
     assert tester["max_call_duration"] == 240
     assert base == {

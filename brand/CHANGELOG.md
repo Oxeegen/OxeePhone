@@ -5,6 +5,20 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## Unreleased
+
+- **Agent voice** (agent settings): voice, speed, language and volume of one
+  agent on top of the organization's voice model, with a Listen button. Unlike
+  the model override, the agent keeps the organization's endpoint, key and
+  model.
+- **Agent performance settings**: audio received before the first sound is
+  played (pipecat waited for 500 ms of audio), voice detection (end-of-speech
+  silence, confidence, minimum volume), LLM temperature and maximum reply
+  length, listening while a tool runs or during the first reply. Unset values
+  keep the built-in behaviour.
+- Both are stored in the agent's version: visible in the version diffs,
+  restorable, and comparable with test campaigns (technical score).
+
 ## 0.9.0 — 2026-10-02
 
 - **Test campaigns** (Manage › Test campaigns). Pick an agent and set each

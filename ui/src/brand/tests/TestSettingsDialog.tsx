@@ -36,7 +36,7 @@ function VoiceListen({ voice }: { voice: string }) {
         if (state === "playing") return stop();
         setState("loading");
         const response = await client.post<{ 200: Blob }, unknown>({
-          url: `${API}/voice-preview`,
+          url: "/api/v1/oxee/voice/preview",
           body: { voice },
           headers: { "Content-Type": "application/json" },
           parseAs: "blob",

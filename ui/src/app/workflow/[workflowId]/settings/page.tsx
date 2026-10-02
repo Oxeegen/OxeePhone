@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { agentTuningConfig, AgentVoiceSection, performanceFrom, PerformanceSection, voiceOverrideFrom } from "@/brand/AgentTuningSection";
 import { isBranded } from "@/brand/brand";
 import { speakingPlanConfig, speakingPlanFrom,SpeakingPlanSection } from "@/brand/SpeakingPlanSection";
 import {
@@ -287,6 +288,9 @@ function GeneralSection({
     );
     // OxeePhone: Vapi-style speaking plans replace Turn Detection / Interruption.
     const [speakingPlan, setSpeakingPlan] = useState(() => speakingPlanFrom(workflowConfigurations));
+    // OxeePhone: the agent's voice override and performance settings.
+    const [voiceOverride, setVoiceOverride] = useState(() => voiceOverrideFrom(workflowConfigurations));
+    const [performance, setPerformance] = useState(() => performanceFrom(workflowConfigurations));
     const [contextCompactionEnabled, setContextCompactionEnabled] = useState(
         workflowConfigurations.context_compaction_enabled,
     );
@@ -350,9 +354,11 @@ function GeneralSection({
             JSON.stringify(externalPbxLeadHeaders) !==
             JSON.stringify(workflowConfigurations.external_pbx_lead_headers) ||
             (isBranded &&
-                JSON.stringify(speakingPlan) !== JSON.stringify(speakingPlanFrom(workflowConfigurations)))
+                (JSON.stringify(speakingPlan) !== JSON.stringify(speakingPlanFrom(workflowConfigurations)) ||
+                    JSON.stringify(agentTuningConfig(voiceOverride, performance)) !==
+                    JSON.stringify(agentTuningConfig(voiceOverrideFrom(workflowConfigurations), performanceFrom(workflowConfigurations)))))
         );
-    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, turnStopStrategy, contextCompactionEnabled, normalizedCallDispositions, includeTranscriptEndTimestamps, externalPbxFieldMappings, externalPbxLeadHeaders, speakingPlan, workflowConfigurations]);
+    }, [name, workflowName, ambientNoiseConfig, maxCallDuration, maxUserIdleTimeout, smartTurnStopSecs, turnStartStrategy, turnStartMinWords, turnStopStrategy, contextCompactionEnabled, normalizedCallDispositions, includeTranscriptEndTimestamps, externalPbxFieldMappings, externalPbxLeadHeaders, speakingPlan, voiceOverride, performance, workflowConfigurations]);
 
     useUnsavedChanges("general", isDirty);
 
@@ -436,7 +442,7 @@ function GeneralSection({
                     },
                     external_pbx_field_mappings: externalPbxFieldMappings,
                     external_pbx_lead_headers: externalPbxLeadHeaders.map((field) => field.trim()),
-                    ...(isBranded ? speakingPlanConfig(speakingPlan) : {}),
+                    ...(isBranded ? { ...speakingPlanConfig(speakingPlan), ...agentTuningConfig(voiceOverride, performance) } : {}),
                 },
                 name,
             );
@@ -609,12 +615,18 @@ function GeneralSection({
                 <Separator />
 
                 {isBranded ? (
+                    <>
                     <SpeakingPlanSection
                         value={speakingPlan}
                         onChange={setSpeakingPlan}
                         smartTurnStopSecs={smartTurnStopSecs}
                         onSmartTurnStopSecsChange={setSmartTurnStopSecs}
                     />
+                    <Separator />
+                    <AgentVoiceSection value={voiceOverride} onChange={setVoiceOverride} />
+                    <Separator />
+                    <PerformanceSection value={performance} onChange={setPerformance} />
+                    </>
                 ) : (
                 <>
                 {/* Turn Detection */}

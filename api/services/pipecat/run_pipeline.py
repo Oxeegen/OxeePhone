@@ -6,6 +6,7 @@ from loguru import logger
 
 from api.brand import BRAND
 from api.brand import speaking_plan as brand_speaking_plan
+from api.brand import agent_tuning as brand_tuning
 from api.brand import test_calls as brand_test_calls
 from api.db import db_client
 from api.enums import WorkflowRunMode
@@ -788,6 +789,9 @@ async def _run_pipeline_impl(
         )
         llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
         inference_llm = None
+        # OxeePhone: the agent's LLM sampling and first voice chunk.
+        if BRAND.agent_tuning:
+            brand_tuning.tune_services(llm=llm, tts=tts, configs=run_configs)
 
     # Variable and disposition extraction may share this out-of-band LLM. A
     # shared conversation LLM cannot carry an extraction usage_context without
@@ -1001,6 +1005,12 @@ async def _run_pipeline_impl(
     if speaking_plan is not None:
         vad_params = VADParams(
             stop_secs=0.2, start_secs=brand_speaking_plan.vad_start_secs(speaking_plan)
+        )
+    # OxeePhone: the agent's voice detection and mute settings.
+    if BRAND.agent_tuning:
+        vad_params = brand_tuning.vad_params(vad_params, run_configs)
+        user_mute_strategies = brand_tuning.mute_strategies(
+            user_mute_strategies, run_configs
         )
     user_vad_analyzer = SileroVADAnalyzer(params=vad_params)
 
