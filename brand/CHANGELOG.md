@@ -5,7 +5,7 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
-## Unreleased
+## 0.9.3 — 2026-10-02
 
 - Test campaigns by phone: the test caller no longer stays silent when it
   misses the agent's greeting (the agent answers and greets while the
