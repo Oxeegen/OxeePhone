@@ -275,7 +275,16 @@ compose() {
 
 start_stack() {
     say "Building the images (first time: 10 to 15 minutes)"
-    compose build
+    # One image at a time: the UI build (Next.js / SWC) crashes now and then
+    # when it runs next to the API build; a crashed build is simply retried.
+    local service attempt
+    for service in $(compose config --services); do
+        for attempt in 1 2 3; do
+            if compose build "$service"; then break; fi
+            [ "$attempt" = 3 ] && die "the $service image could not be built: see the output above"
+            warn "Build of $service failed (attempt $attempt of 3), retrying"
+        done
+    done
     say "Starting"
     compose up -d --remove-orphans
     local api; api="$(env_get OXEE_API_PORT)"
@@ -328,7 +337,16 @@ case "$ACTION" in
     install)
         ensure_docker; ensure_code; configure; start_stack; summary ;;
     update)
-        ensure_docker; ensure_code; update; OXEE_YES=1 configure; start_stack; summary ;;
+        ensure_docker; ensure_code; update
+        # Build and start with the installer of the version just fetched (this
+        # running copy is the old one), when that version knows how to.
+        if grep -q '^    _start)' "$OXEE_DIR/brand/install.sh"; then
+            export OXEE_DIR
+            OXEE_YES=1 exec bash "$OXEE_DIR/brand/install.sh" _start
+        fi
+        OXEE_YES=1 configure; start_stack; summary ;;
+    _start)
+        ensure_docker; ensure_code; configure; start_stack; summary ;;
     status)
         ensure_code >/dev/null; PROJECT="${OXEE_PROJECT:-oxeephone}"; status ;;
     *)
