@@ -25,6 +25,8 @@ import redis.asyncio as aioredis
 import websockets
 from loguru import logger
 
+from api.brand import BRAND
+from api.brand.test_calls import claim_inbound as claim_test_call
 from api.constants import REDIS_URL
 from api.db import db_client
 from api.enums import CallType, TelephonyCallStatus, WorkflowRunMode, WorkflowRunState
@@ -923,6 +925,19 @@ class ARIConnection:
                 return
 
             inbound_workflow_id = phone_row.inbound_workflow_id
+            # OxeePhone: a test call runs the agent version it was placed for.
+            oxee_test = (
+                await claim_test_call(
+                    self.organization_id,
+                    channel.get("caller", {}).get("name"),
+                    caller_number,
+                    called_number,
+                )
+                if BRAND.test_campaigns
+                else None
+            )
+            if oxee_test:
+                inbound_workflow_id = oxee_test["workflow_id"]
             if not inbound_workflow_id:
                 logger.warning(
                     f"[ARI org={self.organization_id}] Inbound call to extension "
@@ -980,7 +995,11 @@ class ARIConnection:
                 channel_id, channel.get("name", ""), lead_fields
             )
             workflow_run = await db_client.create_workflow_run(
-                name=f"ARI Inbound {caller_number}",
+                name=(
+                    oxee_test["run_name"]
+                    if oxee_test
+                    else f"ARI Inbound {caller_number}"
+                ),
                 workflow_id=inbound_workflow_id,
                 mode=WorkflowRunMode.ARI.value,
                 user_id=user_id,
@@ -992,12 +1011,17 @@ class ARIConnection:
                     "provider": "ari",
                     "telephony_configuration_id": self.telephony_configuration_id,
                     "external_pbx_call": external_pbx_call,
+                    **(oxee_test["context"] if oxee_test else {}),
                 },
                 gathered_context={
                     "call_id": call_id,
                 },
                 organization_id=self.organization_id,
-                definition_id=run_inputs.definition_id,
+                definition_id=(
+                    oxee_test["definition_id"]
+                    if oxee_test
+                    else run_inputs.definition_id
+                ),
             )
             await call_concurrency.bind_workflow_run(concurrency_slot, workflow_run.id)
 

@@ -5,6 +5,34 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## Unreleased
+
+- **Test campaigns** (Manage › Test campaigns). Pick an agent and set each
+  caller setting as a min / max range (vocabulary, mood, request clarity,
+  complexity, depth in the agent, impatience, dictated data, traps, voice
+  speed); the analysis model writes the scenarios from the agent's graph: one
+  caller each, with a full persona, the facts it can give, success criteria,
+  forbidden behaviours, expected end node, variables and tools. Scenarios are
+  editable, can be duplicated into variants and switched off.
+- Play a campaign on the published version, the draft or an older version, by
+  phone (a tester agent calls the agent with its own voice, voice speed and
+  impatience, from a real customer number of the pool) or as text (no
+  telephony). Each scenario can be played several times to spot unstable
+  ones. The agent's tools are simulated (default), real, or real with an
+  `X-Oxee-Test: 1` header.
+- Each call is judged (goal, criteria with evidence, forbidden behaviours,
+  quality scores, scenario at fault) and checked against the call data (end
+  node, tools, extracted variables). The report gives the pass rate by
+  scenario and by caller setting, latency per stage, interruptions, tools,
+  coverage of the agent's nodes and transitions, and what fails; a failed call
+  turns into an automatic fix.
+- Compare two executions: indicators, scenarios improved or regressed,
+  coverage, and the configuration diff between the two versions tested.
+- Test calls stay out of the production reports and analyses. MCP tools for
+  the AI agent: `oxee_create_test_campaign`, `oxee_run_test_campaign`,
+  `oxee_get_test_execution`, `oxee_compare_test_executions`,
+  `oxee_fix_test_call`…
+
 ## 0.8.1 — 2026-10-01
 
 - Click the version in the sidebar: release notes of the running version and,

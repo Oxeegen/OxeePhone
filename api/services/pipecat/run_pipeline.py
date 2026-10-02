@@ -6,6 +6,7 @@ from loguru import logger
 
 from api.brand import BRAND
 from api.brand import speaking_plan as brand_speaking_plan
+from api.brand import test_calls as brand_test_calls
 from api.db import db_client
 from api.enums import WorkflowRunMode
 from api.errors.failure import mark_failure_reported
@@ -421,6 +422,11 @@ async def _run_pipeline_telephony_impl(
     )
 
     run_configs = workflow_run.definition.workflow_configurations or {}
+    # OxeePhone: a test campaign's caller has its own voice, speed and plan.
+    if BRAND.test_campaigns:
+        run_configs = brand_test_calls.tester_configs(
+            run_configs, workflow_run.initial_context
+        )
     user_config = await get_effective_ai_model_configuration_for_workflow(
         organization_id=workflow.organization_id,
         workflow_configurations=run_configs,
@@ -686,6 +692,11 @@ async def _run_pipeline_impl(
     run_definition = workflow_run.definition
     run_workflow_json = run_definition.workflow_json
     run_configs = run_definition.workflow_configurations or {}
+    # OxeePhone: a test campaign's caller has its own voice, speed and plan.
+    if BRAND.test_campaigns:
+        run_configs = brand_test_calls.tester_configs(
+            run_configs, merged_call_context_vars
+        )
 
     # Extract configurations from the version's workflow_configurations
     max_call_duration_seconds = DEFAULT_MAX_CALL_DURATION_SECONDS
@@ -979,6 +990,11 @@ async def _run_pipeline_impl(
         get_parent_context=engine._get_otel_context,
     )
     user_mute_strategies = _create_user_mute_strategies(engine, answer_supervisor)
+    # OxeePhone: the test caller listens first, so it must hear the greeting.
+    if BRAND.test_campaigns and brand_test_calls.listens_first(
+        merged_call_context_vars
+    ):
+        user_mute_strategies[0] = FirstSpeechUserMuteStrategy()
     # OxeePhone: the agent's speaking plan (None keeps the upstream settings).
     speaking_plan = brand_speaking_plan.resolve_speaking_plan(run_configs)
     vad_params = VADParams(stop_secs=0.2)

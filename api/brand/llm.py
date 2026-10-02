@@ -23,16 +23,15 @@ def extract_json(text: str) -> dict:
 RETRY_DELAYS = (3.0, 8.0, 20.0)
 
 
-async def chat_json(
+async def chat_messages(
     model: dict,
-    system: str,
-    payload: Any,
+    messages: list[dict],
     *,
     max_tokens: int = 2000,
     temperature: float = 0.2,
     timeout: float = 120.0,
-) -> dict:
-    """Ask ``model`` ({base_url, api_key, model}) and parse its JSON answer."""
+) -> str:
+    """Ask ``model`` ({base_url, api_key, model}) and return the answer text."""
     headers = (
         {"Authorization": f"Bearer {model['api_key']}"} if model.get("api_key") else {}
     )
@@ -40,17 +39,7 @@ async def chat_json(
         "model": model["model"],
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "messages": [
-            {"role": "system", "content": system},
-            {
-                "role": "user",
-                "content": (
-                    payload
-                    if isinstance(payload, str)
-                    else json.dumps(payload, ensure_ascii=False, default=str)
-                ),
-            },
-        ],
+        "messages": messages,
         # Reasoning models (Qwen3 on vLLM) would otherwise think away the budget.
         "chat_template_kwargs": {"enable_thinking": False},
     }
@@ -75,4 +64,34 @@ async def chat_json(
     content = choice["message"].get("content") or ""
     if not content.strip() and choice.get("finish_reason") == "length":
         raise RuntimeError("the model used its whole token budget without answering")
+    return content
+
+
+async def chat_json(
+    model: dict,
+    system: str,
+    payload: Any,
+    *,
+    max_tokens: int = 2000,
+    temperature: float = 0.2,
+    timeout: float = 120.0,
+) -> dict:
+    """Ask ``model`` ({base_url, api_key, model}) and parse its JSON answer."""
+    content = await chat_messages(
+        model,
+        [
+            {"role": "system", "content": system},
+            {
+                "role": "user",
+                "content": (
+                    payload
+                    if isinstance(payload, str)
+                    else json.dumps(payload, ensure_ascii=False, default=str)
+                ),
+            },
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature,
+        timeout=timeout,
+    )
     return extract_json(content)

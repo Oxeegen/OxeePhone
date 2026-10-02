@@ -64,3 +64,41 @@ def test_fix_view_is_compact():
     assert mcp_tools._fix_view(fix, full=True)["proposal"]["operations"] == [
         {"op": "set_setting"}
     ]
+
+
+def test_test_campaign_tools_follow_the_flag(monkeypatch):
+    from api.brand import config
+
+    mcp = _FakeMCP()
+    mcp_tools.register(mcp)
+    assert mcp.tools["oxee_get_test_execution"].readOnlyHint is True
+    assert mcp.tools["oxee_run_test_campaign"].readOnlyHint is False
+
+    monkeypatch.setattr(
+        config, "BRAND", config.BrandConfig(**{**config.BRAND.__dict__, "test_campaigns": False})
+    )
+    mcp = _FakeMCP()
+    mcp_tools.register(mcp)
+    assert "oxee_run_test_campaign" not in mcp.tools
+
+
+def test_test_call_view_lists_what_failed():
+    from api.brand.mcp_test_tools import _call_view
+
+    view = _call_view(
+        {
+            "index": 3,
+            "scenario_id": "s1",
+            "scenario": {"title": "RDV"},
+            "status": "done",
+            "verdict": "fail",
+            "judge": {
+                "criteria": [{"text": "a", "pass": True}, {"text": "b", "pass": False}],
+                "forbidden": [{"text": "c", "violated": True}],
+                "issues": ["x"],
+            },
+            "checks": [{"label": "Calls book", "pass": False}],
+        }
+    )
+    assert view["failed_criteria"] == ["b"] and view["violated"] == ["c"]
+    assert view["failed_checks"] == ["Calls book"] and view["scenario"] == "RDV"

@@ -1,5 +1,5 @@
 """OxeePhone tools on the MCP server (/api/v1/mcp): analysis, automatic fixes,
-versions. Lets an AI agent (e.g. Claude Code on the same VM) run the
+versions, test campaigns (mcp_test_tools.py). Lets an AI agent (e.g. Claude Code on the same VM) run the
 improvement loop with an organization API key:
 
     oxee_run_analysis → oxee_get_analysis_report → oxee_propose_fix(es)
@@ -547,9 +547,17 @@ PUBLISH_TOOLS = (oxee_publish_draft, oxee_rollback_fix)
 
 
 def register(mcp: Any) -> None:
-    for tool in READ_TOOLS:
+    from api.brand.config import BRAND
+
+    reads, writes = list(READ_TOOLS), list(WRITE_TOOLS)
+    if BRAND.test_campaigns:
+        from api.brand import mcp_test_tools
+
+        reads += mcp_test_tools.READ_TOOLS
+        writes += mcp_test_tools.WRITE_TOOLS
+    for tool in reads:
         mcp.tool(tool, annotations=_READ_ONLY)
-    for tool in WRITE_TOOLS:
+    for tool in writes:
         mcp.tool(tool, annotations=_WRITES)
     if CAN_PUBLISH:
         for tool in PUBLISH_TOOLS:

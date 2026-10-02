@@ -7,6 +7,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
+from api.brand.config import BRAND
 from api.brand.local_models import (
     LocalModelsError,
     list_endpoint_models,
@@ -829,3 +830,9 @@ async def oxeephone_releases(
     from api.brand.releases import release_info
 
     return await release_info(force=refresh)
+
+
+if BRAND.test_campaigns:
+    from api.brand.test_routes import router as tests_router
+
+    router.include_router(tests_router)
