@@ -18,6 +18,7 @@ an ``X-Oxee-Test: 1`` header (HTTP tools), as chosen per campaign.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import re
 import secrets
@@ -34,6 +35,7 @@ CALLER_NAME_TAG = "OXT"
 TOKEN = re.compile(CALLER_NAME_TAG + r"([0-9a-f]{12})")
 CLAIM_WINDOW = timedelta(minutes=10)
 TEST_HEADER = "X-Oxee-Test"
+SIMULATED_TOOL_TIMEOUT = 4.0
 
 # --- Caller side ------------------------------------------------------------------
 
@@ -192,6 +194,28 @@ def test_of(context: dict | None) -> dict | None:
     return test if isinstance(test, dict) else None
 
 
+async def _call_model(organization_id: int) -> dict | None:
+    """The organization's call LLM (fast enough to answer within a tool call)."""
+    from api.services.configuration.ai_model_configuration import (
+        get_organization_ai_model_configuration_v2,
+    )
+
+    try:
+        stored = await get_organization_ai_model_configuration_v2(organization_id)
+        pipeline = getattr(getattr(stored, "byok", None), "pipeline", None)
+        llm = getattr(pipeline, "llm", None) if pipeline else None
+        if llm is None or not getattr(llm, "base_url", None):
+            return None
+        keys = llm.get_all_api_keys() if hasattr(llm, "get_all_api_keys") else []
+        return {
+            "base_url": llm.base_url,
+            "api_key": keys[0] if keys else None,
+            "model": llm.model,
+        }
+    except Exception:
+        return None
+
+
 async def _simulate_tool(
     organization_id: int | None,
     test: dict,
@@ -208,32 +232,39 @@ async def _simulate_tool(
     }
     try:
         model = (
-            await resolve_analysis_model(organization_id) if organization_id else None
+            (await _call_model(organization_id))
+            or (await resolve_analysis_model(organization_id))
+            if organization_id
+            else None
         )
         if not model:
             return fallback
         definition = getattr(tool, "definition", None) or {}
-        return await chat_json(
-            model,
-            SIMULATE_TOOL_PROMPT,
-            {
-                "tool": function_name,
-                "description": getattr(tool, "description", None),
-                "parameters": (
-                    (definition.get("config") or {}).get("parameters")
-                    if isinstance(definition, dict)
-                    else None
-                ),
-                "arguments": arguments or {},
-                "scenario": test.get("scenario"),
-                "scenario_hints": test.get("tool_hints"),
-            },
-            max_tokens=600,
-            temperature=0.3,
-            timeout=30.0,
+        # Pipecat cancels a tool call after 5 s: answer before it does.
+        return await asyncio.wait_for(
+            chat_json(
+                model,
+                SIMULATE_TOOL_PROMPT,
+                {
+                    "tool": function_name,
+                    "description": getattr(tool, "description", None),
+                    "parameters": (
+                        (definition.get("config") or {}).get("parameters")
+                        if isinstance(definition, dict)
+                        else None
+                    ),
+                    "arguments": arguments or {},
+                    "scenario": test.get("scenario"),
+                    "scenario_hints": test.get("tool_hints"),
+                },
+                max_tokens=300,
+                temperature=0.3,
+                timeout=SIMULATED_TOOL_TIMEOUT,
+            ),
+            SIMULATED_TOOL_TIMEOUT,
         )
     except Exception as e:
-        logger.warning(f"Simulated tool {function_name} failed: {e}")
+        logger.warning(f"Simulated tool {function_name} failed: {e!r}")
         return fallback
 
 

@@ -192,6 +192,12 @@ def _snapshot(scenario: dict) -> dict:
     }
 
 
+def _version_snapshot(definition: Any) -> dict:
+    from api.brand.versions import _snapshot
+
+    return _snapshot(definition)
+
+
 async def create_execution(
     organization_id: int,
     user: Any,
@@ -274,6 +280,9 @@ async def create_execution(
         "status": "queued",
         "calls": calls,
         "report": None,
+        # The version tested (masked like the versions page), kept for the
+        # comparisons once a draft is discarded.
+        "definition_snapshot": _version_snapshot(definition),
     }
     return await save(organization_id, execution)
 
@@ -1357,10 +1366,18 @@ async def compare(organization_id: int, a_id: str, b_id: str) -> dict:
         a["workflow_id"] == b["workflow_id"]
         and a["definition_id"] != b["definition_id"]
     ):
-        va = await brand_db.get_workflow_version(a["workflow_id"], a["definition_id"])
-        vb = await brand_db.get_workflow_version(b["workflow_id"], b["definition_id"])
+
+        async def version(e: dict) -> dict | None:
+            v = await brand_db.get_workflow_version(
+                e["workflow_id"], e["definition_id"]
+            )
+            return _snapshot(v) if v is not None else e.get("definition_snapshot")
+
+        va, vb = await version(a), await version(b)
         if va is not None and vb is not None:
-            result["version_diff"] = diff_versions(_snapshot(va), _snapshot(vb))
+            result["version_diff"] = diff_versions(va, vb)
+        else:
+            result["version_unavailable"] = True
     return result
 
 

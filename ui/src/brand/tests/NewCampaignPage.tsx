@@ -186,7 +186,7 @@ export function NewCampaignPage() {
           </Select>
           <span className="block text-[11px] text-muted-foreground">
             {toolsMode === "simulated"
-              ? "The analysis model answers in place of each tool, following the scenario. Post-call webhooks and integrations stay off."
+              ? "A model answers in place of each tool, following the scenario. Post-call webhooks and integrations stay off."
               : toolsMode === "real"
                 ? "Tools, webhooks and integrations run for real: they may book, send or write in your systems."
                 : "HTTP tools run for real with an X-Oxee-Test: 1 header your backend can route to a sandbox. MCP tools, webhooks and integrations run for real."}
@@ -228,8 +228,9 @@ export function NewCampaignPage() {
           />
         </label>
         <p className="text-xs text-muted-foreground">
-          Pools: {voices} voice{voices === 1 ? "" : "s"}, {numbers} caller number{numbers === 1 ? "" : "s"}
-          {voices < count || numbers < count ? " — smaller than the number of scenarios: some will be reused." : "."}
+          {voices === 0 && numbers === 0
+            ? "Pools empty (Test settings): every caller uses the agent's default voice and no caller number. Fine for text executions."
+            : `Pools: ${voices} voice${voices === 1 ? "" : "s"}, ${numbers} caller number${numbers === 1 ? "" : "s"}${voices < count || numbers < count ? " — fewer than the scenarios: some will be reused." : "."}`}
         </p>
       </Card>
 

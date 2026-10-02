@@ -180,7 +180,7 @@ export function MeterRow({ label, sub, value, max, display }: { label: ReactNode
   return (
     <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_4.5rem] items-center gap-3 py-1.5 text-sm" title={`${typeof label === "string" ? label : ""} ${display}`}>
       <div className="min-w-0">
-        <div className="truncate">{label}</div>
+        <div className="line-clamp-2">{label}</div>
         {sub && <div className="truncate text-[11px] text-muted-foreground">{sub}</div>}
       </div>
       <div className="h-2 rounded-full bg-muted">

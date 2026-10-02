@@ -255,6 +255,8 @@ export interface Comparison {
   changes: Record<string, number>;
   coverage: { nodes_gained: string[]; nodes_lost: string[] };
   version_diff: import("../versions/model").VersionDiff | null;
+  /** Executions made before the versions were kept in the execution. */
+  version_unavailable?: boolean;
 }
 
 export const DIMENSION_ORDER = [

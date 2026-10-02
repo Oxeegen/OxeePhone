@@ -182,8 +182,10 @@ export function ScenarioCard({
             {DIMENSION_ORDER.filter((k) => dimensions[k]).map((k) => (
               <Field key={k} label={dimensions[k].label}>
                 <Select value={String(draft.levels[k] ?? 1)} onValueChange={(v) => setDraft({ ...draft, levels: { ...draft.levels, [k]: Number(v) } })}>
-                  <SelectTrigger title={dimensions[k].levels[String(draft.levels[k] ?? 1)]}><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger title={dimensions[k].levels[String(draft.levels[k] ?? 1)]}>
+                    <SelectValue>{String(draft.levels[k] ?? 1)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="max-w-sm">
                     {[1, 2, 3, 4, 5].map((l) => (
                       <SelectItem key={l} value={String(l)}>{l} — {dimensions[k].levels[String(l)]}</SelectItem>
                     ))}

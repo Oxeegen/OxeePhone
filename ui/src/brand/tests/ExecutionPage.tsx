@@ -47,6 +47,59 @@ const SCORE_LABEL: Record<string, string> = {
   resolution: "Resolution",
 };
 
+/** Settings × levels: pass rate per cell, one hue whose strength follows it. */
+function LevelGrid({ report, dims, phone }: { report: NonNullable<Execution["report"]>; dims: Record<string, { label: string; levels: Record<string, string> }>; phone: boolean }) {
+  const speed = Object.entries(report.by_dimension.speed ?? {});
+  return (
+    <Card className="overflow-x-auto p-4">
+      <table className="w-full min-w-[420px] border-separate border-spacing-[2px] text-xs">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="text-left font-medium" />
+            {[1, 2, 3, 4, 5].map((l) => (
+              <th key={l} className="w-[15%] text-center font-medium">{l}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {DIMENSION_ORDER.map((k) => (
+            <tr key={k}>
+              <td className="pr-2 text-muted-foreground">{dims[k]?.label ?? k}</td>
+              {[1, 2, 3, 4, 5].map((l) => {
+                const cell = report.by_dimension[k]?.[String(l)];
+                const rate = cell?.pass_rate ?? null;
+                return (
+                  <td
+                    key={l}
+                    title={cell ? `${dims[k]?.levels[String(l)] ?? ""}: ${pct(rate)} of ${cell.calls} call${cell.calls === 1 ? "" : "s"}` : "Not played"}
+                    className="relative h-9 overflow-hidden rounded text-center tabular-nums"
+                  >
+                    {cell ? (
+                      <>
+                        <span className="absolute inset-0 bg-[var(--viz-series-1)]" style={{ opacity: 0.12 + 0.6 * (rate ?? 0) }} />
+                        <span className="relative font-medium">{pct(rate)}</span>
+                        <span className="relative block text-[10px] text-muted-foreground">{cell.calls}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground/50">·</span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {phone && speed.length > 1 && (
+        <p className="pt-3 text-xs text-muted-foreground">
+          Voice speed: {speed.map(([b, v]) => `${b} ${pct(v.pass_rate)} (${v.calls})`).join(" · ")}
+        </p>
+      )}
+      <p className="pt-2 text-[11px] text-muted-foreground">Each cell: pass rate and number of calls. Hover a cell for the level.</p>
+    </Card>
+  );
+}
+
 function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
   execution: Execution;
   call: TestCall;
@@ -346,32 +399,8 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
               </Card>
             </Section>
 
-            <Section title="Pass rate by caller setting" subtitle="Where the agent starts failing as callers get harder.">
-              <Card className="space-y-4 p-4">
-                {[...DIMENSION_ORDER, "speed"].map((k) => {
-                  const levels = r.by_dimension[k] ?? {};
-                  const entries = Object.entries(levels);
-                  if (entries.length < 2 || (k === "speed" && !phone)) return null;
-                  return (
-                    <div key={k}>
-                      <p className="text-xs font-medium text-muted-foreground">{k === "speed" ? "Voice speed" : (dims[k]?.label ?? k)}</p>
-                      {entries.map(([level, v]) => (
-                        <MeterRow
-                          key={level}
-                          label={k === "speed" ? level : `${level} · ${dims[k]?.levels[level] ?? ""}`}
-                          value={v.pass_rate ?? 0}
-                          max={1}
-                          display={`${pct(v.pass_rate)}`}
-                          sub={`${v.calls} call${v.calls === 1 ? "" : "s"}`}
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
-                {Object.values(r.by_dimension).every((l) => Object.keys(l).length < 2) && (
-                  <p className="text-sm text-muted-foreground">Every setting had a single value in this campaign.</p>
-                )}
-              </Card>
+            <Section title="Pass rate by caller setting" subtitle="Where the agent starts failing as callers get harder (1 easy → 5 hard).">
+              <LevelGrid report={r} dims={dims} phone={phone} />
             </Section>
 
             <Section title="What fails">

@@ -109,7 +109,7 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
                         )}
                       >
                         <span className="inline-flex items-center gap-1">
-                          {i.delta !== null && <Icon className="h-3.5 w-3.5" />}
+                          {i.delta ? <Icon className="h-3.5 w-3.5" /> : null}
                           {formatDelta(i.kind, i.delta)}
                           {i.trend === "better" ? <span className="sr-only">better</span> : i.trend === "worse" ? <span className="sr-only">worse</span> : null}
                         </span>
@@ -167,7 +167,11 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
               <Card className="p-4 text-sm text-muted-foreground">{data.version_diff.bullets[0] ?? "No configuration change."}</Card>
             )
           ) : (
-            <Card className="p-4 text-sm text-muted-foreground">Different agents: no configuration diff.</Card>
+            <Card className="p-4 text-sm text-muted-foreground">
+              {data.version_unavailable
+                ? "One of the versions tested no longer exists (a discarded draft): no configuration diff."
+                : "Different agents: no configuration diff."}
+            </Card>
           ))}
       </Section>
     </div>
