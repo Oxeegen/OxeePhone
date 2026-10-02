@@ -21,13 +21,15 @@ import {
   type Execution,
   ms,
   pct,
+  postValue,
   seconds,
+  type Technical,
   type TestCall,
   TOOLS_MODE_LABEL,
   type Verdict,
   versionLabel,
 } from "./model";
-import { API, ExecutionStatusBadge, LevelChips, MeterRow, Section, Tile, useTestSettings, VerdictBadge, VerdictSplit } from "./ui";
+import { API, ExecutionStatusBadge, LevelChips, MeterRow, ScoreBadge, Section, techStatus, Tile, useTestSettings, VerdictBadge, VerdictSplit } from "./ui";
 
 const STAGE_LABEL: Record<string, string> = {
   endpointing: "Endpointing",
@@ -100,6 +102,100 @@ function LevelGrid({ report, dims, phone }: { report: NonNullable<Execution["rep
   );
 }
 
+const POST_LABEL: Record<string, string> = {
+  reply: "Reply",
+  greeting: "Greeting",
+  endpointing: "End of turn",
+  transcriber: "Transcriber",
+  llm: "LLM",
+  voice: "Voice",
+  tools: "Tools",
+  turn_taking: "Turn-taking",
+  reliability: "Reliability",
+};
+
+/** Technical report: every post graded against the analysis thresholds. */
+function TechnicalReport({ technical, phone }: { technical: Technical; phone: boolean }) {
+  return (
+    <Section
+      title="Technical report"
+      subtitle={
+        <>
+          Measured on the agent side of the calls ({technical.replies} replies) and graded 1–5 against the{" "}
+          <Link href="/analysis" className="underline underline-offset-2">Analysis thresholds</Link>: ≤ ½ threshold 5 · ≤ ¾ 4 · ≤
+          threshold 3 · ≤ critical 2 · above 1; a p90 above the critical level costs a point.
+          {phone ? "" : " Text executions have no timing: only tools and reliability are graded."}
+        </>
+      }
+      actions={<ScoreBadge score={technical.score} status={technical.status} />}
+    >
+      <Card className="overflow-x-auto p-0">
+        <table className="w-full min-w-[860px] text-sm">
+          <thead className="border-b border-border text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2 font-medium">Post</th>
+              <th className="px-4 py-2 text-right font-medium">Median</th>
+              <th className="px-4 py-2 text-right font-medium">p90</th>
+              <th className="px-4 py-2 text-right font-medium">Max</th>
+              <th className="px-4 py-2 text-right font-medium">Threshold</th>
+              <th className="px-4 py-2 text-right font-medium">Over</th>
+              <th className="px-4 py-2 font-medium">Share of the reply</th>
+              <th className="px-4 py-2 font-medium">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {technical.posts.map((p) => (
+              <tr key={p.key} className="border-b border-border last:border-0">
+                <td className="px-4 py-2.5">
+                  <p className="font-medium">{p.label}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {p.help}
+                    {p.model ? ` · ${p.model}` : ""}
+                    {p.key === "tools" && p.calls ? ` · ${p.calls} calls, ${pct(p.failure_rate)} failed` : ""}
+                    {p.key === "turn_taking" ? ` · ${p.interruptions ?? 0} interruptions` : ""}
+                    {p.key === "reliability" ? ` · ${p.failed_calls ?? 0} of ${p.samples} calls` : ""}
+                  </p>
+                </td>
+                <td className="px-4 py-2.5 text-right font-medium tabular-nums">{postValue(p.unit, p.p50)}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.p90 != null ? postValue(p.unit, p.p90) : "—"}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.max != null ? postValue(p.unit, p.max) : "—"}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.threshold != null ? postValue(p.unit, p.threshold) : "—"}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.over_rate != null ? pct(p.over_rate) : "—"}</td>
+                <td className="w-40 px-4 py-2.5">
+                  {p.share != null ? (
+                    <div className="flex items-center gap-2" title={`${pct(p.share)} of the median reply time`}>
+                      <div className="h-2 flex-1 rounded-full bg-muted">
+                        <div className="h-2 rounded-full bg-[var(--viz-series-1)]" style={{ width: `${Math.min(100, p.share * 100)}%` }} />
+                      </div>
+                      <span className="w-10 text-right text-xs tabular-nums">{pct(p.share)}</span>
+                    </div>
+                  ) : null}
+                </td>
+                <td className="px-4 py-2.5"><ScoreBadge score={p.score} status={p.status} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      {technical.info_stages.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Rest of the reply time (median, not graded):{" "}
+          {technical.info_stages.map((x) => `${x.label} ${ms(x.p50)} (${pct(x.share)})`).join(" · ")}
+        </p>
+      )}
+      {technical.worst_calls.some((c) => c.score < 4) && (
+        <p className="text-xs text-muted-foreground">
+          Weakest calls:{" "}
+          {technical.worst_calls
+            .filter((c) => c.score < 4)
+            .map((c) => `#${c.index} ${c.title} (${c.score.toFixed(1)}/5${c.weakest ? `, ${c.weakest}` : ""})`)
+            .join(" · ")}
+        </p>
+      )}
+    </Section>
+  );
+}
+
 function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
   execution: Execution;
   call: TestCall;
@@ -140,6 +236,11 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
           </span>
         </span>
         <LevelChips levels={s.levels} speed={execution.channel === "phone" ? s.speed : null} />
+        {execution.channel === "phone" && call.technical?.score != null && (
+          <span title={call.technical.weakest ? `Technical score · weakest: ${call.technical.weakest}` : "Technical score"}>
+            <ScoreBadge score={call.technical.score} status={call.technical.status} compact />
+          </span>
+        )}
         <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">{seconds(m?.duration_seconds)}</span>
         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
@@ -200,6 +301,18 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
                     </span>
                   ))}
                 </div>
+                {call.technical && Object.keys(call.technical.posts).length > 0 && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground">Technical</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(call.technical.posts).map(([k, v]) => (
+                        <span key={k} className="inline-flex items-center gap-1 text-xs">
+                          {POST_LABEL[k] ?? k} <ScoreBadge score={v} status={techStatus(v)} compact />
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {j.issues.length > 0 && (
                   <>
                     <p className="text-xs font-medium text-muted-foreground">To improve{j.failure_node ? ` (node “${j.failure_node}”)` : ""}</p>
@@ -349,20 +462,28 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
 
       {r && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Tile label="Pass rate" value={pct(r.pass_rate)} hint={<VerdictSplit verdicts={r.verdicts} />} help="Calls whose goal was reached with every criterion and check passed, out of the judged calls." />
             <Tile label="Goal reached" value={pct(r.goal_rate)} hint={`score ${pct(r.score)} (pass + ½ partial)`} />
-            {phone ? (
-              <Tile label="Reply latency p50" value={ms(r.latency.p50_ms)} hint={`p90 ${ms(r.latency.p90_ms)} · greeting ${ms(r.latency.greeting_p50_ms)}`} />
-            ) : (
-              <Tile label="Turns per call" value={r.duration.turns_p50 ?? "—"} hint="median, caller + agent" />
-            )}
+            <Tile
+              label="Quality score"
+              value={r.quality_score != null ? `${r.quality_score.toFixed(2)}/5` : "—"}
+              hint="answers, mean of the judge's scores"
+              help="Understanding, accuracy, concision, tone and resolution, scored 1-5 by the judge on every call."
+            />
+            <Tile
+              label="Technical score"
+              value={r.technical?.score != null ? `${r.technical.score.toFixed(2)}/5` : "—"}
+              hint={r.technical?.status ? <ScoreBadge score={r.technical.score} status={r.technical.status} /> : phone ? "" : "text: tools and reliability only"}
+              help="Latency post by post, tools, turn-taking and reliability, graded 1-5 against the thresholds of Analysis › Thresholds."
+            />
             <Tile
               label="Graph coverage"
               value={pct(r.coverage.nodes_rate)}
               hint={`${r.coverage.nodes_visited}/${r.coverage.nodes_total} nodes · ${r.coverage.edges_used}/${r.coverage.edges_total} transitions`}
             />
           </div>
+          {r.technical && <TechnicalReport technical={r.technical} phone={phone} />}
           {(r.scenario_issues?.length ?? 0) > 0 && (
             <Card className="gap-1 border-amber-500/40 p-4 text-sm">
               <p className="font-medium">Scenarios to review ({r.scenario_issues!.length})</p>

@@ -14,6 +14,7 @@ import {
   type SettingsResponse,
   speedText,
   STATUS_LABEL,
+  type TechStatus,
   type Verdict,
   VERDICT_META,
 } from "./model";
@@ -265,4 +266,29 @@ export function LevelChips({ levels, speed }: { levels: Record<string, number>; 
       ) : null}
     </span>
   );
+}
+
+const TECH_META: Record<TechStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
+  good: { label: "Good", className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300", icon: CheckCircle2 },
+  fair: { label: "Fair", className: "border-border text-muted-foreground", icon: MinusCircle },
+  warning: { label: "Weak", className: "border-amber-500/50 text-amber-800 dark:text-amber-300", icon: MinusCircle },
+  critical: { label: "Critical", className: "border-red-500/40 text-red-700 dark:text-red-300", icon: XCircle },
+};
+
+/** A 1-5 technical grade with its status (icon + label, never colour alone). */
+export function ScoreBadge({ score, status, compact = false }: { score: number | null | undefined; status: TechStatus | null | undefined; compact?: boolean }) {
+  if (score === null || score === undefined || !status) return <span className="text-xs text-muted-foreground">—</span>;
+  const meta = TECH_META[status];
+  const Icon = meta.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[11px] font-medium tabular-nums", meta.className)}>
+      <Icon className="h-3 w-3" />
+      {Number.isInteger(score) ? score : score.toFixed(1)}/5{compact ? "" : ` · ${meta.label}`}
+    </span>
+  );
+}
+
+export function techStatus(score: number | null | undefined): TechStatus | null {
+  if (score === null || score === undefined) return null;
+  return score >= 4 ? "good" : score >= 3 ? "fair" : score >= 2 ? "warning" : "critical";
 }

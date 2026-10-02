@@ -26,8 +26,14 @@ keeps them equal).
   scenario and by caller setting, latency per stage, interruptions, tools,
   coverage of the agent's nodes and transitions, and what fails; a failed call
   turns into an automatic fix.
-- Compare two executions: indicators, scenarios improved or regressed,
-  coverage, and the configuration diff between the two versions tested.
+- Two scores per execution and per call: a **quality score** (mean of the
+  judge's 1-5 scores) and a **technical score**. The technical report grades
+  each post (reply time, greeting, end-of-turn detection, transcriber, LLM,
+  voice, tools, turn-taking, reliability) 1-5 against the Analysis
+  thresholds, with median, p90, max, share of the reply time and models.
+- Compare two executions: quality and technical scores side by side with their
+  detail, indicators, scenarios improved or regressed, coverage, and the
+  configuration diff between the two versions tested.
 - Test calls stay out of the production reports and analyses. MCP tools for
   the AI agent: `oxee_create_test_campaign`, `oxee_run_test_campaign`,
   `oxee_get_test_execution`, `oxee_compare_test_executions`,

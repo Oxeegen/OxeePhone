@@ -160,6 +160,7 @@ export interface TestCall {
   judge?: Judge | null;
   verdict?: Verdict | null;
   fix_id?: string;
+  technical?: { score: number | null; status: TechStatus | null; posts: Record<string, number | null>; weakest: string | null };
 }
 
 export interface ScenarioRow {
@@ -217,6 +218,43 @@ export interface Report {
   checks_failed: Array<{ label: string; count: number }>;
   failure_nodes: Record<string, number>;
   scenario_issues?: Array<{ index: number; scenario_id: string; title: string; issue: string }>;
+  quality_score?: number | null;
+  technical?: Technical;
+}
+
+export type TechStatus = "good" | "fair" | "warning" | "critical";
+
+export interface TechPost {
+  key: string;
+  label: string;
+  help: string;
+  unit: "ms" | "rate";
+  weight: number;
+  samples: number;
+  p50: number | null;
+  p90: number | null;
+  max: number | null;
+  threshold: number | null;
+  critical: number | null;
+  over_rate: number | null;
+  score: number | null;
+  status: TechStatus | null;
+  share?: number;
+  model?: string | null;
+  failure_rate?: number | null;
+  calls?: number;
+  interruptions?: number;
+  failed_calls?: number;
+}
+
+export interface Technical {
+  score: number | null;
+  status: TechStatus | null;
+  channel: Channel;
+  replies: number;
+  posts: TechPost[];
+  info_stages: Array<{ key: string; label: string; p50: number | null; share: number }>;
+  worst_calls: Array<{ index: number; title: string; score: number; weakest: string | null }>;
 }
 
 export interface Execution extends Omit<ExecutionSummary, "progress" | "pass_rate" | "score" | "verdicts" | "latency_p50_ms"> {
@@ -241,7 +279,26 @@ export interface Indicator {
   trend: "better" | "worse" | "same" | null;
 }
 
+export interface HeadlineRow {
+  key: string;
+  label: string;
+  unit?: "ms" | "rate";
+  a: number | null;
+  b: number | null;
+  a_value?: number | null;
+  b_value?: number | null;
+  delta: number | null;
+}
+
+export interface Headline {
+  a: number | null;
+  b: number | null;
+  delta: number | null;
+  rows: HeadlineRow[];
+}
+
 export interface Comparison {
+  headline?: { quality: Headline; technical: Headline };
   a: Partial<Execution>;
   b: Partial<Execution>;
   indicators: Indicator[];
@@ -378,4 +435,8 @@ export function speedText(v: number): string {
   if (v <= 1.05) return "normal pace";
   if (v <= 1.2) return "a little fast";
   return "fast speaker";
+}
+
+export function postValue(unit: "ms" | "rate", value: number | null | undefined): string {
+  return unit === "rate" ? pct(value, 1) : ms(value);
 }

@@ -494,9 +494,30 @@ async def recompute_test_execution(
     graphs = await runs.brand_db.get_definition_graphs(
         [execution["definition_id"]], organization_id=org
     )
-    execution["report"] = runs.aggregate(
-        execution, _graph_index(graphs).get(execution["definition_id"])
-    )
+    from api.brand.analysis_thresholds import load as load_thresholds
+    from api.brand.test_technical import call_technical
+
+    thresholds = (await load_thresholds(org))["values"]
+    for call in execution["calls"]:
+        if call.get("metrics"):
+            call["technical"] = call_technical(
+                call, thresholds, channel=execution["channel"]
+            )
+    index = _graph_index(graphs).get(execution["definition_id"])
+    snapshot = execution.get("definition_snapshot")
+    if index is None and snapshot:  # the draft tested was discarded since
+        index = _graph_index(
+            {
+                execution["definition_id"]: {
+                    "workflow_name": execution["workflow_name"],
+                    "workflow_json": snapshot.get("workflow_json") or {},
+                }
+            }
+        ).get(execution["definition_id"])
+    previous = execution.get("report") or {}
+    execution["report"] = runs.aggregate(execution, index, thresholds)
+    if index is None and previous.get("coverage"):
+        execution["report"]["coverage"] = previous["coverage"]
     return await runs.save(org, execution)
 
 

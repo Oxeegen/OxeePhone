@@ -479,6 +479,12 @@ async def test_text_execution_end_to_end(monkeypatch):
         return {"base_url": "http://m/v1", "model": "judge"}
 
     monkeypatch.setattr(analysis, "resolve_analysis_model", model)
+    from api.brand import analysis_thresholds
+
+    async def thresholds(org):
+        return {"values": dict(analysis_thresholds.DEFAULTS)}
+
+    monkeypatch.setattr(analysis_thresholds, "load", thresholds)
 
     graph = {
         "nodes": [
@@ -651,3 +657,78 @@ async def test_text_execution_end_to_end(monkeypatch):
     assert run["initial_context"]["oxee_test"]["tools_mode"] == "simulated"
     assert done["report"]["pass_rate"] == 1.0
     assert done["report"]["coverage"]["nodes_visited"] == 2
+    tech = done["report"]["technical"]
+    assert [p["key"] for p in tech["posts"]] == ["reliability"]  # text: no timing
+    assert tech["score"] == 5 and call["technical"]["score"] == 5
+
+
+# --- Technical quality -----------------------------------------------------------------
+
+
+def _phone_call(index, totals, llm, status="done", errors=0, interruptions=0, greeting=900):
+    return {
+        "index": index,
+        "scenario": {"title": f"s{index}"},
+        "status": status,
+        "metrics": {
+            "latency": {
+                "greeting_ms": greeting,
+                "turn_stages": [
+                    {"total": t, "stages": {"endpointing": 300, "transcriber": 200, "llm": l, "voice": 250, "sentence": 100}}
+                    for t, l in zip(totals, llm)
+                ],
+            },
+            "tools": [{"name": "check", "ms": 400, "failed": False}],
+            "agent_turns": 4,
+            "interruptions": interruptions,
+            "errors": errors,
+            "models": {"llm_model": "Oxee-flash", "stt_model": "voxee-stt"},
+        },
+    }
+
+
+def test_grade_steps():
+    from api.brand.test_technical import grade
+
+    assert [grade(v, 1000) for v in (400, 700, 1000, 1400, 1600)] == [5, 4, 3, 2, 1]
+    assert grade(2500, 2000, 3000) == 2 and grade(None, 1000) is None
+
+
+def test_technical_report_grades_each_post():
+    from api.brand.analysis_thresholds import DEFAULTS
+    from api.brand.test_technical import call_technical, technical_report
+
+    calls = [
+        _phone_call(1, [1200, 1300], [500, 600]),
+        _phone_call(2, [1500, 1400], [2400, 2600], interruptions=2),
+        _phone_call(3, [], [], status="error"),
+    ]
+    for c in calls:
+        if c["metrics"]["latency"]["turn_stages"]:
+            c["technical"] = call_technical(c, DEFAULTS, channel="phone")
+    report = technical_report(calls, DEFAULTS, channel="phone")
+    posts = {p["key"]: p for p in report["posts"]}
+    assert posts["reply"]["p50"] == 1350 and posts["reply"]["score"] == 4
+    assert posts["llm"]["model"] == "Oxee-flash"
+    assert posts["llm"]["score"] == 2  # p50 1550 > 1500, under 1.5 x
+    assert posts["transcriber"]["score"] == 5 and posts["transcriber"]["share"]
+    assert posts["reliability"]["p50"] == pytest.approx(1 / 3, abs=1e-3)
+    assert posts["reliability"]["score"] == 1
+    assert posts["turn_taking"]["p50"] == pytest.approx(2 / 12, abs=1e-3)
+    assert 1 <= report["score"] <= 5
+    assert report["worst_calls"][0]["index"] == 2
+    assert report["worst_calls"][0]["weakest"] == "LLM"
+    text = technical_report(calls, DEFAULTS, channel="text")
+    assert {p["key"] for p in text["posts"]} == {"tools", "reliability"}
+
+
+def test_compare_headline_scores():
+    a = {"report": {"quality_score": 3.5, "scores": {"accuracy": 3.0, "tone": 4.0}, "technical": {"score": 4.2, "posts": [{"key": "llm", "label": "LLM", "unit": "ms", "score": 4, "p50": 900}]}}}
+    b = {"report": {"quality_score": 4.0, "scores": {"accuracy": 4.0, "tone": 4.0}, "technical": {"score": 3.6, "posts": [{"key": "llm", "label": "LLM", "unit": "ms", "score": 2, "p50": 1700}]}}}
+    h = runs.compare_reports(a, b)["headline"]
+    assert h["quality"]["delta"] == 0.5 and h["technical"]["delta"] == -0.6
+    accuracy = next(r for r in h["quality"]["rows"] if r["key"] == "accuracy")
+    assert accuracy["delta"] == 1.0
+    assert h["technical"]["rows"] == [
+        {"key": "llm", "label": "LLM", "unit": "ms", "a": 4, "b": 2, "a_value": 900, "b_value": 1700, "delta": -2}
+    ]

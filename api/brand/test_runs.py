@@ -37,6 +37,8 @@ from loguru import logger
 from api.brand import db as brand_db
 from api.brand import test_calls
 from api.brand import test_campaigns as campaigns
+from api.brand.analysis_thresholds import DEFAULTS as THRESHOLD_DEFAULTS
+from api.brand.test_technical import call_technical, technical_report
 from api.db import db_client
 
 PREFIX = "OXEE_TESTEXEC:"
@@ -332,7 +334,10 @@ async def _run(organization_id: int, execution_id: str, user_id: int) -> None:
     brief = campaigns.agent_brief(
         definition.workflow_json or {}, definition.workflow_configurations or {}
     )
+    from api.brand.analysis_thresholds import load as load_thresholds
+
     context = {
+        "thresholds": (await load_thresholds(organization_id))["values"],
         "organization_id": organization_id,
         "user_id": user_id,
         "model": model,
@@ -381,7 +386,7 @@ async def _run(organization_id: int, execution_id: str, user_id: int) -> None:
             await save(organization_id, execution)
 
     await asyncio.gather(*(one(c) for c in execution["calls"]))
-    execution["report"] = aggregate(execution, index)
+    execution["report"] = aggregate(execution, index, context["thresholds"])
     execution.update(
         status="cancelled" if execution_id in _CANCEL else "done",
         finished_at=_now(),
@@ -770,6 +775,13 @@ def call_metrics(run: dict, index: dict | None) -> dict:
                 for stage in (turns[0]["stages"] if turns else {})
             },
             "values_ms": [round(v) for v in totals],
+            "turn_stages": [
+                {
+                    "total": round(t["total_ms"]),
+                    "stages": {k: round(v) for k, v in t["stages"].items()},
+                }
+                for t in turns
+            ],
         },
         "tools": [
             {"name": t["name"], "ms": t["ms"], "failed": t["failed"]}
@@ -784,6 +796,7 @@ def call_metrics(run: dict, index: dict | None) -> dict:
         "end_status": str(gathered.get("call_status") or ""),
         "extracted_variables": gathered.get("extracted_variables") or {},
         "errors": digest["errors"],
+        "models": digest["models"],
     }
 
 
@@ -964,6 +977,9 @@ async def _evaluate(execution: dict, call: dict, ctx: dict) -> None:
         if judge
         else None  # inconclusive: the judge did not answer
     )
+    call["technical"] = call_technical(
+        call, ctx.get("thresholds") or THRESHOLD_DEFAULTS, channel=execution["channel"]
+    )
 
 
 # --- Report -----------------------------------------------------------------------------
@@ -987,7 +1003,9 @@ def _p90(values: list[float]) -> float | None:
     return round(v, 1) if v is not None else None
 
 
-def aggregate(execution: dict, index: dict | None) -> dict:
+def aggregate(
+    execution: dict, index: dict | None, thresholds: dict | None = None
+) -> dict:
     calls = execution["calls"]
     judged = [c for c in calls if c.get("status") == "done" and c.get("verdict")]
     played = [c for c in calls if c.get("status") == "done"]
@@ -1123,8 +1141,28 @@ def aggregate(execution: dict, index: dict | None) -> dict:
         m["duration_seconds"] for m in metrics if m["duration_seconds"] is not None
     ]
     tool_calls = sum(t["calls"] for t in tools.values())
+    technical = technical_report(
+        calls,
+        thresholds or THRESHOLD_DEFAULTS,
+        channel=execution.get("channel", "phone"),
+    )
     return {
         "computed_at": _now(),
+        "technical": technical,
+        # Mean of the judge's 1-5 scores: the answer quality, next to the
+        # technical score.
+        "quality_score": (
+            round(
+                sum(v for x in scores.values() for v in x)
+                / sum(len(x) for x in scores.values()),
+                2,
+            )
+            if any(scores.values())
+            else None
+        ),
+        "technical_posts": {
+            p["key"]: {"p50": p["p50"], "score": p["score"]} for p in technical["posts"]
+        },
         "calls": len(calls),
         "played": len(played),
         "judged": len(judged),
@@ -1220,6 +1258,8 @@ INDICATORS = (
     ("pass_rate", "Pass rate", "higher", "rate"),
     ("score", "Score (pass + ½ partial)", "higher", "rate"),
     ("goal_rate", "Goal reached", "higher", "rate"),
+    ("quality_score", "Quality score (1-5)", "higher", "score"),
+    ("technical.score", "Technical score (1-5)", "higher", "score"),
     ("scores.understanding", "Understanding (1-5)", "higher", "score"),
     ("scores.accuracy", "Accuracy (1-5)", "higher", "score"),
     ("scores.concision", "Concision (1-5)", "higher", "score"),
@@ -1228,6 +1268,10 @@ INDICATORS = (
     ("latency.p50_ms", "Reply latency p50", "lower", "ms"),
     ("latency.p90_ms", "Reply latency p90", "lower", "ms"),
     ("latency.greeting_p50_ms", "Greeting latency p50", "lower", "ms"),
+    ("technical_posts.endpointing.p50", "End-of-turn detection p50", "lower", "ms"),
+    ("technical_posts.transcriber.p50", "Transcriber p50", "lower", "ms"),
+    ("technical_posts.llm.p50", "LLM p50", "lower", "ms"),
+    ("technical_posts.voice.p50", "Voice p50", "lower", "ms"),
     ("latency.slow_turns_rate", "Replies over 2 s", "lower", "rate"),
     ("interruptions.per_call", "Interruptions per call", "lower", "number"),
     ("tools.failure_rate", "Tool failures", "lower", "rate"),
@@ -1243,6 +1287,52 @@ def _at(report: dict, path: str) -> Any:
     for part in path.split("."):
         value = value.get(part) if isinstance(value, dict) else None
     return value
+
+
+SCORE_LABELS = {
+    "understanding": "Understanding",
+    "accuracy": "Accuracy",
+    "concision": "Concision",
+    "tone": "Tone",
+    "resolution": "Resolution",
+}
+
+
+def _headline(a: float | None, b: float | None, rows: list[dict]) -> dict:
+    for row in rows:
+        row["delta"] = (
+            round(row["b"] - row["a"], 2)
+            if isinstance(row.get("a"), (int, float))
+            and isinstance(row.get("b"), (int, float))
+            else None
+        )
+    return {
+        "a": a,
+        "b": b,
+        "delta": round(b - a, 2) if a is not None and b is not None else None,
+        "rows": rows,
+    }
+
+
+def _post_rows(ta: dict, tb: dict) -> list[dict]:
+    """Technical posts side by side: score (1-5) and median value."""
+    pa = {p["key"]: p for p in ta.get("posts") or []}
+    pb = {p["key"]: p for p in tb.get("posts") or []}
+    rows = []
+    for key in dict.fromkeys([*pa, *pb]):
+        x, y = pa.get(key) or {}, pb.get(key) or {}
+        rows.append(
+            {
+                "key": key,
+                "label": (y or x).get("label"),
+                "unit": (y or x).get("unit"),
+                "a": x.get("score"),
+                "b": y.get("score"),
+                "a_value": x.get("p50"),
+                "b_value": y.get("p50"),
+            }
+        )
+    return rows
 
 
 def compare_reports(a: dict, b: dict) -> dict:
@@ -1309,6 +1399,26 @@ def compare_reports(a: dict, b: dict) -> dict:
                 "change": change,
             }
         )
+    headline = {
+        "quality": _headline(
+            ra.get("quality_score"),
+            rb.get("quality_score"),
+            [
+                {
+                    "key": k,
+                    "label": SCORE_LABELS[k],
+                    "a": (ra.get("scores") or {}).get(k),
+                    "b": (rb.get("scores") or {}).get(k),
+                }
+                for k in SCORE_KEYS
+            ],
+        ),
+        "technical": _headline(
+            (ra.get("technical") or {}).get("score"),
+            (rb.get("technical") or {}).get("score"),
+            _post_rows(ra.get("technical") or {}, rb.get("technical") or {}),
+        ),
+    }
     order = {
         "regressed": 0,
         "improved": 1,
@@ -1323,6 +1433,7 @@ def compare_reports(a: dict, b: dict) -> dict:
         cb.get("nodes_never_visited") or []
     )
     return {
+        "headline": headline,
         "indicators": indicators,
         "scenarios": scenarios,
         "changes": dict(Counter(s["change"] for s in scenarios)),

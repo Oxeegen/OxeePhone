@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 import { ChangeCard } from "../versions/DiffViews";
-import { type Comparison, type Execution, formatDelta, formatIndicator, versionLabel } from "./model";
+import { type Comparison, type Execution, formatDelta, formatIndicator, type Headline, postValue, versionLabel } from "./model";
 import { API, Section, VerdictSplit } from "./ui";
 
 const CHANGE_META: Record<Comparison["scenarios"][number]["change"], { label: string; className: string }> = {
@@ -22,6 +22,65 @@ const CHANGE_META: Record<Comparison["scenarios"][number]["change"], { label: st
   removed: { label: "Not played", className: "border-border text-muted-foreground" },
   unknown: { label: "Not judged", className: "border-border text-muted-foreground" },
 };
+
+function HeadlineCard({ title, subtitle, headline }: { title: string; subtitle: string; headline: Headline }) {
+  const trend = (d: number | null) =>
+    d === null || d === 0
+      ? "text-muted-foreground"
+      : d > 0
+        ? "text-emerald-700 dark:text-emerald-300"
+        : "text-red-700 dark:text-red-300";
+  const sign = (d: number | null, digits = 2) => (d === null ? "" : d === 0 ? "=" : `${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(digits)}`);
+  const score = (v: number | null) => (v === null ? "—" : v.toFixed(2));
+  return (
+    <Card className="gap-3 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-semibold tabular-nums">
+            <span className="text-muted-foreground">{score(headline.a)}</span> → {score(headline.b)}
+          </p>
+          <p className={cn("inline-flex items-center gap-1 text-sm font-medium tabular-nums", trend(headline.delta))}>
+            {headline.delta ? (headline.delta > 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />) : null}
+            {sign(headline.delta)}
+            {headline.delta ? <span className="sr-only">{headline.delta > 0 ? "better" : "worse"}</span> : null}
+          </p>
+        </div>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="text-left text-xs text-muted-foreground">
+          <tr>
+            <th className="py-1 font-medium" />
+            <th className="py-1 text-right font-medium">A</th>
+            <th className="py-1 text-right font-medium">B</th>
+            <th className="py-1 text-right font-medium">Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          {headline.rows
+            .filter((r) => r.a !== null || r.b !== null)
+            .map((r) => (
+              <tr key={r.key} className="border-t border-border">
+                <td className="py-1.5">{r.label}</td>
+                <td className="py-1.5 text-right tabular-nums text-muted-foreground">
+                  {r.a ?? "—"}
+                  {r.unit && r.a_value != null ? <span className="block text-[11px]">{postValue(r.unit, r.a_value)}</span> : null}
+                </td>
+                <td className="py-1.5 text-right font-medium tabular-nums">
+                  {r.b ?? "—"}
+                  {r.unit && r.b_value != null ? <span className="block text-[11px] font-normal text-muted-foreground">{postValue(r.unit, r.b_value)}</span> : null}
+                </td>
+                <td className={cn("py-1.5 text-right tabular-nums", trend(r.delta))}>{sign(r.delta, r.unit ? 0 : 2)}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
 
 function Side({ label, e }: { label: string; e: Partial<Execution> }) {
   return (
@@ -79,6 +138,21 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
           {otherChannel ? "The two executions used different channels (phone / text): latency and interruptions are not comparable. " : ""}
           {data.a.campaign_id !== data.b.campaign_id ? "They come from different campaigns: only common scenarios are compared." : ""}
         </p>
+      )}
+
+      {data.headline && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <HeadlineCard
+            title="Quality score"
+            subtitle="Answers: mean of the judge's 1–5 scores."
+            headline={data.headline.quality}
+          />
+          <HeadlineCard
+            title="Technical score"
+            subtitle="Latency post by post, tools, turn-taking, reliability (1–5 against the Analysis thresholds)."
+            headline={data.headline.technical}
+          />
+        </div>
       )}
 
       <Section title="Indicators" subtitle="B against A. Green: better, red: worse.">
