@@ -78,9 +78,14 @@ function LevelGrid({ report, dims, phone }: { report: NonNullable<Execution["rep
                   >
                     {cell ? (
                       <>
-                        <span className="absolute inset-0 bg-[var(--viz-series-1)]" style={{ opacity: 0.12 + 0.6 * (rate ?? 0) }} />
-                        <span className="relative font-medium">{pct(rate)}</span>
-                        <span className="relative block text-[10px] text-muted-foreground">{cell.calls}</span>
+                        <span
+                          className="absolute inset-0"
+                          style={{ background: `color-mix(in srgb, var(--cta) ${Math.round(10 + 75 * (rate ?? 0))}%, transparent)` }}
+                        />
+                        <span className={cn("relative font-medium", (rate ?? 0) >= 0.6 && "text-[var(--cta-foreground)]")}>{pct(rate)}</span>
+                        <span className={cn("relative block text-[10px]", (rate ?? 0) >= 0.6 ? "text-[var(--cta-foreground)]/80" : "text-muted-foreground")}>
+                          {cell.calls}
+                        </span>
                       </>
                     ) : (
                       <span className="text-muted-foreground/50">·</span>

@@ -9,10 +9,11 @@ import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 import { busy, type CampaignSummary, pct, versionLabel } from "./model";
 import { TestSettingsDialog } from "./TestSettingsDialog";
-import { API, ExecutionStatusBadge, useTestSettings, VerdictSplit } from "./ui";
+import { API, ExecutionStatusBadge, ScoreBadge, techStatus, useTestSettings, VerdictSplit } from "./ui";
 
 // Manage › Test campaigns: scenarios played by a simulated caller against an
 // agent, replayed on each version to compare (api/brand/test_*.py).
@@ -27,6 +28,18 @@ function Trend({ last, previous }: { last: CampaignSummary["last_done"]; previou
       <Icon className="h-3.5 w-3.5" />
       {delta > 0 ? "+" : "−"}
       {Math.abs(delta * 100).toFixed(0)} pts vs {versionLabel(previous)}
+    </span>
+  );
+}
+
+function ScoreTrend({ last, previous }: { last: number | null | undefined; previous: number | null | undefined }) {
+  if (last == null || previous == null) return null;
+  const delta = last - previous;
+  if (Math.abs(delta) < 0.005) return <span className="block text-[11px] text-muted-foreground">= previous</span>;
+  return (
+    <span className={cn("block text-[11px] tabular-nums", delta > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300")}>
+      {delta > 0 ? "+" : "−"}
+      {Math.abs(delta).toFixed(2)} vs previous
     </span>
   );
 }
@@ -96,7 +109,7 @@ export function TestCampaignsPage() {
         </Card>
       ) : (
         <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[1000px] text-sm">
             <thead className="border-b border-border text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Campaign</th>
@@ -105,6 +118,8 @@ export function TestCampaignsPage() {
                 <th className="px-4 py-2 font-medium">Executions</th>
                 <th className="px-4 py-2 font-medium">Last result</th>
                 <th className="px-4 py-2 font-medium">Pass rate</th>
+                <th className="px-4 py-2 font-medium">Quality</th>
+                <th className="px-4 py-2 font-medium">Technical</th>
               </tr>
             </thead>
             <tbody>
@@ -152,6 +167,14 @@ export function TestCampaignsPage() {
                     <td className="px-4 py-3">
                       <p className="font-semibold tabular-nums">{pct(done?.pass_rate)}</p>
                       <Trend last={done} previous={c.previous_done} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <ScoreBadge score={done?.quality_score ?? null} status={techStatus(done?.quality_score)} compact />
+                      <ScoreTrend last={done?.quality_score} previous={c.previous_done?.quality_score} />
+                    </td>
+                    <td className="px-4 py-3" title={done?.channel === "text" ? "Text: tools and reliability only" : undefined}>
+                      <ScoreBadge score={done?.technical_score ?? null} status={techStatus(done?.technical_score)} compact />
+                      <ScoreTrend last={done?.technical_score} previous={c.previous_done?.technical_score} />
                     </td>
                   </tr>
                 );
