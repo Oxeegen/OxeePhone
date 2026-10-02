@@ -5,6 +5,16 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## Unreleased
+
+- Test campaigns by phone: the test caller no longer stays silent when it
+  misses the agent's greeting (the agent answers and greets while the
+  caller's pipeline is still starting). After 6 s without having spoken or
+  heard anything, it opens the conversation itself.
+- Test settings › Pairing: "arrival order" for PBXs and trunks that drop the
+  CallerID name; the agent side then takes the oldest pending test call, and
+  executions place one call at a time. The error of an unpaired call says so.
+
 ## 0.9.2 — 2026-10-02
 
 - Installer: images built one at a time with up to three attempts (the UI

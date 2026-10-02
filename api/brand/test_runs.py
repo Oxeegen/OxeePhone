@@ -403,6 +403,11 @@ async def _run(organization_id: int, execution_id: str, user_id: int) -> None:
         # Each test call holds two slots (caller and agent).
         limit = await call_concurrency.get_org_concurrent_limit(organization_id)
         concurrency = max(1, min(concurrency, limit // 2))
+        # Paired by arrival order: one call at a time, or they could cross.
+        if (await campaigns.get_settings(organization_id)).get(
+            "pairing"
+        ) == "arrival_order":
+            concurrency = 1
     execution.update(status="running", started_at=_now(), error=None)
     await save(organization_id, execution)
 
@@ -713,8 +718,11 @@ async def _play_phone(execution: dict, call: dict, ctx: dict) -> dict:
                 if caller_done:
                     status = (caller.gathered_context or {}).get("call_status")
                     raise ExecutionError(
-                        f"the agent never answered (caller side: {status or 'ended'}); "
-                        "check the dial plan and that the CallerID name reaches the agent"
+                        f"the agent side of this test call was not found (caller "
+                        f"side: {status or 'ended'}): either the agent did not "
+                        "answer (dial plan), or it answered without recognizing "
+                        "the test call because the CallerID name did not reach it "
+                        "(Test settings › Pairing: arrival order)"
                     )
             if agent_run and agent_run.get("is_completed") and caller_done:
                 break

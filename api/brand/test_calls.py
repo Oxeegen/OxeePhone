@@ -100,6 +100,56 @@ def listens_first(context: dict | None) -> bool:
     return tester_of(context) is not None
 
 
+# On a phone call the agent answers and greets at once, while the tester's
+# pipeline is still starting (answer, ARI external media, websocket): the
+# tester can miss the greeting, and both sides would then wait for each other.
+TESTER_OPENING_SECS = 6.0
+OPENING_CUE = (
+    "(The call is connected but you heard no greeting, or only part of it. "
+    "Speak first: greet and say why you are calling.)"
+)
+_openings: set = set()
+
+
+def _heard_something(engine: Any) -> bool:
+    context = getattr(engine, "context", None)
+    try:
+        messages = context.get_messages() if context is not None else []
+    except Exception:
+        return False
+    for m in messages:
+        role = m.get("role") if isinstance(m, dict) else getattr(m, "role", None)
+        if role == "user":
+            return True
+    return False
+
+
+def schedule_tester_opening(engine: Any, node_id: str) -> None:
+    """The tester opens the conversation itself when it has neither spoken
+    nor heard the agent within TESTER_OPENING_SECS (natural path otherwise:
+    it answers the greeting it heard)."""
+
+    async def watch() -> None:
+        await asyncio.sleep(TESTER_OPENING_SECS)
+        started = getattr(engine, "_speech_playback_started", None)
+        if (started is not None and started.is_set()) or _heard_something(engine):
+            return
+        logger.info("Test caller heard no greeting: it opens the conversation")
+        try:
+            # Chat templates such as Qwen's refuse a conversation without a
+            # user turn ("No user query found in messages").
+            engine.context.add_message({"role": "user", "content": OPENING_CUE})
+            await engine.queue_node_opening(
+                node_id=node_id, previous_node_id=None, generate_if_no_greeting=True
+            )
+        except Exception as e:  # the call may be over already
+            logger.warning(f"Test caller opening failed: {e}")
+
+    task = asyncio.create_task(watch())
+    _openings.add(task)
+    task.add_done_callback(_openings.discard)
+
+
 # --- Agent side -------------------------------------------------------------------
 
 
@@ -141,12 +191,20 @@ async def claim_inbound(
     from api.db import db_client
 
     match = TOKEN.search(caller_name or "")
-    if not match:
-        return None
-    token = match.group(1)
     try:
-        row = await db_client.get_configuration(organization_id, CALL_PREFIX + token)
-        record = dict(row.value) if row and row.value else None
+        if match:
+            token = match.group(1)
+            row = await db_client.get_configuration(
+                organization_id, CALL_PREFIX + token
+            )
+            record = dict(row.value) if row and row.value else None
+        else:
+            # The PBX or a trunk may drop the CallerID name: when the test
+            # settings say so, the oldest pending test call is taken.
+            record = await _oldest_pending_call(organization_id)
+            if record is None:
+                return None
+            token = record["token"]
         if not record or record.get("claimed_at"):
             return None
         created = datetime.fromisoformat(record["created_at"])
@@ -158,7 +216,7 @@ async def claim_inbound(
             organization_id, CALL_PREFIX + token, record
         )
     except Exception as e:  # never break a real inbound call
-        logger.warning(f"Test call lookup failed for token {token}: {e}")
+        logger.warning(f"Test call lookup failed: {e}")
         return None
     logger.info(
         f"Inbound test call {token}: agent {record['workflow_id']} "
@@ -170,6 +228,30 @@ async def claim_inbound(
         "run_name": record["agent_run_name"],
         "context": {"oxee_test": record["test"]},
     }
+
+
+ARRIVAL_WINDOW = timedelta(seconds=45)
+
+
+async def _oldest_pending_call(organization_id: int) -> dict | None:
+    """With pairing "arrival order": the oldest unclaimed test call placed in
+    the last ARRIVAL_WINDOW (executions then place one call at a time)."""
+    from api.brand import test_campaigns
+    from api.brand.db import list_configurations_by_prefix
+
+    settings = await test_campaigns.get_settings(organization_id)
+    if settings.get("pairing") != "arrival_order":
+        return None
+    now = datetime.now(UTC)
+    pending = [
+        r
+        for r in await list_configurations_by_prefix(
+            organization_id, CALL_PREFIX, limit=50
+        )
+        if not r.get("claimed_at")
+        and now - datetime.fromisoformat(r["created_at"]) <= ARRIVAL_WINDOW
+    ]
+    return min(pending, key=lambda r: r["created_at"]) if pending else None
 
 
 def agent_run_name(execution_id: str, call_index: int) -> str:

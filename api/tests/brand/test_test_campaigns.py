@@ -732,3 +732,60 @@ def test_compare_headline_scores():
     assert h["technical"]["rows"] == [
         {"key": "llm", "label": "LLM", "unit": "ms", "a": 4, "b": 2, "a_value": 900, "b_value": 1700, "delta": -2}
     ]
+
+
+@pytest.mark.asyncio
+async def test_tester_opens_when_it_heard_nothing(monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(calls, "TESTER_OPENING_SECS", 0.01)
+    opened = []
+
+    class _Context:
+        def __init__(self, messages):
+            self._m = messages
+
+        def get_messages(self):
+            return self._m
+
+        def add_message(self, message):
+            self._m.append(message)
+
+    class _Engine:
+        def __init__(self, messages, spoke=False):
+            self.context = _Context(messages)
+            self._speech_playback_started = asyncio.Event()
+            if spoke:
+                self._speech_playback_started.set()
+
+        async def queue_node_opening(self, **kwargs):
+            opened.append(kwargs["node_id"])
+
+    silent = _Engine([{"role": "system", "content": "x"}])
+    calls.schedule_tester_opening(silent, "caller")
+    calls.schedule_tester_opening(_Engine([{"role": "user", "content": "Bonjour"}]), "heard")
+    calls.schedule_tester_opening(_Engine([], spoke=True), "spoke")
+    await asyncio.sleep(0.05)
+    assert opened == ["caller"]
+    assert silent.context.get_messages()[-1] == {"role": "user", "content": calls.OPENING_CUE}
+
+
+@pytest.mark.asyncio
+async def test_claim_by_arrival_order(config_store, monkeypatch):
+    from api.brand import db as brand_db
+
+    async def by_prefix(org, prefix, limit=50):
+        return [v for (o, k), v in config_store.items() if o == org and k.startswith(prefix)]
+
+    monkeypatch.setattr(brand_db, "list_configurations_by_prefix", by_prefix)
+    for token, definition in (("aaaaaaaaaaa1", 41), ("aaaaaaaaaaa2", 42)):
+        await calls.register_call(
+            7, token, {"workflow_id": 3, "definition_id": definition, "agent_run_name": f"n{definition}", "test": {}}
+        )
+    config_store[(7, calls.CALL_PREFIX + "aaaaaaaaaaa2")]["created_at"] = "1999-01-01T00:00:00+00:00"
+    # Default pairing (CallerID name): a call without token is an ordinary call.
+    assert await calls.claim_inbound(7, "Jean", "790") is None
+    await campaigns.save_settings(7, {"pairing": "arrival_order"})
+    first = await calls.claim_inbound(7, "Jean", "790")
+    assert first["definition_id"] == 41  # the oldest pending call
+    assert await calls.claim_inbound(7, "Jean", "790") is None  # the other one is too old
