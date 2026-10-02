@@ -416,7 +416,7 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
   const phone = execution.channel === "phone";
 
   return (
-    <div className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto w-full space-y-6 p-6 [contain:inline-size]">
       <Link href={`/test-campaigns/${campaignId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> {execution.campaign_name}
       </Link>
@@ -509,7 +509,7 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
             </p>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
             <Section title="Scenarios" subtitle="Worst first. Unstable: different results over the plays.">
               <Card className="divide-y divide-border p-0">
                 {r.by_scenario.map((s) => (

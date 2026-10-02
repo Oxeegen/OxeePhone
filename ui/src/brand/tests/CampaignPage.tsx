@@ -73,7 +73,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
     setSelected((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list.slice(-1), id]));
 
   return (
-    <div className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto w-full space-y-6 p-6 [contain:inline-size]">
       <Link href="/test-campaigns" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Test campaigns
       </Link>

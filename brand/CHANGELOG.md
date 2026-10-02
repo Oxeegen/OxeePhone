@@ -5,7 +5,7 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
-## Unreleased
+## 0.9.0 — 2026-10-02
 
 - **Test campaigns** (Manage › Test campaigns). Pick an agent and set each
   caller setting as a min / max range (vocabulary, mood, request clarity,

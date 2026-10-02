@@ -122,14 +122,14 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
   const sameVersion = data.a.definition_id === data.b.definition_id;
   const otherChannel = data.a.channel !== data.b.channel;
   return (
-    <div className="container mx-auto space-y-6 p-6">
+    <div className="container mx-auto w-full space-y-6 p-6 [contain:inline-size]">
       <Link href={`/test-campaigns/${data.b.campaign_id}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> {data.b.campaign_name}
       </Link>
       <h1 className="flex items-center gap-2 text-2xl font-bold">
         <GitCompare className="h-6 w-6 text-[var(--cta)]" /> Compare executions · {data.b.workflow_name}
       </h1>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 [&>*]:min-w-0">
         <Side label="A (before)" e={data.a} />
         <Side label="B (after)" e={data.b} />
       </div>
@@ -141,7 +141,7 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
       )}
 
       {data.headline && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
           <HeadlineCard
             title="Quality score"
             subtitle="Answers: mean of the judge's 1–5 scores."

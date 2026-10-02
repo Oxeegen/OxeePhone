@@ -154,7 +154,7 @@ export function NewCampaignPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-5xl space-y-6 p-6">
+    <div className="container mx-auto w-full max-w-5xl space-y-6 p-6 [contain:inline-size]">
       <Link href="/test-campaigns" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> Test campaigns
       </Link>
