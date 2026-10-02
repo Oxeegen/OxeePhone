@@ -16,16 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 
-import { DIMENSION_ORDER, type Range, rangeLabel, TOOLS_MODE_LABEL,type ToolsMode } from "./model";
+import { DIMENSION_ORDER, type Range, rangeLabel, speedText, TOOLS_MODE_LABEL, type ToolsMode } from "./model";
 import { API, RangeSlider, useTestSettings } from "./ui";
-
-function speedText(v: number): string {
-  if (v < 0.9) return "slow speaker";
-  if (v < 0.97) return "a little slow";
-  if (v <= 1.05) return "normal pace";
-  if (v <= 1.2) return "a little fast";
-  return "fast speaker";
-}
 
 /** Texts of the two ends of a range: min on the left, max on the right. */
 function RangeEnds({ min, max }: { min: { value: string; text?: string }; max: { value: string; text?: string } }) {

@@ -8,7 +8,26 @@ import { Card } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-import { type ExecutionStatus, type SettingsResponse, STATUS_LABEL, type Verdict, VERDICT_META } from "./model";
+import {
+  DIMENSION_ORDER,
+  type ExecutionStatus,
+  type SettingsResponse,
+  speedText,
+  STATUS_LABEL,
+  type Verdict,
+  VERDICT_META,
+} from "./model";
+
+const CHIP_LABEL: Record<string, string> = {
+  vocabulary: "Voc",
+  mood: "Mood",
+  clarity: "Clar",
+  complexity: "Cplx",
+  depth: "Depth",
+  impatience: "Imp",
+  dictation: "Dict",
+  traps: "Trap",
+};
 
 export const API = "/api/v1/oxee/tests";
 
@@ -191,29 +210,56 @@ export function MeterRow({ label, sub, value, max, display }: { label: ReactNode
   );
 }
 
-export function LevelChips({ levels, speed }: { levels: Record<string, number>; speed?: number | null }) {
-  const keys = ["vocabulary", "mood", "clarity", "complexity", "depth", "impatience", "dictation", "traps"];
-  const short: Record<string, string> = {
-    vocabulary: "Voc",
-    mood: "Mood",
-    clarity: "Clar",
-    complexity: "Cplx",
-    depth: "Depth",
-    impatience: "Imp",
-    dictation: "Dict",
-    traps: "Trap",
+// One fetch of the setting descriptions for every chip of the page.
+let dimensionsCache: Promise<SettingsResponse["dimensions"] | null> | null = null;
+
+function useDimensions(): SettingsResponse["dimensions"] | null {
+  const auth = useAuth();
+  const [dims, setDims] = useState<SettingsResponse["dimensions"] | null>(null);
+  useEffect(() => {
+    if (auth.loading || !auth.isAuthenticated) return;
+    if (!dimensionsCache) dimensionsCache = client
+      .get<{ 200: SettingsResponse }, unknown>({ url: `${API}/settings` })
+      .then((r) => (r.data as SettingsResponse | undefined)?.dimensions ?? null);
+    let alive = true;
+    void dimensionsCache.then((d) => {
+      if (alive) setDims(d);
+      if (!d) dimensionsCache = null;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [auth.loading, auth.isAuthenticated]);
+  return dims;
+}
+
+/** Level 1 → 5: the primary hue from lightest to darkest (white ink on the
+ * two darkest steps). */
+export function levelStyle(level: number): React.CSSProperties {
+  const step = Math.max(1, Math.min(5, Math.round(level)));
+  const strength = [10, 22, 38, 62, 85][step - 1];
+  return {
+    background: `color-mix(in srgb, var(--cta) ${strength}%, transparent)`,
+    color: step >= 4 ? "var(--cta-foreground)" : "var(--foreground)",
   };
+}
+
+/** Caller levels of a scenario; hover a chip for what the level means. */
+export function LevelChips({ levels, speed }: { levels: Record<string, number>; speed?: number | null }) {
+  const dims = useDimensions();
+  const chip = "cursor-help rounded px-1 py-0.5 font-mono text-[10px]";
   return (
     <span className="inline-flex flex-wrap gap-1">
-      {keys
-        .filter((k) => levels?.[k] !== undefined)
-        .map((k) => (
-          <span key={k} className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground" title={k}>
-            {short[k]} {levels[k]}
+      {DIMENSION_ORDER.filter((k) => levels?.[k] !== undefined).map((k) => {
+        const d = dims?.[k];
+        return (
+          <span key={k} className={chip} style={levelStyle(levels[k])} title={`${d?.label ?? k} ${levels[k]}/5${d ? ` · ${d.levels[String(levels[k])]}` : ""}`}>
+            {CHIP_LABEL[k]} {levels[k]}
           </span>
-        ))}
+        );
+      })}
       {speed ? (
-        <span className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground" title="Voice speed">
+        <span className={cn(chip, "bg-muted text-muted-foreground")} title={`Voice speed ×${speed.toFixed(2)} · ${speedText(speed)}`}>
           ×{speed.toFixed(2)}
         </span>
       ) : null}

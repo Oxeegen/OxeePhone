@@ -371,3 +371,11 @@ export function estimateMinutes(calls: number, channel: Channel, concurrency: nu
 export function parseNumbers(text: string): string[] {
   return Array.from(new Set(text.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean)));
 }
+
+export function speedText(v: number): string {
+  if (v < 0.9) return "slow speaker";
+  if (v < 0.97) return "a little slow";
+  if (v <= 1.05) return "normal pace";
+  if (v <= 1.2) return "a little fast";
+  return "fast speaker";
+}

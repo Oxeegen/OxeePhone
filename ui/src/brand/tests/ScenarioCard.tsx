@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { detailFromError } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
-import { DIMENSION_ORDER, type DimensionInfo, type Scenario, type Voice } from "./model";
+import { DIMENSION_ORDER, type DimensionInfo, type Scenario, speedText, type Voice } from "./model";
 import { API, LevelChips } from "./ui";
 
 const lines = (text: string) => text.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -178,23 +178,32 @@ export function ScenarioCard({
             <Field label="Caller number"><Input value={draft.caller_number ?? ""} onChange={(e) => setDraft({ ...draft, caller_number: e.target.value })} className="font-mono" /></Field>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-5">
-            {DIMENSION_ORDER.filter((k) => dimensions[k]).map((k) => (
-              <Field key={k} label={dimensions[k].label}>
-                <Select value={String(draft.levels[k] ?? 1)} onValueChange={(v) => setDraft({ ...draft, levels: { ...draft.levels, [k]: Number(v) } })}>
-                  <SelectTrigger title={dimensions[k].levels[String(draft.levels[k] ?? 1)]}>
-                    <SelectValue>{String(draft.levels[k] ?? 1)}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-w-sm">
-                    {[1, 2, 3, 4, 5].map((l) => (
-                      <SelectItem key={l} value={String(l)}>{l} — {dimensions[k].levels[String(l)]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            ))}
+          <div className="grid gap-x-6 gap-y-3 md:grid-cols-2">
+            {DIMENSION_ORDER.filter((k) => dimensions[k]).map((k) => {
+              const level = String(draft.levels[k] ?? 1);
+              return (
+                <Field key={k} label={dimensions[k].label}>
+                  <div className="flex items-center gap-3">
+                    <Select value={level} onValueChange={(v) => setDraft({ ...draft, levels: { ...draft.levels, [k]: Number(v) } })}>
+                      <SelectTrigger className="w-16 shrink-0">
+                        <SelectValue>{level}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-w-sm">
+                        {[1, 2, 3, 4, 5].map((l) => (
+                          <SelectItem key={l} value={String(l)}>{l} — {dimensions[k].levels[String(l)]}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs leading-snug text-muted-foreground">{dimensions[k].levels[level]}</span>
+                  </div>
+                </Field>
+              );
+            })}
             <Field label="Voice speed">
-              <Input type="number" step={0.05} min={0.7} max={1.6} value={draft.speed} onChange={(e) => setDraft({ ...draft, speed: Number(e.target.value) || 1 })} />
+              <div className="flex items-center gap-3">
+                <Input type="number" step={0.05} min={0.7} max={1.6} value={draft.speed} onChange={(e) => setDraft({ ...draft, speed: Number(e.target.value) || 1 })} className="w-24 shrink-0" />
+                <span className="text-xs text-muted-foreground">{speedText(draft.speed)}</span>
+              </div>
             </Field>
           </div>
 
