@@ -5,7 +5,7 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
-## Unreleased
+## 0.9.1 — 2026-10-02
 
 - **Agent voice** (agent settings): voice, speed, language and volume of one
   agent on top of the organization's voice model, with a Listen button. Unlike

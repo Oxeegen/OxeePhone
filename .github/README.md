@@ -48,6 +48,9 @@ A visual graph of conversation nodes linked by transitions, each with its prompt
 - **Speaking plans** per agent (Vapi-style): how long to wait before answering, smart endpointing,
   silence needed after a sentence / a number / an unfinished phrase, words or voice needed to
   interrupt the agent, back-off after an interruption.
+- **Call engine settings**: speaking plan, voice, performance (first audio chunk, voice detection,
+  LLM temperature and reply length) and audio & sampling, set for the platform and overridden per
+  agent, with the built-in values one click away.
 - **Versions**: every version keeps its author and origin (editor, API key, AI agent, restore,
   automatic fix), the number of calls it answered, a plain and an AI-written summary of its changes,
   word-level diffs, and a one-click restore.
