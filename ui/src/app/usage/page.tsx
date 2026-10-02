@@ -6,6 +6,8 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
 import { toast } from 'sonner';
 
+import { isBranded } from '@/brand/brand';
+import { openRow, ROW_CLASS } from '@/brand/rowLink';
 import { downloadUsageRunsReportApiV1OrganizationsUsageRunsReportGet, getDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGet, getPreferencesApiV1OrganizationsPreferencesGet, getUsageHistoryApiV1OrganizationsUsageRunsGet, getWorkflowsSummaryApiV1WorkflowSummaryGet, savePreferencesApiV1OrganizationsPreferencesPut } from '@/client/sdk.gen';
 import type { DailyUsageBreakdownResponse, OrganizationPreferences, UsageHistoryResponse, WorkflowRunUsageResponse, WorkflowSummaryResponse } from '@/client/types.gen';
 import { CallTypeCell } from '@/components/CallTypeCell';
@@ -613,10 +615,12 @@ export default function UsagePage() {
                                             {usageHistory.runs.map((run) => (
                                                 <TableRow
                                                     key={run.id}
+                                                    className={isBranded ? `${ROW_CLASS} hover:bg-muted/50` : undefined}
+                                                    onClick={isBranded ? openRow(`/workflow/${run.workflow_id}/run/${run.id}`, router.push) : undefined}
                                                 >
                                                     <TableCell
                                                         className="font-mono text-sm cursor-pointer hover:underline"
-                                                        onClick={() => handleRowClick(run)}
+                                                        onClick={isBranded ? undefined : () => handleRowClick(run)}
                                                     >
                                                         #{run.id}
                                                     </TableCell>

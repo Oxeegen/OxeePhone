@@ -11,13 +11,25 @@ keeps them equal).
   agent on top of the organization's voice model, with a Listen button. Unlike
   the model override, the agent keeps the organization's endpoint, key and
   model.
-- **Agent performance settings**: audio received before the first sound is
+- **Performance settings**: audio received before the first sound is
   played (pipecat waited for 500 ms of audio), voice detection (end-of-speech
   silence, confidence, minimum volume), LLM temperature and maximum reply
   length, listening while a tool runs or during the first reply. Unset values
   keep the built-in behaviour.
-- Both are stored in the agent's version: visible in the version diffs,
-  restorable, and comparable with test campaigns (technical score).
+- **Audio & sampling**: sample rate of browser calls (8 / 16 kHz; phone calls
+  keep the operator's rate), output audio packets, silence before hanging up,
+  recording assembly interval.
+- **Platform Settings › Call engine**: the speaking plan, performance and audio
+  values every agent uses, with "Restore built-in values" (what was
+  hardcoded). In the agent settings each block (speaking plan, voice,
+  performance, audio) follows the platform unless overridden; overrides are
+  stored in the agent's version (diffs, restore, test-campaign comparisons).
+  A test execution records the platform values in force; a comparison lists
+  those that changed.
+- Platform settings and sign out are entries at the bottom of the menu; the
+  Langfuse telemetry section is gone.
+- Lists (agents, campaigns, test campaigns, executions, runs): the whole row
+  opens the page (Ctrl / Cmd-click: new tab); the redundant buttons are gone.
 
 ## 0.9.0 — 2026-10-02
 

@@ -441,6 +441,24 @@ export function AppSidebar() {
         translate="no"
       >
         <div className="space-y-2">
+          {/* OxeePhone: settings and sign out as menu entries, not behind the initials. */}
+          {isBranded && (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarLink item={{ title: "Platform settings", url: "/settings", icon: Settings }} />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={{ children: <p>Sign out</p> }}
+                  onClick={() => logout()}
+                  className={cn("rounded-xl transition-colors hover:bg-accent hover:text-accent-foreground", isCollapsed && "justify-center")}
+                >
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  <span className={cn("min-w-0 flex-1 truncate", isCollapsed && "sr-only")}>Sign out</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
           {provider !== "stack" && (
             <div
               className={cn(
@@ -448,6 +466,14 @@ export function AppSidebar() {
                 isCollapsed && "flex-col"
               )}
             >
+              {isBranded ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>{userChipTrigger}</TooltipTrigger>
+                  <TooltipContent side={isCollapsed ? "right" : "top"}>
+                    <p>{(user as LocalUser | undefined)?.email ?? ""}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {userChipTrigger}
@@ -471,6 +497,7 @@ export function AppSidebar() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
               {hireExpertButton}
             </div>
           )}
@@ -502,14 +529,18 @@ export function AppSidebar() {
                     <Settings className="mr-2 h-4 w-4" />
                     Account settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Platform Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign out
-                  </DropdownMenuItem>
+                  {!isBranded && (
+                    <>
+                      <DropdownMenuItem onClick={() => router.push("/settings")} className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        Platform Settings
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign out
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
               {hireExpertButton}

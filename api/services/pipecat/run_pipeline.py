@@ -436,6 +436,13 @@ async def _run_pipeline_telephony_impl(
 
     spec = telephony_registry.get(provider_name)
     audio_config = create_audio_config(provider_name)
+    # OxeePhone: platform / agent audio settings (telephony keeps its wire rate).
+    if BRAND.agent_tuning:
+        audio_config = brand_tuning.audio_config(
+            audio_config,
+            await brand_tuning.effective_configs(workflow.organization_id, run_configs),
+            webrtc=False,
+        )
 
     transport = await spec.transport_factory(
         websocket,
@@ -559,6 +566,13 @@ async def _run_pipeline_smallwebrtc_impl(
     run_configs = (
         (workflow_run.definition.workflow_configurations or {}) if workflow_run else {}
     )
+    # OxeePhone: platform / agent sampling rate, before the transport exists.
+    if BRAND.agent_tuning and workflow:
+        audio_config = brand_tuning.audio_config(
+            audio_config,
+            await brand_tuning.effective_configs(workflow.organization_id, run_configs),
+            webrtc=True,
+        )
     user_config = await get_effective_ai_model_configuration_for_workflow(
         organization_id=workflow.organization_id if workflow else None,
         workflow_configurations=run_configs,
@@ -698,6 +712,12 @@ async def _run_pipeline_impl(
         run_configs = brand_test_calls.tester_configs(
             run_configs, merged_call_context_vars
         )
+    # OxeePhone: platform call-engine settings the agent does not override.
+    if BRAND.agent_tuning:
+        run_configs = await brand_tuning.effective_configs(
+            workflow.organization_id, run_configs
+        )
+        brand_tuning.tune_transport(transport, run_configs)
 
     # Extract configurations from the version's workflow_configurations
     max_call_duration_seconds = DEFAULT_MAX_CALL_DURATION_SECONDS

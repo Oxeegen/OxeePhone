@@ -24,6 +24,13 @@ export interface VoiceOverride {
   volume_gain_db?: number | null;
 }
 
+export interface AudioSettings {
+  webrtc_sample_rate?: 8000 | 16000 | null;
+  recording_buffer_seconds?: number | null;
+  output_packet_ms?: number | null;
+  end_silence_secs?: number | null;
+}
+
 export interface Performance {
   tts_first_chunk_ms?: number | null;
   vad_stop_secs?: number | null;
@@ -48,10 +55,16 @@ export function performanceFrom(configs: object): Performance {
   return { ...((configs as { performance?: Performance }).performance ?? {}) };
 }
 
-/** Keys to save (absent when nothing is set: the defaults apply). */
-export function agentTuningConfig(voice: VoiceOverride, performance: Performance) {
-  return { voice_override: clean(voice), performance: clean(performance) };
+export function audioFrom(configs: object): AudioSettings {
+  return { ...((configs as { audio?: AudioSettings }).audio ?? {}) };
 }
+
+/** Keys to save (absent when nothing is set: the platform values apply). */
+export function agentTuningConfig(voice: VoiceOverride, performance: Performance, audio: AudioSettings = {}) {
+  return { voice_override: clean(voice), performance: clean(performance), audio: clean(audio) };
+}
+
+export const hasValues = (value: object) => Boolean(clean(value));
 
 function TuningSlider({
   id,
@@ -65,6 +78,7 @@ function TuningSlider({
   max,
   step,
   unit,
+  source = "default",
 }: {
   id: string;
   label: string;
@@ -73,6 +87,7 @@ function TuningSlider({
   /** What applies when unset. */
   fallback: number;
   fallbackLabel?: string;
+  source?: string;
   onChange: (value: number | null) => void;
   min: number;
   max: number;
@@ -89,10 +104,10 @@ function TuningSlider({
         <span title={help}><Info className="h-3.5 w-3.5 text-muted-foreground" /></span>
         {set ? (
           <button type="button" onClick={() => onChange(null)} className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-            <RotateCcw className="h-3 w-3" /> Default ({fallbackLabel ?? `${fallback}${unit ? ` ${unit}` : ""}`})
+            <RotateCcw className="h-3 w-3" /> {source} ({fallbackLabel ?? `${fallback}${unit ? ` ${unit}` : ""}`})
           </button>
         ) : (
-          <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">default</span>
+          <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{source}</span>
         )}
       </div>
       <p className="text-xs text-muted-foreground">{help}</p>
@@ -137,6 +152,7 @@ function TuningSwitch({
   value,
   fallback,
   onChange,
+  source = "default",
 }: {
   id: string;
   label: string;
@@ -144,6 +160,7 @@ function TuningSwitch({
   value: boolean | null | undefined;
   fallback: boolean;
   onChange: (value: boolean | null) => void;
+  source?: string;
 }) {
   const set = value !== null && value !== undefined;
   return (
@@ -155,10 +172,10 @@ function TuningSwitch({
       <div className="flex shrink-0 items-center gap-2">
         {set ? (
           <button type="button" onClick={() => onChange(null)} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-            <RotateCcw className="h-3 w-3" /> Default
+            <RotateCcw className="h-3 w-3" /> {source}
           </button>
         ) : (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">default</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{source}</span>
         )}
         <Switch id={id} checked={set ? value : fallback} onCheckedChange={(v) => onChange(v)} />
       </div>
@@ -213,12 +230,12 @@ function Listen({ voice, speed }: { voice: string; speed: number | null | undefi
   );
 }
 
-export function AgentVoiceSection({ value, onChange }: { value: VoiceOverride; onChange: (value: VoiceOverride) => void }) {
+export function AgentVoiceSection({ value, onChange, header = true }: { value: VoiceOverride; onChange: (value: VoiceOverride) => void; header?: boolean }) {
   const set = (patch: Partial<VoiceOverride>) => onChange({ ...value, ...patch });
   const custom = Boolean(clean(value));
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-2">
+      <div className={cn("flex items-start gap-2", !header && "hidden")}>
         <div>
           <h3 className="text-sm font-medium">Voice</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -288,25 +305,41 @@ export function AgentVoiceSection({ value, onChange }: { value: VoiceOverride; o
   );
 }
 
-export function PerformanceSection({ value, onChange }: { value: Performance; onChange: (value: Performance) => void }) {
+export function PerformanceSection({
+  value,
+  onChange,
+  fallback,
+  source = "built-in",
+  header = true,
+}: {
+  value: Performance;
+  onChange: (value: Performance) => void;
+  /** Values applying to the unset fields (platform or built-in). */
+  fallback: Performance;
+  source?: string;
+  header?: boolean;
+}) {
   const set = (patch: Partial<Performance>) => onChange({ ...value, ...patch });
   const custom = Boolean(clean(value));
+  const num = (v: number | null | undefined, d: number) => (v === null || v === undefined ? d : v);
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-2">
-        <div>
-          <h3 className="text-sm font-medium">Performance</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Low-level settings of the call pipeline. Unset values keep the built-in behaviour. Change one at a time in a
-            draft, then replay a test campaign and compare the technical score.
-          </p>
+      {header && (
+        <div className="flex items-start gap-2">
+          <div>
+            <h3 className="text-sm font-medium">Performance</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Low-level settings of the call pipeline. Change one at a time in a draft, then replay a test campaign and
+              compare the technical score.
+            </p>
+          </div>
+          {custom && (
+            <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 gap-1.5 text-xs" onClick={() => onChange({})}>
+              <RotateCcw className="h-3 w-3" /> All {source}
+            </Button>
+          )}
         </div>
-        {custom && (
-          <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 gap-1.5 text-xs" onClick={() => onChange({})}>
-            <RotateCcw className="h-3 w-3" /> All defaults
-          </Button>
-        )}
-      </div>
+      )}
 
       <p className="text-xs font-medium text-muted-foreground">Voice output</p>
       <TuningSlider
@@ -314,7 +347,8 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="First audio chunk"
         help="Audio received from the voice model before the agent starts playing it. Smaller starts sooner; too small may stutter on a slow voice server."
         value={value.tts_first_chunk_ms}
-        fallback={500}
+        fallback={num(fallback.tts_first_chunk_ms, 500)}
+        source={source}
         onChange={(tts_first_chunk_ms) => set({ tts_first_chunk_ms })}
         min={20}
         max={500}
@@ -328,7 +362,8 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="End-of-speech silence"
         help="Silence before the voice detector says the caller stopped speaking. Adds to every reply; too short cuts callers who hesitate."
         value={value.vad_stop_secs}
-        fallback={0.2}
+        fallback={num(fallback.vad_stop_secs, 0.2)}
+        source={source}
         onChange={(vad_stop_secs) => set({ vad_stop_secs })}
         min={0.1}
         max={1}
@@ -340,7 +375,8 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="Speech confidence"
         help="How sure the detector must be that it hears a voice. Higher ignores more noise (fewer false interruptions) but may miss quiet callers."
         value={value.vad_confidence}
-        fallback={0.7}
+        fallback={num(fallback.vad_confidence, 0.7)}
+        source={source}
         onChange={(vad_confidence) => set({ vad_confidence })}
         min={0.3}
         max={0.95}
@@ -351,7 +387,8 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="Minimum volume"
         help="Quieter sounds are not treated as speech. Raise it on noisy lines."
         value={value.vad_min_volume}
-        fallback={0.6}
+        fallback={num(fallback.vad_min_volume, 0.6)}
+        source={source}
         onChange={(vad_min_volume) => set({ vad_min_volume })}
         min={0.05}
         max={0.9}
@@ -364,8 +401,9 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="Temperature"
         help="Lower answers more consistently, higher more varied. Default: the model server's own setting."
         value={value.llm_temperature}
-        fallback={0.7}
-        fallbackLabel="server"
+        fallback={num(fallback.llm_temperature, 0.7)}
+        fallbackLabel={fallback.llm_temperature == null ? "server" : undefined}
+        source={source}
         onChange={(llm_temperature) => set({ llm_temperature })}
         min={0}
         max={1.5}
@@ -376,8 +414,9 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="Maximum reply length"
         help="Caps a reply in tokens (about ¾ of a word each). Bounds rambling answers; too low cuts sentences. Default: no limit."
         value={value.llm_max_tokens}
-        fallback={4000}
-        fallbackLabel="no limit"
+        fallback={num(fallback.llm_max_tokens, 4000)}
+        fallbackLabel={fallback.llm_max_tokens == null ? "no limit" : undefined}
+        source={source}
         onChange={(llm_max_tokens) => set({ llm_max_tokens })}
         min={16}
         max={4000}
@@ -391,7 +430,8 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="Ignore the caller while a tool runs"
         help="On: what the caller says during a tool call is not heard. Off: the caller can speak (and interrupt) meanwhile."
         value={value.mute_during_tools}
-        fallback
+        fallback={fallback.mute_during_tools ?? true}
+        source={source}
         onChange={(mute_during_tools) => set({ mute_during_tools })}
       />
       <TuningSwitch
@@ -399,9 +439,165 @@ export function PerformanceSection({ value, onChange }: { value: Performance; on
         label="Ignore the caller until the first reply ends"
         help="On: the caller cannot interrupt the greeting / first reply. Off: they can speak over it."
         value={value.mute_until_first_reply}
-        fallback
+        fallback={fallback.mute_until_first_reply ?? true}
+        source={source}
         onChange={(mute_until_first_reply) => set({ mute_until_first_reply })}
       />
     </div>
   );
+}
+
+const AUDIO_HELP = {
+  webrtc_sample_rate:
+    "Sample rate of browser calls (web widget, Test Audio). 16 kHz carries more of the voice for the transcriber; 8 kHz matches phone quality. Phone calls always use the operator's rate (8 kHz, 16 kHz for Vonage).",
+  recording_buffer_seconds: "How often the call recording is assembled. No effect on the conversation.",
+  output_packet_ms:
+    "Size of the audio packets sent to the caller. Smaller packets reach the caller sooner and stop faster when the caller interrupts, at the cost of more packets.",
+  end_silence_secs: "Silence sent after the agent's last words before the call is closed.",
+};
+
+export function AudioSection({
+  value,
+  onChange,
+  fallback,
+  source = "built-in",
+}: {
+  value: AudioSettings;
+  onChange: (value: AudioSettings) => void;
+  fallback: AudioSettings;
+  source?: string;
+}) {
+  const set = (patch: Partial<AudioSettings>) => onChange({ ...value, ...patch });
+  const rate = value.webrtc_sample_rate ?? fallback.webrtc_sample_rate ?? 16000;
+  const rateSet = value.webrtc_sample_rate != null;
+  return (
+    <div className="space-y-5">
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs">Browser call sample rate</Label>
+          {rateSet ? (
+            <button type="button" onClick={() => set({ webrtc_sample_rate: null })} className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+              <RotateCcw className="h-3 w-3" /> {source} ({(fallback.webrtc_sample_rate ?? 16000) / 1000} kHz)
+            </button>
+          ) : (
+            <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{source}</span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">{AUDIO_HELP.webrtc_sample_rate}</p>
+        <div className={cn("flex gap-2", !rateSet && "opacity-60")}>
+          {([8000, 16000] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => set({ webrtc_sample_rate: r })}
+              className={cn("rounded-md border px-3 py-1.5 text-xs", rate === r ? "border-[var(--cta)] bg-[var(--cta)]/10 font-medium" : "border-border")}
+            >
+              {r / 1000} kHz
+            </button>
+          ))}
+        </div>
+      </div>
+      <TuningSlider
+        id="audio_packet"
+        label="Output audio packets"
+        help={AUDIO_HELP.output_packet_ms}
+        value={value.output_packet_ms}
+        fallback={fallback.output_packet_ms ?? 40}
+        source={source}
+        onChange={(output_packet_ms) => set({ output_packet_ms })}
+        min={10}
+        max={100}
+        step={10}
+        unit="ms"
+      />
+      <TuningSlider
+        id="audio_end_silence"
+        label="Silence before hanging up"
+        help={AUDIO_HELP.end_silence_secs}
+        value={value.end_silence_secs}
+        fallback={fallback.end_silence_secs ?? 2}
+        source={source}
+        onChange={(end_silence_secs) => set({ end_silence_secs })}
+        min={0}
+        max={3}
+        step={0.1}
+        unit="s"
+      />
+      <TuningSlider
+        id="audio_buffer"
+        label="Recording assembly interval"
+        help={AUDIO_HELP.recording_buffer_seconds}
+        value={value.recording_buffer_seconds}
+        fallback={fallback.recording_buffer_seconds ?? 5}
+        source={source}
+        onChange={(recording_buffer_seconds) => set({ recording_buffer_seconds })}
+        min={1}
+        max={30}
+        step={1}
+        unit="s"
+      />
+    </div>
+  );
+}
+
+/** A settings block the agent takes from the platform unless overridden. */
+export function OverrideBlock({
+  title,
+  description,
+  overridden,
+  onOverride,
+  onUsePlatform,
+  platformSummary,
+  children,
+}: {
+  title: string;
+  description: string;
+  overridden: boolean;
+  onOverride: () => void;
+  onUsePlatform: () => void;
+  platformSummary?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="flex items-center gap-2 text-sm font-medium">
+            {title}
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-normal",
+                overridden ? "bg-[var(--cta)]/15 text-foreground" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {overridden ? "overridden for this agent" : "platform settings"}
+            </span>
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+          {!overridden && platformSummary && <div className="mt-1.5 text-xs text-muted-foreground">{platformSummary}</div>}
+        </div>
+        {overridden ? (
+          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={onUsePlatform}>
+            <RotateCcw className="h-3 w-3" /> Use platform settings
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={onOverride}>
+            Override
+          </Button>
+        )}
+      </div>
+      {overridden && children}
+    </div>
+  );
+}
+
+export interface EngineSettings {
+  builtin: { speaking_plan: Record<string, unknown>; performance: Performance; audio: AudioSettings };
+  platform: { speaking_plan: Record<string, unknown> | null; performance: Performance | null; audio: AudioSettings | null };
+  effective: { speaking_plan: Record<string, unknown>; performance: Performance; audio: AudioSettings };
+}
+
+export async function loadEngineSettings(): Promise<EngineSettings | null> {
+  const response = await client.get<{ 200: EngineSettings }, unknown>({ url: "/api/v1/oxee/engine-settings" });
+  return (response.data as EngineSettings) ?? null;
 }

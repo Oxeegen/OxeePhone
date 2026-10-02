@@ -877,6 +877,53 @@ async def preview_organization_voice(
     return Response(content=audio, media_type="audio/wav")
 
 
+class EngineSettingsRequest(BaseModel):
+    """Blocks to set; a block set to null goes back to the built-in values."""
+
+    speaking_plan: dict | None = None
+    performance: dict | None = None
+    audio: dict | None = None
+
+
+async def _engine_settings_view(organization_id: int) -> dict:
+    from api.brand import agent_tuning as tuning
+
+    platform = await tuning.get_engine_settings(organization_id)
+    return {
+        "builtin": tuning.BUILTIN,
+        "platform": {b: platform.get(b) for b in tuning.BLOCKS},
+        "effective": {b: tuning.effective_block(b, platform) for b in tuning.BLOCKS},
+    }
+
+
+@router.get("/engine-settings")
+async def get_engine_settings(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Call-engine settings of the platform: built-in values (what was
+    hardcoded), the organization's values, and the effective result. Agents
+    override them block by block in their own settings."""
+    return await _engine_settings_view(user.selected_organization_id)
+
+
+@router.put("/engine-settings")
+async def save_engine_settings(
+    request: EngineSettingsRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    from pydantic import ValidationError
+
+    from api.brand import agent_tuning as tuning
+
+    try:
+        await tuning.save_engine_settings(
+            user.selected_organization_id, request.model_dump(exclude_unset=True)
+        )
+    except (ValidationError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return await _engine_settings_view(user.selected_organization_id)
+
+
 if BRAND.test_campaigns:
     from api.brand.test_routes import router as tests_router
 

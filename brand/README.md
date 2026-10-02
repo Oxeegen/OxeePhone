@@ -83,7 +83,7 @@ ones. Volumes and networks are per project, so data stays separate.
 | API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
 | API | `OXEE_AGENT_FIXES` | `true` | Automatic fixes of analysis findings (model proposal → draft → text simulation → publish; `api/brand/fixes.py`, `api/brand/simulation.py`, `/api/v1/oxee/fixes*`); simulation runs are named `OXEE-SIM-…` and left out of reports / analyses |
 | API | `OXEE_TEST_CAMPAIGNS` | `true` | Test campaigns (Manage › Test campaigns; `api/brand/test_campaigns.py`, `test_runs.py`, `test_calls.py`, `/api/v1/oxee/tests/*`): scenarios written by the analysis model, played by a simulated caller by phone (tester agent, CallerID-name token → version under test on the agent side) or as text, judged, reported, compared; calls of both sides are named `OXEE-TEST-…` and left out of reports / analyses |
-| API | `OXEE_AGENT_TUNING` | `true` | Per-agent Voice (voice, speed, language, gain on top of the organization's voice model) and Performance settings (first audio chunk, VAD stop / confidence / volume, LLM temperature / max tokens, mute during tools / first reply), stored in the agent's configuration: versioned (`api/brand/agent_tuning.py`) |
+| API | `OXEE_AGENT_TUNING` | `true` | Call-engine settings (`api/brand/agent_tuning.py`, `/api/v1/oxee/engine-settings`): speaking plan, performance (first audio chunk, VAD, LLM temperature / max tokens, mutes) and audio & sampling (browser sample rate, output packets, end silence, recording buffer). Built-in values = what was hardcoded; platform values in Platform Settings › Call engine (org config `OXEE_ENGINE_SETTINGS`, restorable); per-agent overrides block by block (versioned), plus the agent's voice override |
 | API | `OXEE_MCP_CAN_PUBLISH` | unset (false) | Adds the `oxee_publish_draft` / `oxee_rollback_fix` MCP tools (see `brand/agent-vm/README.md`) |
 | API | `OXEE_SAME_ORIGIN` | `true` | Browser TURN / recording URLs on the page's origin for requests through the OxeePhone proxy; `CORS_ALLOWED_ORIGINS` honoured in OSS mode (see `brand/proxy/README.md`) |
 | UI | `BRAND.sameOriginApi` | `true` | The browser calls the API on the page's origin, not the backend-reported `BACKEND_API_ENDPOINT` |
@@ -135,7 +135,11 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/tasks/run_integrations.py` — no webhook or integration after a test call whose tools are simulated
 - `api/services/configuration/ai_model_configuration.py` — `get_effective_ai_model_configuration_for_workflow` applies the agent's `voice_override` (`agent_tuning.apply_voice_override`)
 - `api/services/pipecat/run_pipeline.py` — the agent's `performance`: VAD params, mute strategies, LLM sampling, first TTS chunk (`agent_tuning`)
-- `ui/src/app/workflow/[workflowId]/settings/page.tsx` — Voice and Performance sections (`@/brand/AgentTuningSection`) after the speaking plan
+- `ui/src/app/workflow/[workflowId]/settings/page.tsx` — speaking plan, voice, performance, audio blocks from `@/brand/AgentEngineBlocks` (platform settings unless overridden)
+- `api/services/pipecat/run_pipeline.py` — platform call-engine blocks merged into the run configuration (`agent_tuning.effective_configs`), audio config (sample rate, recording buffer) and transport output params (packets, end silence)
+- `ui/src/app/settings/page.tsx` — Call engine settings (`@/brand/EngineSettingsCard`) instead of Telemetry (Langfuse)
+- `ui/src/components/layout/AppSidebar.tsx` — Platform settings and Sign out as menu entries at the bottom, not behind the initials
+- `ui/src/components/workflow/WorkflowTable.tsx`, `ui/src/app/campaigns/page.tsx`, `ui/src/app/usage/page.tsx`, `ui/src/components/workflow-runs/WorkflowRunsTable.tsx` — the whole row opens the page (`@/brand/rowLink`); redundant Edit / View / open buttons hidden
 
 **UI**
 - `ui/src/components/layout/AppSidebar.tsx` — Manage › Analysis and Manage › Test campaigns (`ui/src/app/test-campaigns`, `ui/src/brand/tests`)

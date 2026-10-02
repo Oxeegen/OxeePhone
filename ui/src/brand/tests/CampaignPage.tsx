@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { openRow, ROW_CLASS } from "@/brand/rowLink";
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -189,7 +190,11 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                 </thead>
                 <tbody>
                   {campaign.executions.map((e) => (
-                    <tr key={e.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                    <tr
+                      key={e.id}
+                      className={`border-b border-border last:border-0 hover:bg-muted/30 ${ROW_CLASS}`}
+                      onClick={openRow(`/test-campaigns/${campaign.id}/executions/${e.id}`, router.push)}
+                    >
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
@@ -200,9 +205,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <Link href={`/test-campaigns/${campaign.id}/executions/${e.id}`} className="font-medium hover:underline">
-                          {format(new Date(e.created_at), "MMM d, HH:mm")}
-                        </Link>
+                        <span className="font-medium">{format(new Date(e.created_at), "MMM d, HH:mm")}</span>
                         <p className="text-[11px] text-muted-foreground">{e.created_by?.email ?? ""}</p>
                       </td>
                       <td className="px-4 py-3">{versionLabel(e)}</td>

@@ -3,8 +3,10 @@
 import { format } from "date-fns";
 import { ArrowDownRight, ArrowUpRight, FlaskConical, Loader2, Plus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { openRow, ROW_CLASS } from "@/brand/rowLink";
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -46,6 +48,7 @@ function ScoreTrend({ last, previous }: { last: number | null | undefined; previ
 
 export function TestCampaignsPage() {
   const auth = useAuth();
+  const router = useRouter();
   const [items, setItems] = useState<CampaignSummary[] | null>(null);
   const settings = useTestSettings();
 
@@ -127,11 +130,9 @@ export function TestCampaignsPage() {
                 const last = c.last_execution;
                 const done = c.last_done;
                 return (
-                  <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <tr key={c.id} className={`border-b border-border last:border-0 hover:bg-muted/30 ${ROW_CLASS}`} onClick={openRow(`/test-campaigns/${c.id}`, router.push)}>
                     <td className="px-4 py-3">
-                      <Link href={`/test-campaigns/${c.id}`} className="font-medium hover:underline">
-                        {c.name}
-                      </Link>
+                      <span className="font-medium">{c.name}</span>
                       <p className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</p>
                     </td>
                     <td className="px-4 py-3">{c.workflow_name}</td>

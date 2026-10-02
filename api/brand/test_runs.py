@@ -194,6 +194,52 @@ def _snapshot(scenario: dict) -> dict:
     }
 
 
+async def _engine_snapshot(organization_id: int) -> dict:
+    from api.brand import agent_tuning as tuning
+
+    if not tuning_enabled():
+        return {}
+    return await tuning.get_engine_settings(organization_id)
+
+
+def tuning_enabled() -> bool:
+    from api.brand.config import BRAND
+
+    return BRAND.agent_tuning
+
+
+def _flat(d: dict) -> dict:
+    out = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            out.update({f"{k}.{kk}": vv for kk, vv in v.items()})
+        else:
+            out[k] = v
+    return out
+
+
+def engine_changes(a: dict | None, b: dict | None) -> list[dict]:
+    """Platform settings that differ between two executions."""
+    from api.brand import agent_tuning as tuning
+
+    out = []
+    for block in tuning.BLOCKS:
+        ea = tuning.effective_block(block, a or {})
+        eb = tuning.effective_block(block, b or {})
+        flat_a, flat_b = _flat(ea), _flat(eb)
+        for key in sorted(set(flat_a) | set(flat_b)):
+            if flat_a.get(key) != flat_b.get(key):
+                out.append(
+                    {
+                        "block": block,
+                        "key": key,
+                        "a": flat_a.get(key),
+                        "b": flat_b.get(key),
+                    }
+                )
+    return out
+
+
 def _version_snapshot(definition: Any) -> dict:
     from api.brand.versions import _snapshot
 
@@ -285,6 +331,8 @@ async def create_execution(
         # The version tested (masked like the versions page), kept for the
         # comparisons once a draft is discarded.
         "definition_snapshot": _version_snapshot(definition),
+        # Platform call-engine settings in force (not versioned with the agent).
+        "engine_snapshot": await _engine_snapshot(organization_id),
     }
     return await save(organization_id, execution)
 
@@ -1489,6 +1537,11 @@ async def compare(organization_id: int, a_id: str, b_id: str) -> dict:
             result["version_diff"] = diff_versions(va, vb)
         else:
             result["version_unavailable"] = True
+    # Only executions made since the snapshot existed can be compared.
+    if "engine_snapshot" in a and "engine_snapshot" in b:
+        result["engine_changes"] = engine_changes(
+            a.get("engine_snapshot"), b.get("engine_snapshot")
+        )
     return result
 
 
