@@ -79,16 +79,16 @@ def tester_configs(run_configs: dict, context: dict | None) -> dict:
     tester = tester_of(context)
     if tester is None:
         return run_configs
+    from api.brand.agent_tuning import VOICE_KEY
+
     configs = copy.deepcopy(run_configs or {})
-    overrides = dict(configs.get("model_overrides") or {})
-    tts = dict(overrides.get("tts") or {})
+    voice = dict(configs.get(VOICE_KEY) or {})
     if tester.get("voice"):
-        tts["voice"] = str(tester["voice"])
+        voice["voice"] = str(tester["voice"])
     if tester.get("speed"):
-        tts["speed"] = float(tester["speed"])
-    if tts:
-        overrides["tts"] = tts
-        configs["model_overrides"] = overrides
+        voice["speed"] = float(tester["speed"])
+    if voice:
+        configs[VOICE_KEY] = voice
     configs.update(_speaking_plan_config(impatience_plan(tester.get("impatience", 1))))
     configs["max_call_duration"] = int(tester.get("max_duration") or 300)
     configs["max_user_idle_timeout"] = 15

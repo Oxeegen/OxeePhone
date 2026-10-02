@@ -1,8 +1,11 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { isBranded } from "@/brand/brand";
+import { openRow } from "@/brand/rowLink";
 import { WorkflowRunResponseSchema } from "@/client/types.gen";
 import { CallTypeCell } from "@/components/CallTypeCell";
 import { FilterBuilder } from "@/components/filters/FilterBuilder";
@@ -91,6 +94,8 @@ export function WorkflowRunsTable({
 
     // Media preview dialog
     const mediaPreview = MediaPreviewDialog();
+
+    const router = useRouter();
 
     const handleRowClick = (runId: number) => {
         window.open(`/workflow/${workflowId}/run/${runId}`, '_blank');
@@ -181,7 +186,7 @@ export function WorkflowRunsTable({
                                         <TableRow
                                             key={run.id}
                                             className={`cursor-pointer hover:bg-muted/50 ${selectedRowId === run.id ? "bg-primary/20 ring-1 ring-primary/50" : ""}`}
-                                            onClick={() => handleRowClick(run.id)}
+                                            onClick={isBranded ? openRow(`/workflow/${workflowId}/run/${run.id}`, router.push) : () => handleRowClick(run.id)}
                                         >
                                             <TableCell className="font-mono text-sm">#{run.id}</TableCell>
                                             <TableCell>
@@ -218,6 +223,7 @@ export function WorkflowRunsTable({
                                                         onOpenPreview={mediaPreview.openPreview}
                                                         onSelect={setSelectedRowId}
                                                     />
+                                                    {!isBranded && (
                                                     <Button
                                                         variant="outline"
                                                         size="icon"
@@ -225,6 +231,7 @@ export function WorkflowRunsTable({
                                                     >
                                                         <ExternalLink className="h-4 w-4" />
                                                     </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

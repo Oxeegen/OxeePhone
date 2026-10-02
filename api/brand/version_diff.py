@@ -49,6 +49,8 @@ FIELD_LABELS = {
     "dictionary": "Dictionary",
     "ambient_noise_configuration": "Ambient noise",
     "model_overrides": "Model overrides",
+    "voice_override": "Voice",
+    "performance": "Performance",
 }
 
 NODE_TYPE_LABELS = {
@@ -142,7 +144,9 @@ def _changed_fields(
     ):
         if key.split(".")[0] in skip:
             continue
-        if _same(fb.get(key), fa.get(key)):
+        # Performance switches: off (False) differs from unset (default on).
+        strict = key.startswith("performance.")
+        if (fb.get(key) == fa.get(key)) if strict else _same(fb.get(key), fa.get(key)):
             continue
         fields.append(_field(key, fb.get(key), fa.get(key)))
     return fields

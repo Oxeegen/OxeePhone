@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from api.brand import test_campaigns as campaigns
@@ -145,50 +145,6 @@ async def save_test_settings(
     ):
         raise HTTPException(status_code=404, detail="Telephony configuration not found")
     return await campaigns.save_settings(org, changes)
-
-
-class VoicePreviewRequest(BaseModel):
-    voice: str = Field(min_length=1, max_length=120)
-    speed: float | None = Field(default=None, ge=0.5, le=2.0)
-    text: str | None = Field(default=None, max_length=300)
-
-
-@router.post(
-    "/voice-preview",
-    response_class=Response,
-    responses={200: {"content": {"audio/wav": {}}}},
-)
-async def preview_test_voice(
-    request: VoicePreviewRequest,
-    user: UserModel = Depends(get_user_with_selected_organization),
-):
-    """A sample of a pool voice with the organization's voice model."""
-    from api.brand.local_models import LocalModelsError, synthesize_preview
-    from api.services.configuration.ai_model_configuration import (
-        get_organization_ai_model_configuration_v2,
-    )
-
-    stored = await get_organization_ai_model_configuration_v2(
-        user.selected_organization_id
-    )
-    pipeline = getattr(getattr(stored, "byok", None), "pipeline", None)
-    tts = getattr(pipeline, "tts", None) if pipeline else None
-    if tts is None or not getattr(tts, "base_url", None):
-        raise HTTPException(status_code=422, detail="No voice model configured")
-    keys = tts.get_all_api_keys() if hasattr(tts, "get_all_api_keys") else []
-    try:
-        audio = await synthesize_preview(
-            base_url=tts.base_url,
-            api_key=keys[0] if keys else None,
-            model=tts.model,
-            voice=request.voice,
-            speed=request.speed or getattr(tts, "speed", None),
-            language=getattr(tts, "language", None),
-            text=request.text,
-        )
-    except LocalModelsError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
-    return Response(content=audio, media_type="audio/wav")
 
 
 @router.get("/phone-check")

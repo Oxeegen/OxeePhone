@@ -8,6 +8,8 @@ from typing import Literal
 from loguru import logger
 from pydantic import ValidationError
 
+from api.brand import BRAND
+from api.brand.agent_tuning import apply_voice_override
 from api.constants import MPS_API_URL
 from api.db import db_client
 from api.db.models import OrganizationConfigurationModel
@@ -92,17 +94,21 @@ async def get_effective_ai_model_configuration_for_workflow(
         WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY
     )
     if v2_override:
-        return compile_ai_model_configuration_v2(
+        effective = compile_ai_model_configuration_v2(
             OrganizationAIModelConfigurationV2.model_validate(v2_override)
         )
-
-    resolved_config = await get_resolved_ai_model_configuration(
-        organization_id=organization_id,
-    )
-    return resolve_effective_config(
-        resolved_config.effective,
-        workflow_configurations.get("model_overrides"),
-    )
+    else:
+        resolved_config = await get_resolved_ai_model_configuration(
+            organization_id=organization_id,
+        )
+        effective = resolve_effective_config(
+            resolved_config.effective,
+            workflow_configurations.get("model_overrides"),
+        )
+    # OxeePhone: the agent's own voice, speed, language and gain.
+    if BRAND.agent_tuning:
+        effective = apply_voice_override(effective, workflow_configurations)
+    return effective
 
 
 async def get_organization_ai_model_configuration_v2(

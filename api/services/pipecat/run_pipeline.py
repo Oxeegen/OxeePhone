@@ -6,6 +6,7 @@ from loguru import logger
 
 from api.brand import BRAND
 from api.brand import speaking_plan as brand_speaking_plan
+from api.brand import agent_tuning as brand_tuning
 from api.brand import test_calls as brand_test_calls
 from api.db import db_client
 from api.enums import WorkflowRunMode
@@ -435,6 +436,13 @@ async def _run_pipeline_telephony_impl(
 
     spec = telephony_registry.get(provider_name)
     audio_config = create_audio_config(provider_name)
+    # OxeePhone: platform / agent audio settings (telephony keeps its wire rate).
+    if BRAND.agent_tuning:
+        audio_config = brand_tuning.audio_config(
+            audio_config,
+            await brand_tuning.effective_configs(workflow.organization_id, run_configs),
+            webrtc=False,
+        )
 
     transport = await spec.transport_factory(
         websocket,
@@ -558,6 +566,13 @@ async def _run_pipeline_smallwebrtc_impl(
     run_configs = (
         (workflow_run.definition.workflow_configurations or {}) if workflow_run else {}
     )
+    # OxeePhone: platform / agent sampling rate, before the transport exists.
+    if BRAND.agent_tuning and workflow:
+        audio_config = brand_tuning.audio_config(
+            audio_config,
+            await brand_tuning.effective_configs(workflow.organization_id, run_configs),
+            webrtc=True,
+        )
     user_config = await get_effective_ai_model_configuration_for_workflow(
         organization_id=workflow.organization_id if workflow else None,
         workflow_configurations=run_configs,
@@ -697,6 +712,12 @@ async def _run_pipeline_impl(
         run_configs = brand_test_calls.tester_configs(
             run_configs, merged_call_context_vars
         )
+    # OxeePhone: platform call-engine settings the agent does not override.
+    if BRAND.agent_tuning:
+        run_configs = await brand_tuning.effective_configs(
+            workflow.organization_id, run_configs
+        )
+        brand_tuning.tune_transport(transport, run_configs)
 
     # Extract configurations from the version's workflow_configurations
     max_call_duration_seconds = DEFAULT_MAX_CALL_DURATION_SECONDS
@@ -788,6 +809,9 @@ async def _run_pipeline_impl(
         )
         llm = create_llm_service(user_config, correlation_id=mps_correlation_id)
         inference_llm = None
+        # OxeePhone: the agent's LLM sampling and first voice chunk.
+        if BRAND.agent_tuning:
+            brand_tuning.tune_services(llm=llm, tts=tts, configs=run_configs)
 
     # Variable and disposition extraction may share this out-of-band LLM. A
     # shared conversation LLM cannot carry an extraction usage_context without
@@ -1001,6 +1025,12 @@ async def _run_pipeline_impl(
     if speaking_plan is not None:
         vad_params = VADParams(
             stop_secs=0.2, start_secs=brand_speaking_plan.vad_start_secs(speaking_plan)
+        )
+    # OxeePhone: the agent's voice detection and mute settings.
+    if BRAND.agent_tuning:
+        vad_params = brand_tuning.vad_params(vad_params, run_configs)
+        user_mute_strategies = brand_tuning.mute_strategies(
+            user_mute_strategies, run_configs
         )
     user_vad_analyzer = SileroVADAnalyzer(params=vad_params)
 

@@ -64,6 +64,31 @@ class LocalModelsTTSService(SpeachesTTSService):
             params["extra_body"] = extra_body
         return params
 
+    # Agent setting (api/brand/agent_tuning.py): audio to receive before the
+    # first frame is played; None keeps pipecat's chunk (500 ms).
+    oxee_first_chunk_ms: int | None = None
+
+    async def _audio_chunks(self, response):
+        """The response audio: a first, smaller chunk when the agent asks for
+        it, then pipecat's usual chunk size."""
+        if not self.oxee_first_chunk_ms:
+            async for chunk in response.iter_bytes(self.chunk_size):
+                yield chunk
+            return
+        rate = self.sample_rate or 24000
+        first = max(2, int(rate * self.oxee_first_chunk_ms / 1000) * 2)
+        buffer, sent_first = b"", False
+        async for piece in response.iter_bytes():
+            buffer += piece
+            limit = self.chunk_size if sent_first else first
+            while len(buffer) >= limit:
+                yield buffer[:limit]
+                buffer = buffer[limit:]
+                sent_first = True
+                limit = self.chunk_size
+        if buffer:
+            yield buffer
+
     @traced_tts
     async def run_tts(self, text: str, context_id: str):
         try:
@@ -84,7 +109,7 @@ class LocalModelsTTSService(SpeachesTTSService):
 
                 # Gain works on whole 16-bit samples: carry an odd trailing byte.
                 carry = b""
-                async for chunk in response.iter_bytes(self.chunk_size):
+                async for chunk in self._audio_chunks(response):
                     if len(chunk) > 0:
                         await self.stop_ttfb_metrics()
                         data = carry + chunk

@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+import { isBranded } from '@/brand/brand';
 import { getCampaignsApiV1CampaignGet } from '@/client/sdk.gen';
 import type { CampaignsResponse } from '@/client/types.gen';
 import { Badge } from '@/components/ui/badge';
@@ -130,7 +131,7 @@ export default function CampaignsPage() {
                                             <TableHead>State</TableHead>
                                             <TableHead>Progress</TableHead>
                                             <TableHead>Created</TableHead>
-                                            <TableHead className="text-right">Action</TableHead>
+                                            {!isBranded && <TableHead className="text-right">Action</TableHead>}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -154,6 +155,7 @@ export default function CampaignsPage() {
                                                 <TableCell>
                                                     {formatDate(campaign.created_at, organizationTimezone)}
                                                 </TableCell>
+                                                {!isBranded && (
                                                 <TableCell className="text-right">
                                                     <Button
                                                         variant="outline"
@@ -166,6 +168,7 @@ export default function CampaignsPage() {
                                                         View
                                                     </Button>
                                                 </TableCell>
+                                                )}
                                             </TableRow>
                                         ))}
                                     </TableBody>

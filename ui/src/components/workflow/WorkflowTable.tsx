@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 
 import { LastRunCell, PublishedVersionCell, useAgentListInfo } from '@/brand/agents/AgentListInfo';
 import { isBranded } from '@/brand/brand';
+import { openRow, ROW_CLASS } from '@/brand/rowLink';
 import {
     moveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPut,
     updateWorkflowStatusApiV1WorkflowWorkflowIdStatusPut,
@@ -153,7 +154,8 @@ export function WorkflowTable({
                         {workflows.map((workflow) => (
                             <TableRow
                                 key={workflow.id}
-                                className={`hover:bg-accent transition-colors ${showArchived ? 'opacity-60' : ''}`}
+                                className={`hover:bg-accent transition-colors ${showArchived ? 'opacity-60' : ''} ${isBranded ? ROW_CLASS : ''}`}
+                                onClick={isBranded ? openRow(`/workflow/${workflow.id}`, router.push) : undefined}
                             >
                                 <TableCell className="text-muted-foreground">
                                     {workflow.id}
@@ -181,6 +183,7 @@ export function WorkflowTable({
                                 )}
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
+                                        {!isBranded && (
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -190,6 +193,7 @@ export function WorkflowTable({
                                             <Pencil size={16} />
                                             Edit
                                         </Button>
+                                        )}
                                         {folders && (
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
