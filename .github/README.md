@@ -29,6 +29,8 @@
   OpenAI-compatible endpoint you host. No call to any third-party platform, no telemetry.
 - **A call detail worth the name.** Recording with waveform, transcript synchronised with the audio,
   tool calls, per-stage latency, the path through your agent's nodes and why each move happened.
+- **Test campaigns.** Simulated callers, harder or easier at will, play scenarios written from your
+  agent against a draft; quality and technical scores tell whether the change is better.
 - **The platform reviews your agents.** An analysis of the recorded calls finds slow replies, silences,
   stalled conversations, routing loops and misrouting, then proposes a fix, tests it by replaying the
   real calls against a draft, and follows it up once published.
@@ -101,10 +103,42 @@ duration, tool reliability, routing between agents.
 
 <img src="/brand/assets/screenshots/07-fix-simulation.png" alt="Fix tested by simulation">
 
+### Test campaigns
+
+Test an agent before publishing a change, with simulated callers.
+
+1. **Write**: pick an agent and set each caller setting as a min / max range: vocabulary, mood,
+   request clarity, complexity, depth in the agent, impatience, dictated data, traps, voice speed.
+   The analysis model writes the scenarios from the agent's graph, one caller each: a persona, the
+   facts it can give, success criteria, forbidden behaviours, expected end node, variables and tools.
+   Every scenario can be edited, duplicated into variants or switched off.
+2. **Play** the campaign on the published version, the draft or an older version, by phone (a tester
+   agent calls the agent with its own voice, voice speed and impatience, from a real customer number)
+   or as text, as many times per scenario as needed. Tools are simulated, real, or real with an
+   `X-Oxee-Test` header. Test calls stay out of the production statistics.
+3. **Judge**: every call is judged (goal, criteria with evidence, forbidden behaviours) and gets a
+   **quality score** and a **technical score** (reply time, end of turn, transcriber, LLM, voice,
+   tools, turn-taking, reliability, graded against the analysis thresholds). The report shows where
+   the agent starts failing as callers get harder, the coverage of its nodes and transitions, and
+   turns a failed call into an automatic fix.
+4. **Compare** two executions: both scores, every indicator, the scenarios improved or regressed,
+   and the configuration diff between the two versions tested.
+
+<img src="/brand/assets/screenshots/11-test-execution.png" alt="Report of a test execution">
+
+<img src="/brand/assets/screenshots/12-test-compare.png" alt="Comparison of two executions: published version against a draft">
+
+<details>
+<summary>New test campaign</summary>
+
+<img src="/brand/assets/screenshots/10-test-campaign-new.png" alt="Caller settings as min / max ranges">
+</details>
+
 ### Driven by an AI agent
 
 `oxee_*` tools on the MCP server (`/api/v1/mcp/`) and the same operations in REST: run an analysis,
-propose and apply fixes, simulate, follow up, browse and restore versions. Publishing stays a human
+propose and apply fixes, simulate, follow up, browse and restore versions, create, play and compare
+test campaigns. Publishing stays a human
 decision unless you allow it. See [`brand/agent-vm/`](/brand/agent-vm/README.md).
 
 ### Deployment

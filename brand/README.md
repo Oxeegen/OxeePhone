@@ -82,6 +82,7 @@ ones. Volumes and networks are per project, so data stays separate.
 | API | `OXEE_SPEAKING_PLAN` | `true` | Apply the agent's start/stop speaking plans (`speaking_plan` workflow config, `api/brand/speaking_plan.py`); agents without one keep the upstream turn settings |
 | API | `OXEE_VERSION_HISTORY` | `true` | Agent versions: origin/author of each version (editor, API key, MCP, restore), diffs, AI summary, restore/discard (`api/brand/versions.py`, `/api/v1/oxee/workflows/{id}/versions*`) |
 | API | `OXEE_AGENT_FIXES` | `true` | Automatic fixes of analysis findings (model proposal → draft → text simulation → publish; `api/brand/fixes.py`, `api/brand/simulation.py`, `/api/v1/oxee/fixes*`); simulation runs are named `OXEE-SIM-…` and left out of reports / analyses |
+| API | `OXEE_TEST_CAMPAIGNS` | `true` | Test campaigns (Manage › Test campaigns; `api/brand/test_campaigns.py`, `test_runs.py`, `test_calls.py`, `/api/v1/oxee/tests/*`): scenarios written by the analysis model, played by a simulated caller by phone (tester agent, CallerID-name token → version under test on the agent side) or as text, judged, reported, compared; calls of both sides are named `OXEE-TEST-…` and left out of reports / analyses |
 | API | `OXEE_MCP_CAN_PUBLISH` | unset (false) | Adds the `oxee_publish_draft` / `oxee_rollback_fix` MCP tools (see `brand/agent-vm/README.md`) |
 | API | `OXEE_SAME_ORIGIN` | `true` | Browser TURN / recording URLs on the page's origin for requests through the OxeePhone proxy; `CORS_ALLOWED_ORIGINS` honoured in OSS mode (see `brand/proxy/README.md`) |
 | UI | `BRAND.sameOriginApi` | `true` | The browser calls the API on the page's origin, not the backend-reported `BACKEND_API_ENDPOINT` |
@@ -126,8 +127,14 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/mcp_server/tools/save_workflow.py` — records MCP drafts (origin `mcp`)
 - `api/services/workflow/pipecat_engine_custom_tools.py` — HTTP / MCP tools answered by `api/brand/simulation.tool_override` during a fix simulation (never executed)
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
+- `api/services/workflow/pipecat_engine_custom_tools.py` — the tool hook goes through `api/brand/test_calls.tool_override` (fix simulations, then the campaign's tools mode during a test call: simulated / real / real with `X-Oxee-Test: 1`) when `agent_fixes` or `test_campaigns`
+- `api/services/pipecat/run_pipeline.py` — test caller: per-call voice, voice speed, speaking plan and max duration (`test_calls.tester_configs`, both config resolutions); `FirstSpeechUserMuteStrategy` so it hears the agent's greeting
+- `api/services/pipecat/event_handlers.py` — the test caller does not open the conversation (`test_calls.listens_first`)
+- `api/services/telephony/ari_manager.py` — inbound ARI call with a test token in its CallerID name: agent, version and run name of the pending test call (`test_calls.claim_inbound`)
+- `api/tasks/run_integrations.py` — no webhook or integration after a test call whose tools are simulated
 
 **UI**
+- `ui/src/components/layout/AppSidebar.tsx` — Manage › Analysis and Manage › Test campaigns (`ui/src/app/test-campaigns`, `ui/src/brand/tests`)
 - `ui/src/components/layout/AppSidebar.tsx` — the OxeePhone version (`@/brand/release/VersionBadge`): release notes of the running version, update notice and command (`GET /api/v1/oxee/releases`)
 - `ui/src/lib/apiClient.ts` — `resolveBrowserBackendUrl` ignores the backend-reported endpoint when `sameOriginApi`
 - `ui/src/app/favicon.ico` — replaced by the OxeePhone icon (binary, not gated)
@@ -184,3 +191,22 @@ IP>`, `FORCE_TURN_RELAY=true`; in `docker-compose.local.yaml` set
 ## Versions
 
 OxeePhone releases are numbered on their own (`BRAND.version`, UI and API kept equal by a test); see `brand/CHANGELOG.md`. Release tags are `oxeephone-vX.Y.Z` (upstream tags are `dograh-v*`). The GitHub release body is what the app shows as release notes: publish each release with its `brand/CHANGELOG.md` section.
+
+## Test campaigns by phone (Asterisk)
+
+The tester is an agent created automatically ("OxeePhone test caller", one
+start node whose prompt is the persona, one hang-up node; repaired if edited).
+A phone execution needs, in Manage › Test campaigns › Test settings:
+
+- the tester's telephony configuration (e.g. a second ARI configuration);
+- the agent's inbound number (Telephony › Phone numbers, routed to the agent),
+  or a dedicated test number;
+- pools of caller numbers and voices (ids of your voice model, with gender).
+
+Asterisk side: the tester's dial template must reach the agent's extension, the
+agent's dial plan must not `Answer()` before `Stasis()`, and the CallerID
+**name** must reach the agent's channel intact: it carries the one-time token
+(`"OXT<token>" <customer number>`) that makes the agent run the version under
+test. Each test call holds two lines (caller + agent) of the organization's
+concurrency limit. Text executions need none of this.
+

@@ -9,6 +9,8 @@ from pipecat.utils.enums import EndTaskReason
 from pipecat.utils.run_context import set_current_org_id, set_current_run_id
 from pydantic import ValidationError
 
+from api.brand import BRAND
+from api.brand.test_calls import skip_test_call_effects
 from api.constants import BACKEND_API_ENDPOINT, DEFAULT_WEBHOOK_DELIVERY_CONFIG
 from api.db import db_client
 from api.db.models import WorkflowRunModel
@@ -229,6 +231,11 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
         qa_nodes = [n for n in nodes if n.get("type") == "qa"]
         webhook_nodes = [n for n in nodes if n.get("type") == "webhook"]
         has_registered_integrations = has_completion_handlers(workflow_definition)
+        # OxeePhone: test calls whose tools are not real reach no outside system.
+        if BRAND.test_campaigns and skip_test_call_effects(
+            workflow_run.initial_context
+        ):
+            webhook_nodes, has_registered_integrations = [], False
 
         # Step 4: Generate a public access token for any run that needs post-call work.
         has_campaign = workflow_run.campaign_id is not None

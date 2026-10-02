@@ -18,7 +18,7 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.utils.enums import EndTaskReason
 
 from api.brand import BRAND
-from api.brand.simulation import tool_override as simulation_tool_override
+from api.brand.test_calls import tool_override as brand_tool_override
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
@@ -451,12 +451,17 @@ class CustomToolManager:
                         custom_message, mute_user=True
                     )
 
-                # OxeePhone: tools are never executed while testing a fix.
+                # OxeePhone: tools are never executed while testing a fix, and
+                # as chosen by the campaign during a test call.
                 result = (
-                    simulation_tool_override(
-                        function_name, function_call_params.arguments
+                    await brand_tool_override(
+                        self._engine,
+                        function_name,
+                        function_call_params.arguments,
+                        tool=tool,
+                        organization_id=await self.get_organization_id(),
                     )
-                    if BRAND.agent_fixes
+                    if BRAND.agent_fixes or BRAND.test_campaigns
                     else None
                 )
                 if result is not None:
@@ -491,12 +496,16 @@ class CustomToolManager:
             logger.info(f"MCP Tool EXECUTED: {function_name}")
             logger.info(f"Arguments: {function_call_params.arguments}")
             try:
-                # OxeePhone: tools are never executed while testing a fix.
+                # OxeePhone: tools are never executed while testing a fix, and
+                # as chosen by the campaign during a test call.
                 result = (
-                    simulation_tool_override(
-                        function_name, function_call_params.arguments
+                    await brand_tool_override(
+                        self._engine,
+                        function_name,
+                        function_call_params.arguments,
+                        organization_id=await self.get_organization_id(),
                     )
-                    if BRAND.agent_fixes
+                    if BRAND.agent_fixes or BRAND.test_campaigns
                     else None
                 )
                 if result is None:

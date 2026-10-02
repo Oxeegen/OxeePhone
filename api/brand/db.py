@@ -50,6 +50,20 @@ async def get_definition_graphs(
 INSIGHTS_MAX_RUNS = 5000
 # Text replays of automatic-fix tests (api/brand/simulation.py).
 SIM_RUN_PREFIX = "OXEE-SIM-"
+# Calls of the test campaigns, both sides (api/brand/test_runs.py).
+TEST_RUN_PREFIX = "OXEE-TEST-"
+
+
+def production_runs():
+    """Condition leaving out simulations and test-campaign calls."""
+    from sqlalchemy import and_
+
+    from api.db.models import WorkflowRunModel
+
+    return and_(
+        ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+        ~WorkflowRunModel.name.startswith(TEST_RUN_PREFIX),
+    )
 
 
 async def get_runs_for_insights(
@@ -86,7 +100,7 @@ async def get_runs_for_insights(
                 WorkflowModel.organization_id == organization_id,
                 WorkflowRunModel.created_at >= start_utc,
                 WorkflowRunModel.created_at <= end_utc,
-                ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+                production_runs(),
             )
             .order_by(WorkflowRunModel.created_at.desc())
             .limit(limit)
@@ -165,7 +179,7 @@ async def count_runs_by_definition(
                 .where(
                     WorkflowRunModel.workflow_id == workflow_id,
                     WorkflowModel.organization_id == organization_id,
-                    ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+                    production_runs(),
                 )
                 .group_by(WorkflowRunModel.definition_id)
             )
@@ -291,7 +305,7 @@ async def recent_calls(
             WorkflowModel.organization_id == organization_id,
             WorkflowRunModel.is_completed.is_(True),
             WorkflowRunModel.mode != "textchat",
-            ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+            production_runs(),
         )
         .order_by(WorkflowRunModel.created_at.desc())
         .limit(limit)
@@ -333,7 +347,7 @@ async def agent_list_info(organization_id: int) -> dict[int, dict]:
                 .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
                 .where(
                     WorkflowModel.organization_id == organization_id,
-                    ~WorkflowRunModel.name.startswith(SIM_RUN_PREFIX),
+                    production_runs(),
                 )
                 .group_by(WorkflowRunModel.workflow_id)
             )
@@ -369,3 +383,50 @@ async def agent_list_info(organization_id: int) -> dict[int, dict]:
         else:
             entry["draft_version"] = number
     return info
+
+
+async def find_run_by_name(organization_id: int, name: str) -> dict | None:
+    """The newest run with this exact name (org-scoped), shaped like
+    ``get_runs_by_ids``."""
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        row = (
+            await session.execute(
+                select(*_run_columns())
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowRunModel.name == name,
+                )
+                .order_by(WorkflowRunModel.id.desc())
+                .limit(1)
+            )
+        ).first()
+    return _run_dict(row) if row else None
+
+
+async def agent_phone_numbers(organization_id: int, workflow_id: int) -> list[dict]:
+    """Active numbers routing inbound calls to an agent."""
+    from api.db.models import TelephonyPhoneNumberModel
+
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(
+                    TelephonyPhoneNumberModel.address,
+                    TelephonyPhoneNumberModel.telephony_configuration_id,
+                    TelephonyPhoneNumberModel.label,
+                )
+                .where(
+                    TelephonyPhoneNumberModel.organization_id == organization_id,
+                    TelephonyPhoneNumberModel.inbound_workflow_id == workflow_id,
+                    TelephonyPhoneNumberModel.is_active.is_(True),
+                )
+                .order_by(TelephonyPhoneNumberModel.id)
+            )
+        ).all()
+    return [
+        {"address": a, "telephony_configuration_id": c, "label": label}
+        for a, c, label in rows
+    ]

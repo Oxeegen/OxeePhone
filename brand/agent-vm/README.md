@@ -54,6 +54,12 @@ claude -p "$(cat /opt/oxeephone/brand/agent-vm/improve-agents.md)" \
 | `oxee_discard_fix` | Drops a fix and its draft |
 | `oxee_fix_follow_up` | After publication: fixed / still present / worse on real calls |
 | `oxee_list_versions`, `oxee_version_diff`, `oxee_restore_version` | Versions, detailed changes, restore as draft |
+| `oxee_create_test_campaign` → `oxee_get_test_campaign` | Test campaign for an agent: scenarios written in the background (caller settings as [min, max] ranges) |
+| `oxee_update_test_scenario` | Edit a scenario (goal, facts, criteria, levels, voice, number, enabled…) |
+| `oxee_run_test_campaign` → `oxee_get_test_execution` | Play the campaign on `published`, `draft` or a version id, by `phone` or as `text` (background); the execution lists the failed calls and why |
+| `oxee_compare_test_executions` | Execution B against A: indicators, scenarios improved / regressed, configuration diff |
+| `oxee_fix_test_call` | Automatic fix of a failed test call (then the fix tools above) |
+| `oxee_cancel_test_execution`, `oxee_list_test_campaigns` | |
 | `oxee_publish_draft`, `oxee_rollback_fix` | Only with `OXEE_MCP_CAN_PUBLISH=true` |
 
 Upstream Dograh tools (`list_workflows`, `get_workflow_code`,

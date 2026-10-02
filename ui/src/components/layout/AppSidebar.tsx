@@ -10,6 +10,7 @@ import {
   CircleDollarSign,
   Database,
   FileText,
+  FlaskConical,
   Home,
   Key,
   LogOut,
@@ -157,13 +158,18 @@ const UPSTREAM_NAV_SECTIONS: SidebarNavSection[] = [
 ];
 
 // OxeePhone: Billing is Dograh-hosted credits, nothing to show when cut;
-// Analysis (configuration review) is added under MANAGE.
+// Analysis (configuration review) and Test campaigns are added under MANAGE.
 const NAV_SECTIONS: SidebarNavSection[] = isBranded
   ? UPSTREAM_NAV_SECTIONS.map((section) => ({
       ...section,
       items: [
         ...section.items.filter((item) => !(hideDograhServices && item.url === "/billing")),
-        ...(section.label === "MANAGE" ? [{ title: "Analysis", url: "/analysis", icon: SearchCheck }] : []),
+        ...(section.label === "MANAGE"
+          ? [
+              { title: "Analysis", url: "/analysis", icon: SearchCheck },
+              { title: "Test campaigns", url: "/test-campaigns", icon: FlaskConical },
+            ]
+          : []),
       ],
     }))
   : UPSTREAM_NAV_SECTIONS;

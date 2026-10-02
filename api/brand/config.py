@@ -47,6 +47,9 @@ class BrandConfig:
     # recording URLs follow the request when it comes through the OxeePhone
     # proxy; CORS_ALLOWED_ORIGINS also applies in OSS mode (see brand/origin.py).
     same_origin: bool
+    # Test campaigns: scenarios played by a simulated caller against an agent
+    # version, by phone or as text, judged and compared (brand/test_*.py).
+    test_campaigns: bool
     # Look for upstream's Cloudflare quick tunnel (service `cloudflared`, profile
     # `tunnel`). Off in the OxeePhone overlay: without that service the lookup
     # waits on DNS for seconds and /health (hence the UI) looks down.
@@ -55,7 +58,7 @@ class BrandConfig:
 
 BRAND = BrandConfig(
     product_name="OxeePhone",
-    version="0.8.1",
+    version="0.9.0",
     api_description="API for the OxeePhone voice agent platform",
     mcp_server_name="oxeephone",
     disable_dograh_services=_env_flag("OXEE_DISABLE_DOGRAH_SERVICES", True),
@@ -66,5 +69,6 @@ BRAND = BrandConfig(
     version_history=_env_flag("OXEE_VERSION_HISTORY", True),
     agent_fixes=_env_flag("OXEE_AGENT_FIXES", True),
     same_origin=_env_flag("OXEE_SAME_ORIGIN", True),
+    test_campaigns=_env_flag("OXEE_TEST_CAMPAIGNS", True),
     cloudflared_tunnel=_env_flag("OXEE_CLOUDFLARED_TUNNEL", True),
 )
