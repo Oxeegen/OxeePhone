@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { busy, type Campaign, DIMENSION_ORDER, ms, pct, rangeLabel, TOOLS_MODE_LABEL, versionLabel } from "./model";
 import { RunDialog } from "./RunDialog";
 import { ScenarioCard } from "./ScenarioCard";
-import { API, ExecutionStatusBadge, useTestSettings, VerdictSplit } from "./ui";
+import { API, ExecutionStatusBadge, ScoreBadge, techStatus, useTestSettings, VerdictSplit } from "./ui";
 
 export function CampaignPage({ campaignId }: { campaignId: string }) {
   const auth = useAuth();
@@ -172,7 +172,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
             <Card className="p-8 text-center text-sm text-muted-foreground">Not played yet. Check the scenarios, then press Play.</Card>
           ) : (
             <Card className="overflow-x-auto p-0">
-              <table className="w-full min-w-[820px] text-sm">
+              <table className="w-full min-w-[980px] text-sm">
                 <thead className="border-b border-border text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="w-10 px-4 py-2" />
@@ -182,6 +182,8 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                     <th className="px-4 py-2 font-medium">Status</th>
                     <th className="px-4 py-2 font-medium">Results</th>
                     <th className="px-4 py-2 font-medium">Pass rate</th>
+                    <th className="px-4 py-2 font-medium">Quality</th>
+                    <th className="px-4 py-2 font-medium">Technical</th>
                     <th className="px-4 py-2 font-medium">Latency p50</th>
                   </tr>
                 </thead>
@@ -217,6 +219,12 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                       </td>
                       <td className="w-52 px-4 py-3"><VerdictSplit verdicts={e.verdicts} /></td>
                       <td className="px-4 py-3 font-semibold tabular-nums">{pct(e.pass_rate)}</td>
+                      <td className="px-4 py-3">
+                        <ScoreBadge score={e.quality_score ?? null} status={techStatus(e.quality_score)} compact />
+                      </td>
+                      <td className="px-4 py-3" title={e.channel === "text" ? "Text: tools and reliability only" : undefined}>
+                        <ScoreBadge score={e.technical_score ?? null} status={techStatus(e.technical_score)} compact />
+                      </td>
                       <td className="px-4 py-3 tabular-nums">{e.channel === "phone" ? ms(e.latency_p50_ms) : "—"}</td>
                     </tr>
                   ))}

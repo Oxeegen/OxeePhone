@@ -51,6 +51,8 @@ def _execution_summary(e: dict) -> dict:
         "score": report.get("score"),
         "verdicts": report.get("verdicts"),
         "latency_p50_ms": (report.get("latency") or {}).get("p50_ms"),
+        "quality_score": report.get("quality_score"),
+        "technical_score": (report.get("technical") or {}).get("score"),
     }
 
 

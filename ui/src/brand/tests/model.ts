@@ -89,6 +89,8 @@ export interface ExecutionSummary {
   score: number | null;
   verdicts: Record<Verdict, number> | null;
   latency_p50_ms: number | null;
+  quality_score?: number | null;
+  technical_score?: number | null;
 }
 
 export interface CampaignSummary {
@@ -257,7 +259,8 @@ export interface Technical {
   worst_calls: Array<{ index: number; title: string; score: number; weakest: string | null }>;
 }
 
-export interface Execution extends Omit<ExecutionSummary, "progress" | "pass_rate" | "score" | "verdicts" | "latency_p50_ms"> {
+export interface Execution
+  extends Omit<ExecutionSummary, "progress" | "pass_rate" | "score" | "verdicts" | "latency_p50_ms" | "quality_score" | "technical_score"> {
   campaign_name: string;
   workflow_name: string;
   concurrency: number;
