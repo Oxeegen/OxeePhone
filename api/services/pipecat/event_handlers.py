@@ -3,7 +3,7 @@ import asyncio
 from loguru import logger
 
 from api.brand import BRAND
-from api.brand.test_calls import listens_first
+from api.brand.test_calls import listens_first, schedule_tester_opening
 from api.constants import ENABLE_CALL_RECORDING_UPLOAD
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
@@ -193,8 +193,12 @@ def register_event_handlers(
             if answer_supervisor is not None:
                 await engine.handle_answer_supervision()
                 return
-            # OxeePhone: the test caller waits for the agent's greeting.
+            # OxeePhone: the test caller waits for the agent's greeting (and
+            # opens itself if it missed it).
             if BRAND.test_campaigns and listens_first(engine._call_context_vars):
+                schedule_tester_opening(
+                    engine, engine.active_agent.workflow.start_node_id
+                )
                 return
             await engine.queue_node_opening(
                 node_id=engine.active_agent.workflow.start_node_id,

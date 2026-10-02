@@ -202,6 +202,9 @@ def default_settings() -> dict:
         "voices": [],
         "concurrency": 2,
         "tester_workflow_id": None,
+        # How the agent side recognizes a test call: the token in the
+        # CallerID name, or the arrival order when the PBX / trunk drops it.
+        "pairing": "caller_name",
     }
 
 
@@ -252,6 +255,10 @@ async def save_settings(organization_id: int, changes: dict) -> dict:
     if "test_inbound_number" in changes:
         settings["test_inbound_number"] = (
             str(changes["test_inbound_number"] or "").strip() or None
+        )
+    if "pairing" in changes:
+        settings["pairing"] = (
+            "arrival_order" if changes["pairing"] == "arrival_order" else "caller_name"
         )
     if "concurrency" in changes:
         settings["concurrency"] = max(1, min(10, int(changes["concurrency"] or 1)))

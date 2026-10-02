@@ -21,6 +21,7 @@ export interface TestSettings {
   voices: Voice[];
   concurrency: number;
   tester_workflow_id: number | null;
+  pairing?: "caller_name" | "arrival_order";
 }
 
 export interface SettingsResponse {

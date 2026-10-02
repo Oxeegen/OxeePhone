@@ -108,6 +108,7 @@ class TestSettingsRequest(BaseModel):
     caller_numbers: list[str] | None = None
     voices: list[dict[str, Any]] | None = None
     concurrency: int | None = Field(default=None, ge=1, le=10)
+    pairing: Literal["caller_name", "arrival_order"] | None = None
 
 
 @router.get("/settings")

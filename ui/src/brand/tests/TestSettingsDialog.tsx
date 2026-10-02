@@ -69,6 +69,7 @@ export function TestSettingsDialog({ data, onSaved }: { data: SettingsResponse |
   const [numbers, setNumbers] = useState("");
   const [voices, setVoices] = useState<Voice[]>([]);
   const [concurrency, setConcurrency] = useState(2);
+  const [pairing, setPairing] = useState<"caller_name" | "arrival_order">("caller_name");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -79,6 +80,7 @@ export function TestSettingsDialog({ data, onSaved }: { data: SettingsResponse |
     setNumbers(s.caller_numbers.join("\n"));
     setVoices(s.voices);
     setConcurrency(s.concurrency);
+    setPairing(s.pairing ?? "caller_name");
   }, [open, data]);
 
   const save = async () => {
@@ -91,6 +93,7 @@ export function TestSettingsDialog({ data, onSaved }: { data: SettingsResponse |
         caller_numbers: parseNumbers(numbers),
         voices: voices.filter((v) => v.id.trim()),
         concurrency,
+        pairing,
       },
       headers: { "Content-Type": "application/json" },
     });
@@ -151,6 +154,21 @@ export function TestSettingsDialog({ data, onSaved }: { data: SettingsResponse |
                 inbound number; each test call carries a one-time token in its CallerID name, so it runs the version under
                 test and stays out of the production statistics.
               </p>
+              <label className="block space-y-1">
+                <span className="text-xs text-muted-foreground">How the agent recognizes a test call</span>
+                <Select value={pairing} onValueChange={(v) => setPairing(v as "caller_name" | "arrival_order")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="caller_name">CallerID name (recommended)</SelectItem>
+                    <SelectItem value="arrival_order">Arrival order (the PBX or trunk drops the name)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="block text-[11px] text-muted-foreground">
+                  {pairing === "caller_name"
+                    ? "Each test call carries a one-time token in its CallerID name. If calls go through a trunk that replaces the name, the agent answers on its published version and the test fails: use arrival order."
+                    : "Every inbound call arriving while a test call is pending is taken as that test call, and executions place one call at a time. Do not use on a number that real callers use during tests."}
+                </span>
+              </label>
               <label className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Calls in parallel</span>
                 <Input
