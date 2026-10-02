@@ -5,7 +5,7 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
-## Unreleased
+## 0.9.2 — 2026-10-02
 
 - Installer: images built one at a time with up to three attempts (the UI
   build crashed now and then next to the API build); `update` builds and
