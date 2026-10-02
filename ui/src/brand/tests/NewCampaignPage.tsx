@@ -19,6 +19,35 @@ import { useAuth } from "@/lib/auth";
 import { DIMENSION_ORDER, type Range, rangeLabel, TOOLS_MODE_LABEL,type ToolsMode } from "./model";
 import { API, RangeSlider, useTestSettings } from "./ui";
 
+function speedText(v: number): string {
+  if (v < 0.9) return "slow speaker";
+  if (v < 0.97) return "a little slow";
+  if (v <= 1.05) return "normal pace";
+  if (v <= 1.2) return "a little fast";
+  return "fast speaker";
+}
+
+/** Texts of the two ends of a range: min on the left, max on the right. */
+function RangeEnds({ min, max }: { min: { value: string; text?: string }; max: { value: string; text?: string } }) {
+  if (min.value === max.value) {
+    return (
+      <p className="text-[11px] leading-snug text-muted-foreground">
+        <span className="font-medium text-foreground/80">Only {min.value}</span> · {min.text}
+      </p>
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 gap-3 text-[11px] leading-snug text-muted-foreground">
+      <p>
+        <span className="font-medium text-foreground/80">Min {min.value}</span> · {min.text}
+      </p>
+      <p className="text-right">
+        <span className="font-medium text-foreground/80">Max {max.value}</span> · {max.text}
+      </p>
+    </div>
+  );
+}
+
 export function DimensionSliders({
   dimensions,
   ranges,
@@ -46,14 +75,10 @@ export function DimensionSliders({
               <span className="font-mono text-xs text-muted-foreground">{rangeLabel([lo, hi])}</span>
             </div>
             <RangeSlider label={d.label} min={1} max={5} value={[lo, hi]} onChange={(v) => onChange(key, v)} />
-            <p className="text-[11px] leading-snug text-muted-foreground">
-              <span className="font-medium text-foreground/80">{lo}</span> {d.levels[String(lo)]}
-              {hi !== lo && (
-                <>
-                  {" "}→ <span className="font-medium text-foreground/80">{hi}</span> {d.levels[String(hi)]}
-                </>
-              )}
-            </p>
+            <RangeEnds
+              min={{ value: String(lo), text: d.levels[String(lo)] }}
+              max={{ value: String(hi), text: d.levels[String(hi)] }}
+            />
           </div>
         );
       })}
@@ -66,6 +91,10 @@ export function DimensionSliders({
           </span>
         </div>
         <RangeSlider label="Voice speed" min={speedLimits[0]} max={speedLimits[1]} step={0.05} value={speed} onChange={onSpeed} format={(v) => `×${v.toFixed(2)}`} />
+        <RangeEnds
+          min={{ value: `×${speed[0].toFixed(2)}`, text: speedText(speed[0]) }}
+          max={{ value: `×${speed[1].toFixed(2)}`, text: speedText(speed[1]) }}
+        />
         <p className="text-[11px] text-muted-foreground">Speech rate of the caller&apos;s voice (1 = normal). Phone executions only.</p>
       </div>
     </div>
