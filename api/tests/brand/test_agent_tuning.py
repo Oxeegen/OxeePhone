@@ -72,6 +72,13 @@ def test_tune_services():
     assert tts.oxee_first_chunk_ms == 60
 
 
+def test_first_audio_chunk_defaults_to_250_ms():
+    tts = _Service()
+    tuning.tune_services(llm=_Service(), tts=tts, configs={})
+    assert tts.oxee_first_chunk_ms == 250
+    assert tuning.BUILTIN["performance"]["tts_first_chunk_ms"] == 250
+
+
 @pytest.mark.asyncio
 async def test_first_audio_chunk_is_smaller():
     from api.brand.tts import LocalModelsTTSService
@@ -99,3 +106,46 @@ def test_performance_switch_off_shows_in_the_diff():
     labels = [f["label"] for c in diff["changes"] for f in c["fields"]]
     assert any("mute during tools" in label for label in labels)
     assert any(label.startswith("Voice") for label in labels)
+
+
+async def _pieces(aggregator, tokens):
+    out = []
+    for token in tokens:
+        out += [a.text async for a in aggregator.aggregate(token)]
+    rest = await aggregator.flush()
+    return out + ([rest.text] if rest else [])
+
+
+@pytest.mark.asyncio
+async def test_first_clause_goes_before_the_sentence_ends():
+    from api.brand.text_aggregation import FirstClauseAggregator
+
+    agg = FirstClauseAggregator()
+    pieces = await _pieces(agg, ["D'accord Monsieur Martin,", " je regarde", " votre dossier. Un instant,", " s'il vous plaît."])
+    assert pieces == ["D'accord Monsieur Martin,", "je regarde votre dossier.", "Un instant, s'il vous plaît."]
+    # Next reply: the first clause is armed again (flush resets).
+    pieces = await _pieces(agg, ["Oui, c'est noté.", " Merci,", " au revoir."])
+    assert pieces[0] == "Oui, c'est noté."  # "Oui," is too short
+
+
+@pytest.mark.asyncio
+async def test_first_clause_ignores_numbers():
+    from api.brand.text_aggregation import FirstClauseAggregator
+
+    pieces = await _pieces(FirstClauseAggregator(), ["Le rendez-vous est à 10:30 pour 3,5 heures. Ensuite, rien."])
+    assert pieces[0] == "Le rendez-vous est à 10:30 pour 3,5 heures."
+
+
+def test_first_clause_setting_swaps_the_aggregator():
+    from pipecat.utils.text.simple_text_aggregator import SimpleTextAggregator
+
+    from api.brand.text_aggregation import FirstClauseAggregator
+
+    tts = _Service()
+    tts._text_aggregator = SimpleTextAggregator()
+    tuning.tune_services(llm=_Service(), tts=tts, configs={"performance": {"tts_first_clause": True}})
+    assert isinstance(tts._text_aggregator, FirstClauseAggregator)
+    other = _Service()
+    other._text_aggregator = SimpleTextAggregator()
+    tuning.tune_services(llm=_Service(), tts=other, configs={})
+    assert type(other._text_aggregator) is SimpleTextAggregator

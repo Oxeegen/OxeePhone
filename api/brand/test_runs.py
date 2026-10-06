@@ -600,6 +600,23 @@ async def _play_text(execution: dict, call: dict, ctx: dict) -> dict:
 # --- Phone channel ----------------------------------------------------------------------
 
 
+CALLER_RUN_GRACE_SECONDS = 30
+
+
+async def _drop_caller_run(organization_id: int, run_id: int) -> None:
+    """The caller side of a test call is not kept: the agent side holds the
+    conversation. Late telephony events get a moment to land first."""
+    from api.services.call_concurrency import call_concurrency
+
+    await asyncio.sleep(CALLER_RUN_GRACE_SECONDS)
+    try:
+        await call_concurrency.unregister_active_call(run_id)
+        if await brand_db.delete_test_caller_run(organization_id, run_id):
+            logger.info(f"Test caller run {run_id} deleted")
+    except Exception as e:
+        logger.warning(f"Test caller run {run_id} not deleted: {e}")
+
+
 async def _play_phone(execution: dict, call: dict, ctx: dict) -> dict:
     from api.enums import CallType, WorkflowRunState
     from api.services.call_concurrency import call_concurrency
@@ -711,8 +728,11 @@ async def _play_phone(execution: dict, call: dict, ctx: dict) -> dict:
                 agent_run = (
                     await brand_db.find_run_by_name(org, agent_name) or agent_run
                 )
-            caller_done = bool(caller and caller.is_completed) or (
-                caller is not None and caller.state == WorkflowRunState.COMPLETED.value
+            # A caller run already deleted (see _drop_caller_run) has ended.
+            caller_done = (
+                caller is None
+                or bool(caller.is_completed)
+                or caller.state == WorkflowRunState.COMPLETED.value
             )
             if agent_run is None and time.monotonic() - started > ANSWER_TIMEOUT:
                 if caller_done:
@@ -736,9 +756,9 @@ async def _play_phone(execution: dict, call: dict, ctx: dict) -> dict:
             break
         await asyncio.sleep(2)
         agent_run = await brand_db.find_run_by_name(org, agent_name) or agent_run
+    asyncio.create_task(_drop_caller_run(org, caller_run.id))
     return {
         "agent_run_id": agent_run["id"],
-        "caller_run_id": caller_run.id,
         "ended_by": (agent_run.get("gathered_context") or {}).get("call_status"),
     }
 

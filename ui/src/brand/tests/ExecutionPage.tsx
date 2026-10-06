@@ -201,6 +201,21 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
   );
 }
 
+/** The agent-side run of a test call (the inbound call, as recorded). */
+function RunLink({ workflowId, runId, verdict, className }: { workflowId: number; runId?: number | null; verdict?: string | null; className?: string }) {
+  if (!runId) return null;
+  return (
+    <Link
+      href={`/workflow/${workflowId}/run/${runId}`}
+      title={`Open run #${runId} (agent side)${verdict ? ` · ${verdict}` : ""}`}
+      onClick={(e) => e.stopPropagation()}
+      className={cn("inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground", className)}
+    >
+      #{runId} <ExternalLink className="h-3 w-3" />
+    </Link>
+  );
+}
+
 function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
   execution: Execution;
   call: TestCall;
@@ -219,36 +234,39 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
 
   return (
     <div className="rounded-lg border border-border">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full flex-wrap items-center gap-3 p-3 text-left">
-        <span className="w-8 text-right font-mono text-xs text-muted-foreground">{call.index}</span>
-        <span className="w-20">
-          {running ? (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {call.status === "judging" ? "Judging" : "In call"}</span>
-          ) : call.status === "error" ? (
-            <span className="inline-flex items-center gap-1 text-xs text-red-700 dark:text-red-300"><AlertTriangle className="h-3.5 w-3.5" /> Error</span>
-          ) : call.status === "done" ? (
-            <VerdictBadge verdict={call.verdict} />
-          ) : (
-            <span className="text-xs text-muted-foreground capitalize">{call.status}</span>
+      <div className="flex items-center">
+        <button type="button" onClick={() => setOpen((o) => !o)} className="flex min-w-0 flex-1 flex-wrap items-center gap-3 p-3 text-left">
+          <span className="w-8 text-right font-mono text-xs text-muted-foreground">{call.index}</span>
+          <span className="w-20">
+            {running ? (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {call.status === "judging" ? "Judging" : "In call"}</span>
+            ) : call.status === "error" ? (
+              <span className="inline-flex items-center gap-1 text-xs text-red-700 dark:text-red-300"><AlertTriangle className="h-3.5 w-3.5" /> Error</span>
+            ) : call.status === "done" ? (
+              <VerdictBadge verdict={call.verdict} />
+            ) : (
+              <span className="text-xs text-muted-foreground capitalize">{call.status}</span>
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{s.title}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {s.persona.name}
+              {execution.passes > 1 ? ` · play ${call.pass}` : ""}
+              {j?.summary ? ` · ${j.summary}` : call.error ? ` · ${call.error}` : ""}
+            </span>
+          </span>
+          <LevelChips levels={s.levels} speed={execution.channel === "phone" ? s.speed : null} />
+          {execution.channel === "phone" && call.technical?.score != null && (
+            <span title={call.technical.weakest ? `Technical score · weakest: ${call.technical.weakest}` : "Technical score"}>
+              <ScoreBadge score={call.technical.score} status={call.technical.status} compact />
+            </span>
           )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{s.title}</span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {s.persona.name}
-            {execution.passes > 1 ? ` · play ${call.pass}` : ""}
-            {j?.summary ? ` · ${j.summary}` : call.error ? ` · ${call.error}` : ""}
-          </span>
-        </span>
-        <LevelChips levels={s.levels} speed={execution.channel === "phone" ? s.speed : null} />
-        {execution.channel === "phone" && call.technical?.score != null && (
-          <span title={call.technical.weakest ? `Technical score · weakest: ${call.technical.weakest}` : "Technical score"}>
-            <ScoreBadge score={call.technical.score} status={call.technical.status} compact />
-          </span>
-        )}
-        <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">{seconds(m?.duration_seconds)}</span>
-        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
+          <span className="w-16 text-right text-xs tabular-nums text-muted-foreground">{seconds(m?.duration_seconds)}</span>
+          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </button>
+        <RunLink workflowId={execution.workflow_id} runId={call.agent_run_id} className="mr-3" />
+      </div>
       {open && (
         <div className="space-y-4 border-t border-border p-4 text-sm">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -257,7 +275,6 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
                 Agent side #{call.agent_run_id} <ExternalLink className="h-3 w-3" />
               </Link>
             )}
-            {call.caller_run_id && <span>Caller side #{call.caller_run_id}</span>}
             {s.voice && <span>Voice {s.voice.id}</span>}
             {s.caller_number && <span>From {s.caller_number}</span>}
             {m && <span>Ended: {m.end_status || "?"}{m.end_node ? ` in “${m.end_node}”` : ""}</span>}
@@ -414,6 +431,12 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
   const dims = settings.data?.dimensions ?? {};
   const finished = execution.calls.filter((c) => ["done", "error", "cancelled"].includes(c.status)).length;
   const phone = execution.channel === "phone";
+  const callsByIndex: Record<number, TestCall> = Object.fromEntries(execution.calls.map((c) => [c.index, c]));
+  const playsByScenario: Record<string, TestCall[]> = {};
+  for (const c of execution.calls) {
+    if (!playsByScenario[c.scenario_id]) playsByScenario[c.scenario_id] = [];
+    playsByScenario[c.scenario_id].push(c);
+  }
 
   return (
     <div className="container mx-auto w-full space-y-6 p-6 [contain:inline-size]">
@@ -496,7 +519,8 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
               <ul className="list-disc space-y-0.5 pl-5 text-xs">
                 {r.scenario_issues!.map((x) => (
                   <li key={x.index}>
-                    <span className="font-medium">#{x.index} {x.title}</span>: {x.issue}
+                    <span className="font-medium">#{x.index} {x.title}</span>: {x.issue}{" "}
+                    <RunLink workflowId={execution.workflow_id} runId={callsByIndex[x.index]?.agent_run_id} />
                   </li>
                 ))}
               </ul>
@@ -518,6 +542,11 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
                       <p className="truncate">{s.title}</p>
                       <LevelChips levels={s.levels} />
                     </div>
+                    <span className="flex max-w-[40%] flex-wrap justify-end gap-0.5">
+                      {(playsByScenario[s.scenario_id] ?? []).map((c) => (
+                        <RunLink key={c.index} workflowId={execution.workflow_id} runId={c.agent_run_id} verdict={c.verdict} />
+                      ))}
+                    </span>
                     {s.unstable && <span className="rounded border border-amber-500/40 px-1.5 py-0.5 text-[10px] text-amber-800 dark:text-amber-300">unstable</span>}
                     <span className="w-24"><VerdictSplit verdicts={{ pass: s.pass, partial: s.partial, fail: s.fail }} /></span>
                   </div>

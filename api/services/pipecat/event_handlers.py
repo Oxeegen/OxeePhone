@@ -3,7 +3,7 @@ import asyncio
 from loguru import logger
 
 from api.brand import BRAND
-from api.brand.test_calls import listens_first, schedule_tester_opening
+from api.brand.test_calls import listens_first, schedule_tester_opening, tester_of
 from api.constants import ENABLE_CALL_RECORDING_UPLOAD
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
@@ -423,6 +423,14 @@ def register_event_handlers(
                 workflow_run_id, user_provider_id, PostHogEvent.CALL_COMPLETED
             )
         )
+
+        # OxeePhone: the caller side of a phone test call keeps no logs,
+        # recording or post-call work: the agent side holds the conversation,
+        # and the test runner deletes this run once the call is over.
+        if BRAND.test_campaigns and tester_of(
+            getattr(workflow_run, "initial_context", None)
+        ):
+            return
 
         logs_update: dict[str, object] = {}
         if not in_memory_logs_buffer.is_empty:

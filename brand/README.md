@@ -137,6 +137,9 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/run_pipeline.py` — the agent's `performance`: VAD params, mute strategies, LLM sampling, first TTS chunk (`agent_tuning`)
 - `ui/src/app/workflow/[workflowId]/settings/page.tsx` — speaking plan, voice, performance, audio blocks from `@/brand/AgentEngineBlocks` (platform settings unless overridden)
 - `api/services/pipecat/run_pipeline.py` — platform call-engine blocks merged into the run configuration (`agent_tuning.effective_configs`), audio config (sample rate, recording buffer) and transport output params (packets, end silence)
+- `api/services/pipecat/agent_runtime_factory.py` — an agent taking over a call (transfer) gets its call-engine settings too (`agent_tuning.tune_services`)
+- `ui/src/app/recordings/page.tsx`, `ui/src/app/recordings/RecordingsList.tsx` — Generate button and "use as greeting" row action (`@/brand/RecordingTools`, `api/brand/recordings.py`)
+- `api/services/pipecat/event_handlers.py` — the test caller's pipeline (phone test calls) ends without logs, artifacts or completion job (`test_calls.tester_of`); `test_runs` deletes its run
 - `ui/src/app/settings/page.tsx` — Call engine settings (`@/brand/EngineSettingsCard`) instead of Telemetry (Langfuse)
 - `ui/src/components/layout/AppSidebar.tsx` — Platform settings and Sign out as menu entries at the bottom, not behind the initials
 - `ui/src/components/workflow/WorkflowTable.tsx`, `ui/src/app/campaigns/page.tsx`, `ui/src/app/usage/page.tsx`, `ui/src/components/workflow-runs/WorkflowRunsTable.tsx` — the whole row opens the page (`@/brand/rowLink`); redundant Edit / View / open buttons hidden

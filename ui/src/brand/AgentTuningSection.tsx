@@ -33,6 +33,7 @@ export interface AudioSettings {
 
 export interface Performance {
   tts_first_chunk_ms?: number | null;
+  tts_first_clause?: boolean | null;
   vad_stop_secs?: number | null;
   vad_confidence?: number | null;
   vad_min_volume?: number | null;
@@ -347,13 +348,22 @@ export function PerformanceSection({
         label="First audio chunk"
         help="Audio received from the voice model before the agent starts playing it. Smaller starts sooner; too small may stutter on a slow voice server."
         value={value.tts_first_chunk_ms}
-        fallback={num(fallback.tts_first_chunk_ms, 500)}
+        fallback={num(fallback.tts_first_chunk_ms, 250)}
         source={source}
         onChange={(tts_first_chunk_ms) => set({ tts_first_chunk_ms })}
         min={20}
         max={500}
         step={10}
         unit="ms"
+      />
+      <TuningSwitch
+        id="perf_first_clause"
+        label="Speak the first clause without waiting for the sentence"
+        help="On: the start of each reply is sent to the voice at its first comma (after a few words) instead of at the end of the first sentence, so the agent starts speaking sooner. The intonation of that first piece may sound slightly cut."
+        value={value.tts_first_clause}
+        fallback={fallback.tts_first_clause ?? false}
+        source={source}
+        onChange={(tts_first_clause) => set({ tts_first_clause })}
       />
 
       <p className="text-xs font-medium text-muted-foreground">Voice detection (caller)</p>

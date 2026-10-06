@@ -64,8 +64,9 @@ class LocalModelsTTSService(SpeachesTTSService):
             params["extra_body"] = extra_body
         return params
 
-    # Agent setting (api/brand/agent_tuning.py): audio to receive before the
-    # first frame is played; None keeps pipecat's chunk (500 ms).
+    # Call-engine setting (api/brand/agent_tuning.py, 250 ms by default): audio
+    # to receive before the first frame is played; None keeps pipecat's chunk
+    # (500 ms).
     oxee_first_chunk_ms: int | None = None
 
     async def _audio_chunks(self, response):

@@ -22,7 +22,12 @@ test-campaign comparisons):
                     is optional: absent means today's behaviour.
 
     tts_first_chunk_ms      audio received before the first audio frame is
-                            played (pipecat waits for 500 ms of audio)
+                            played (250 ms by default; pipecat alone waits for
+                            500 ms of audio, which voxee-tts-pro does not need:
+                            its first audio comes after ~250 ms)
+    tts_first_clause        the first piece of a reply goes to the voice model
+                            at its first comma, without waiting for the end of
+                            the sentence (off)
     vad_stop_secs           silence before the voice detector reports the end
                             of speech (0.2 s)
     vad_confidence          speech probability needed to count as voice (0.7)
@@ -66,6 +71,7 @@ class Performance(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     tts_first_chunk_ms: int | None = Field(default=None, ge=20, le=500)
+    tts_first_clause: bool | None = None
     vad_stop_secs: float | None = Field(default=None, ge=0.1, le=1.0)
     vad_confidence: float | None = Field(default=None, ge=0.3, le=0.95)
     vad_min_volume: float | None = Field(default=None, ge=0.05, le=0.9)
@@ -96,7 +102,8 @@ def _builtin() -> dict:
     return {
         SPEAKING_PLAN_KEY: {**SpeakingPlan().model_dump(), SMART_TURN_KEY: 2.0},
         PERFORMANCE_KEY: {
-            "tts_first_chunk_ms": 500,
+            "tts_first_chunk_ms": 250,  # pipecat: 500
+            "tts_first_clause": False,
             "vad_stop_secs": 0.2,
             "vad_confidence": 0.7,
             "vad_min_volume": 0.6,
@@ -114,7 +121,8 @@ def _builtin() -> dict:
     }
 
 
-# Values hardcoded in the pipeline before these settings existed.
+# Values hardcoded in the pipeline before these settings existed (except the
+# first audio chunk, lowered to 250 ms after measuring voxee-tts-pro).
 BUILTIN = _builtin()
 
 
@@ -336,7 +344,8 @@ def mute_strategies(strategies: list, configs: dict | None) -> list:
 
 
 def tune_services(*, llm: Any, tts: Any, configs: dict | None) -> None:
-    """Sampling of the conversation LLM, first audio chunk of the voice."""
+    """Sampling of the conversation LLM, first audio chunk and first clause
+    of the voice."""
     perf = performance(configs)
     settings = getattr(llm, "_settings", None)
     if settings is not None:
@@ -354,7 +363,13 @@ def tune_services(*, llm: Any, tts: Any, configs: dict | None) -> None:
             f"Agent tuning: performance {applied}; voice "
             f"{getattr(tts_settings, 'voice', None)} speed {getattr(tts_settings, 'speed', None)}"
         )
-    if perf.tts_first_chunk_ms is not None and tts is not None:
+    if tts is not None:
         # Read by LocalModelsTTSService.run_tts (the sample rate is only known
         # once the pipeline started).
-        tts.oxee_first_chunk_ms = perf.tts_first_chunk_ms
+        tts.oxee_first_chunk_ms = (
+            perf.tts_first_chunk_ms or BUILTIN[PERFORMANCE_KEY]["tts_first_chunk_ms"]
+        )
+        if perf.tts_first_clause:
+            from api.brand.text_aggregation import use_first_clause
+
+            use_first_clause(tts)
