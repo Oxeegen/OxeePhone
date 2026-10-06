@@ -789,3 +789,29 @@ async def test_claim_by_arrival_order(config_store, monkeypatch):
     first = await calls.claim_inbound(7, "Jean", "790")
     assert first["definition_id"] == 41  # the oldest pending call
     assert await calls.claim_inbound(7, "Jean", "790") is None  # the other one is too old
+
+
+@pytest.mark.asyncio
+async def test_caller_side_of_a_phone_test_is_dropped(monkeypatch):
+    from api.brand import db as brand_db
+    from api.brand import test_runs
+    from api.services.call_concurrency import call_concurrency
+
+    deleted, released = [], []
+
+    async def no_wait(_):
+        return None
+
+    async def delete(org, run_id):
+        deleted.append((org, run_id))
+        return True
+
+    async def release(run_id):
+        released.append(run_id)
+        return True
+
+    monkeypatch.setattr(test_runs.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(brand_db, "delete_test_caller_run", delete)
+    monkeypatch.setattr(call_concurrency, "unregister_active_call", release)
+    await test_runs._drop_caller_run(4, 99)
+    assert deleted == [(4, 99)] and released == [99]

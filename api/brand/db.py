@@ -406,6 +406,29 @@ async def find_run_by_name(organization_id: int, name: str) -> dict | None:
     return _run_dict(row) if row else None
 
 
+async def delete_test_caller_run(organization_id: int, run_id: int) -> bool:
+    """Delete the caller side of a phone test call (the agent side holds the
+    conversation). Only a run named as a test caller run, in this
+    organization, is deleted; rows that point at it are deleted with it."""
+    from sqlalchemy import delete
+
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        owned = select(WorkflowModel.id).where(
+            WorkflowModel.organization_id == organization_id
+        )
+        result = await session.execute(
+            delete(WorkflowRunModel).where(
+                WorkflowRunModel.id == run_id,
+                WorkflowRunModel.workflow_id.in_(owned),
+                WorkflowRunModel.name.like(f"{TEST_RUN_PREFIX}%-caller"),
+            )
+        )
+        await session.commit()
+    return bool(result.rowcount)
+
+
 async def agent_phone_numbers(organization_id: int, workflow_id: int) -> list[dict]:
     """Active numbers routing inbound calls to an agent."""
     from api.db.models import TelephonyPhoneNumberModel

@@ -4,6 +4,8 @@ import { AudioLines, Check, Pause, Pencil, Play, RefreshCw, Search, Trash2, X } 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { isBranded } from "@/brand/brand";
+import { UseAsGreetingButton } from "@/brand/RecordingTools";
 import {
     deleteRecordingApiV1WorkflowRecordingsRecordingIdDelete,
     listRecordingsApiV1WorkflowRecordingsGet,
@@ -302,6 +304,8 @@ export default function RecordingsList({ refreshKey }: { refreshKey?: number }) 
                                             <Play className="w-4 h-4" />
                                         )}
                                     </Button>
+                                    {/* OxeePhone: an agent's greeting from this recording. */}
+                                    {isBranded && <UseAsGreetingButton recordingPk={rec.id} recordingId={rec.recording_id} />}
                                     <Button
                                         variant="ghost"
                                         size="sm"

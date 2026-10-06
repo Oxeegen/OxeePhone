@@ -169,6 +169,20 @@ class AgentRuntimeFactory:
         tts = create_tts_service(
             user_config, self._audio_config, correlation_id=self._mps_correlation_id
         )
+        # OxeePhone: the destination's call-engine settings (platform values
+        # unless it overrides them), as for the first agent.
+        from api.brand import BRAND
+
+        if BRAND.agent_tuning:
+            from api.brand import agent_tuning as brand_tuning
+
+            brand_tuning.tune_services(
+                llm=llm,
+                tts=tts,
+                configs=await brand_tuning.effective_configs(
+                    self._organization_id, run_configs
+                ),
+            )
         # Same client policy as the run setup: the conversation LLM also
         # serves out-of-band inference, and extraction gets a separately
         # tagged client only where the run would have created one, so a

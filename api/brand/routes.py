@@ -877,6 +877,145 @@ async def preview_organization_voice(
     return Response(content=audio, media_type="audio/wav")
 
 
+class GenerateRecordingRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+    voice: str | None = Field(default=None, max_length=120)
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
+    name: str | None = Field(default=None, max_length=64)
+    # Also use it as this agent's greeting (draft).
+    greeting_workflow_id: int | None = None
+
+
+class RecordingGreetingRequest(BaseModel):
+    workflow_id: int
+    # None: back to the agent's text greeting.
+    recording_pk: int | None = None
+
+
+def _greeting_result(saved) -> dict:
+    return {
+        "workflow_id": saved.workflow_id,
+        "draft_definition_id": saved.id,
+        "draft_version_number": saved.version_number,
+    }
+
+
+@router.post("/recordings/generate")
+async def generate_recording(
+    request: GenerateRecordingRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Synthesize a text with the organization's voice model and store it
+    as a recording; optionally use it as an agent's greeting (in a draft)."""
+    from api.brand import recordings
+
+    org = user.selected_organization_id
+    try:
+        recording = await recordings.generate(
+            org,
+            user,
+            text=request.text,
+            voice=request.voice,
+            speed=request.speed,
+            name=request.name,
+        )
+        greeting = None
+        if request.greeting_workflow_id is not None:
+            saved = await recordings.set_greeting(
+                org, user, request.greeting_workflow_id, recording.id
+            )
+            greeting = _greeting_result(saved)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except recordings.RecordingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return {
+        "id": recording.id,
+        "recording_id": recording.recording_id,
+        "storage_key": recording.storage_key,
+        "greeting": greeting,
+    }
+
+
+class RecordingPreviewRequest(BaseModel):
+    voice: str | None = Field(default=None, max_length=120)
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
+    text: str | None = Field(default=None, max_length=1000)
+
+
+@router.post(
+    "/recordings/preview",
+    response_class=Response,
+    responses={200: {"content": {"audio/wav": {}}}},
+)
+async def preview_recording(
+    request: RecordingPreviewRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """The start of a recording to generate (organization voice by default)."""
+    from api.brand import recordings
+    from api.brand.local_models import LocalModelsError, synthesize_preview
+
+    try:
+        tts = await recordings.organization_tts(user.selected_organization_id)
+        audio = await synthesize_preview(
+            base_url=tts.base_url,
+            api_key=recordings._api_key(tts),
+            model=tts.model,
+            voice=(request.voice or "").strip() or tts.voice,
+            speed=request.speed or getattr(tts, "speed", None),
+            language=getattr(tts, "language", None),
+            text=request.text,
+            volume_gain_db=getattr(tts, "volume_gain_db", None),
+            pronunciations=getattr(tts, "pronunciations", None),
+        )
+    except recordings.RecordingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except LocalModelsError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+    return Response(content=audio, media_type="audio/wav")
+
+
+@router.get("/recordings/agent-greeting/{workflow_id}")
+async def recording_agent_greeting(
+    workflow_id: int,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """The agent's greeting text and voice (draft, else published version)."""
+    from api.brand import recordings
+
+    try:
+        return await recordings.agent_greeting(
+            user.selected_organization_id, workflow_id
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except recordings.RecordingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/recordings/greeting")
+async def recording_greeting(
+    request: RecordingGreetingRequest,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Greeting of an agent from a recording, or back to its text (draft)."""
+    from api.brand import recordings
+
+    try:
+        saved = await recordings.set_greeting(
+            user.selected_organization_id,
+            user,
+            request.workflow_id,
+            request.recording_pk,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except recordings.RecordingError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    return _greeting_result(saved)
+
+
 class EngineSettingsRequest(BaseModel):
     """Blocks to set; a block set to null goes back to the built-in values."""
 

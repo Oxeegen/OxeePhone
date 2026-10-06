@@ -5,6 +5,30 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## 0.9.4 — 2026-10-06
+
+- Call engine › Performance: the first audio chunk defaults to 250 ms instead
+  of pipecat's 500 ms (voxee-tts-pro sends its first audio after ~250 ms; the
+  agent spoke ~215 ms later than needed on every reply). Still settable per
+  platform and per agent; "Restore built-in values" now restores 250 ms.
+- Call engine › Performance: "Speak the first clause without waiting for the
+  sentence" (off by default). The start of each reply goes to the voice at its
+  first comma or colon, after three words, instead of at the end of the first
+  sentence.
+- Call-engine settings also apply to an agent taking over a call (transfer).
+- Recordings › Generate: a recording spoken by the organization's voice model,
+  with a chosen voice, speed and text (up to 1,000 characters), with a Listen
+  preview. It can become an agent's greeting right away, or later from the
+  recording's row; the change goes into a draft and the text greeting stays in
+  the start node, ready to be switched back.
+- Test executions: each call, each scenario (one link per play) and each
+  "scenario to review" links to the agent-side run of the call.
+- Phone test calls: the caller side (the test caller's run) is no longer
+  kept. Its pipeline saves no logs, recording or transcript and runs no
+  post-call work, and the run is deleted once the call is over; the agent
+  side holds the conversation. A call that fails to pair keeps its caller run
+  for diagnosis.
+
 ## 0.9.3 — 2026-10-02
 
 - Test campaigns by phone: the test caller no longer stays silent when it

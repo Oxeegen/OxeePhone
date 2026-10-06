@@ -261,8 +261,10 @@ async def synthesize_preview(
     text: str | None,
     volume_gain_db: float | None = None,
     pronunciations: str | None = None,
+    max_chars: int = PREVIEW_MAX_CHARS,
 ) -> bytes:
-    """Render a WAV sample exactly as a call would (Listen button).
+    """Render a WAV sample exactly as a call would (Listen button,
+    generated recordings).
 
     Same text preparation (dictionary, French normalization) and gain as
     ``LocalModelsTTSService``; PCM is requested like during calls.
@@ -282,7 +284,7 @@ async def synthesize_preview(
         "model": model,
         "voice": voice,
         "input": prepare_speech_text(
-            (text or PREVIEW_TEXT).strip()[:PREVIEW_MAX_CHARS],
+            (text or PREVIEW_TEXT).strip()[:max_chars],
             language=language,
             pronunciations=parse_pronunciations(pronunciations),
         ),

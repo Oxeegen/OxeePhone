@@ -1,8 +1,10 @@
 "use client";
 
-import { ExternalLink, Upload } from "lucide-react";
+import { ExternalLink, Sparkles, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { isBranded } from "@/brand/brand";
+import { GenerateRecordingDialog } from "@/brand/RecordingTools";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +16,7 @@ import { RecordingsUploadDialog } from "./RecordingsUploadDialog";
 export default function RecordingsPage() {
     const { user, redirectToLogin, loading } = useAuth();
     const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [isGenerateOpen, setIsGenerateOpen] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
@@ -56,16 +59,33 @@ export default function RecordingsPage() {
                                 Audio recordings shared across all agents in your organization
                             </CardDescription>
                         </div>
-                        <Button onClick={() => setIsUploadOpen(true)}>
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Recording
-                        </Button>
+                        <div className="flex gap-2">
+                            {/* OxeePhone: recordings spoken by the organization's voice model. */}
+                            {isBranded && (
+                                <Button variant="outline" onClick={() => setIsGenerateOpen(true)}>
+                                    <Sparkles className="w-4 h-4 mr-2" />
+                                    Generate
+                                </Button>
+                            )}
+                            <Button onClick={() => setIsUploadOpen(true)}>
+                                <Upload className="w-4 h-4 mr-2" />
+                                Upload Recording
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
                     <RecordingsList refreshKey={refreshKey} />
                 </CardContent>
             </Card>
+
+            {isBranded && (
+                <GenerateRecordingDialog
+                    open={isGenerateOpen}
+                    onOpenChange={setIsGenerateOpen}
+                    onCreated={() => setRefreshKey((k) => k + 1)}
+                />
+            )}
 
             <RecordingsUploadDialog
                 open={isUploadOpen}
