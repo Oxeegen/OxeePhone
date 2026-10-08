@@ -38,7 +38,7 @@ from api.brand import db as brand_db
 from api.brand import test_calls
 from api.brand import test_campaigns as campaigns
 from api.brand.analysis_thresholds import DEFAULTS as THRESHOLD_DEFAULTS
-from api.brand.test_technical import call_technical, technical_report
+from api.brand.test_technical import call_technical, technical_report, upgrade_latency
 from api.db import db_client
 
 PREFIX = "OXEE_TESTEXEC:"
@@ -834,7 +834,18 @@ def call_metrics(run: dict, index: dict | None) -> dict:
         times = [m["start"] for m in messages if m["start"]]
         duration = (max(times) - min(times)).total_seconds() if len(times) > 1 else None
     totals = [t["total_ms"] for t in turns]
+    perceived = [t["perceived_ms"] for t in turns]
+    from api.brand.call_insights import VOICE_STATS, voice_summary
+
+    voice = voice_summary(
+        [
+            e.get("payload")
+            for e in (run.get("logs") or {}).get("realtime_feedback_events") or []
+            if isinstance(e, dict) and e.get("type") == VOICE_STATS
+        ]
+    )
     return {
+        "voice": voice,
         "duration_seconds": round(duration, 1) if duration is not None else None,
         "caller_turns": sum(1 for m in messages if m["role"] == "caller"),
         "agent_turns": sum(1 for m in messages if m["role"] == "agent"),
@@ -845,6 +856,7 @@ def call_metrics(run: dict, index: dict | None) -> dict:
             "turns": len(totals),
             "p50_ms": _percentile(totals, 0.5),
             "p90_ms": _percentile(totals, 0.9),
+            "perceived_p50_ms": _percentile(perceived, 0.5),
             "greeting_ms": greeting["total_ms"] if greeting else None,
             "stages": {
                 stage: _percentile([t["stages"][stage] for t in turns], 0.5)
@@ -854,6 +866,7 @@ def call_metrics(run: dict, index: dict | None) -> dict:
             "turn_stages": [
                 {
                     "total": round(t["total_ms"]),
+                    "perceived": round(t["perceived_ms"]),
                     "stages": {k: round(v) for k, v in t["stages"].items()},
                 }
                 for t in turns
@@ -1155,8 +1168,13 @@ def aggregate(
         for k, v in speed_buckets.items()
     }
 
-    metrics = [c["metrics"] for c in played if c.get("metrics")]
+    metrics = [upgrade_latency(c["metrics"]) for c in played if c.get("metrics")]
     turn_values = [v for m in metrics for v in m["latency"]["values_ms"]]
+    perceived_values = [
+        t.get("perceived", t["total"])
+        for m in metrics
+        for t in m["latency"].get("turn_stages") or []
+    ]
     stage_values: dict[str, list[float]] = defaultdict(list)
     for m in metrics:
         for stage, v in (m["latency"].get("stages") or {}).items():
@@ -1274,6 +1292,7 @@ def aggregate(
                 sum(1 for v in turn_values if v > 2000), len(turn_values)
             ),
             "stages_p50_ms": {k: _median(v) for k, v in stage_values.items()},
+            "perceived_p50_ms": _median(perceived_values),
         },
         "interruptions": {
             "total": sum(m["interruptions"] for m in metrics),
@@ -1343,11 +1362,13 @@ INDICATORS = (
     ("scores.resolution", "Resolution (1-5)", "higher", "score"),
     ("latency.p50_ms", "Reply latency p50", "lower", "ms"),
     ("latency.p90_ms", "Reply latency p90", "lower", "ms"),
+    ("latency.perceived_p50_ms", "Perceived reply p50 (with end-of-turn wait)", "lower", "ms"),
     ("latency.greeting_p50_ms", "Greeting latency p50", "lower", "ms"),
-    ("technical_posts.endpointing.p50", "End-of-turn detection p50", "lower", "ms"),
+    ("latency.stages_p50_ms.endpointing", "End-of-turn wait p50 (setting)", "lower", "ms"),
     ("technical_posts.transcriber.p50", "Transcriber p50", "lower", "ms"),
     ("technical_posts.llm.p50", "LLM p50", "lower", "ms"),
     ("technical_posts.voice.p50", "Voice p50", "lower", "ms"),
+    ("technical_posts.voice_fluency.p50", "Voice generation speed (x real time)", "higher", "number"),
     ("latency.slow_turns_rate", "Replies over 2 s", "lower", "rate"),
     ("interruptions.per_call", "Interruptions per call", "lower", "number"),
     ("tools.failure_rate", "Tool failures", "lower", "rate"),

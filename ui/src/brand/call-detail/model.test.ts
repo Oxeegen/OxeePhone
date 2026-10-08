@@ -15,6 +15,8 @@ import {
   type TimelineMessage,
   type TimelineToolCall,
   usageSummary,
+  VOICE_STATS,
+  voiceFluency,
 } from "./model";
 
 // A real call recorded on the local stack with Oxeegen models (scrubbed).
@@ -62,7 +64,8 @@ describe("timeline", () => {
 
   it("flags interrupted agent messages and attaches turn latency", () => {
     expect(messages.filter((m) => m.interrupted)).toHaveLength(2);
-    expect(messages.find((m) => m.role === "agent" && m.turn === 2)?.latencySecs).toBeCloseTo(2.159, 2);
+    // Reply time: 2.159 s heard, minus the 0.55 s end-of-turn wait.
+    expect(messages.find((m) => m.role === "agent" && m.turn === 2)?.latencySecs).toBeCloseTo(1.608, 2);
   });
 
   it("finds the message being heard", () => {
@@ -84,10 +87,13 @@ describe("latency", () => {
     // LLM covers first token *and* streaming until the first sentence.
     expect(t2.llmFirstTokenMs).toBeCloseTo(329, 0);
     expect(t2.stages.llm).toBeGreaterThan(t2.llmFirstTokenMs);
+    // The stages add up to what the caller hears; the reply time leaves out
+    // the end-of-turn wait (a setting).
     const sum = STAGES.reduce((s, k) => s + t2.stages[k], 0);
-    expect(sum).toBeCloseTo(t2.totalMs, 0);
+    expect(sum).toBeCloseTo(t2.perceivedMs, 0);
+    expect(t2.totalMs).toBeCloseTo(t2.perceivedMs - t2.stages.endpointing, 0);
     // The timeline accounts for (almost) everything: little is left over.
-    expect(t2.stages.other).toBeLessThan(0.1 * t2.totalMs);
+    expect(t2.stages.other).toBeLessThan(0.1 * t2.perceivedMs);
   });
 
   it("averages replies only (not the greeting)", () => {
@@ -135,6 +141,26 @@ describe("sentence aggregation", () => {
     );
     const t2 = latencyTurns({ ...run, logs: { realtime_feedback_events: events } }).find((t) => t.turn === 2)!;
     expect(t2.stages.sentence).toBeCloseTo(400, 0);
-    expect(STAGES.reduce((s, k) => s + t2.stages[k], 0)).toBeCloseTo(t2.totalMs, 0);
+    expect(STAGES.reduce((s, k) => s + t2.stages[k], 0)).toBeCloseTo(t2.perceivedMs, 0);
+  });
+});
+
+describe("voice fluency", () => {
+  it("sums the sentences of each reply", () => {
+    const stat = (context_id: string, synthesis_ms: number, audio_ms: number, gaps = 0) => ({
+      type: VOICE_STATS,
+      timestamp: "2026-10-08T10:00:00Z",
+      payload: { context_id, synthesis_ms, audio_ms, speed: audio_ms / synthesis_ms, gaps, gap_ms: gaps * 100 },
+    });
+    const voice = voiceFluency({
+      ...run,
+      logs: { realtime_feedback_events: [stat("a", 400, 1600), stat("a", 600, 1200, 1), stat("b", 500, 2000)] },
+    })!;
+    expect(voice.replies).toBe(2);
+    expect(voice.speed).toBeCloseTo(3.2, 2);
+    expect(voice.speedMin).toBe(2);
+    expect(voice.repliesWithGaps).toBe(1);
+    expect(voice.replySynthesisMs).toEqual([500, 1000]);
+    expect(voiceFluency(run)).toBeNull();
   });
 });

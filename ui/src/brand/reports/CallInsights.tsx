@@ -37,6 +37,7 @@ interface Insights {
     avg_ms: number | null;
     p50_ms: number | null;
     p90_ms: number | null;
+    perceived_p50_ms?: number | null;
     slow_share: number | null;
     slow_threshold_ms: number;
     greeting_avg_ms: number | null;
@@ -233,7 +234,9 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
 
   const { calls, latency, conversation, usage, tools, routing } = data;
   const stages = STAGES.filter((s) => latency.stages[s] > 0);
-  const stageTotal = stages.reduce((sum, s) => sum + latency.stages[s], 0) || 1;
+  // The end-of-turn wait is a setting: listed, but not part of the reply bar.
+  const counted = stages.filter((s) => s !== "endpointing");
+  const stageTotal = counted.reduce((sum, s) => sum + latency.stages[s], 0) || 1;
   const trend = data.daily.map((d) => ({ ...d, label: format(new Date(`${d.date}T12:00:00`), "MMM d") }));
   const showTrends = data.period.days > 1 && trend.length > 1;
   const endMax = Math.max(0, ...conversation.end_reasons.map((r) => r.count));
@@ -248,10 +251,10 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile label="Calls" value={n(calls.total)} hint={`${n(calls.completed)} completed · ${calls.total_minutes} min`} />
         <Tile
-          label="Response latency (median)"
+          label="Reply time (median)"
           value={ms(latency.p50_ms)}
-          hint={`avg ${ms(latency.avg_ms)} · p90 ${ms(latency.p90_ms)}`}
-          help="From the caller falling silent to the agent speaking, per reply."
+          hint={`avg ${ms(latency.avg_ms)} · p90 ${ms(latency.p90_ms)}${latency.perceived_p50_ms != null ? ` · heard ${ms(latency.perceived_p50_ms)}` : ""}`}
+          help="From the end of the caller's turn to the agent speaking, per reply. The end-of-turn wait, a setting of the agent, is not counted; 'heard' includes it."
         />
         <Tile
           label="Slow replies"
@@ -276,10 +279,10 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
       </div>
       {calls.truncated && <p className="text-xs text-muted-foreground">Computed on the 5,000 most recent calls of the period.</p>}
 
-      <Section title="Latency" subtitle="Where the time goes between the caller falling silent and the agent speaking (average per reply).">
+      <Section title="Latency" subtitle="Where the reply time goes, from the end of the caller's turn to the agent speaking (average per reply). The end-of-turn wait is a setting of the agent, shown apart.">
         <Card className="space-y-4 p-4">
           <div className="flex h-4 w-full gap-[2px] overflow-hidden rounded-full" role="img" aria-label="Average latency by stage">
-            {stages.map((s) => (
+            {counted.map((s) => (
               <div
                 key={s}
                 title={`${STAGE_META[s].label}: ${ms(latency.stages[s])}`}
@@ -289,7 +292,7 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
           </div>
           <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
             {stages.map((s) => (
-              <div key={s} className="flex items-center gap-2 text-sm" title={STAGE_META[s].help}>
+              <div key={s} className={`flex items-center gap-2 text-sm ${s === "endpointing" ? "opacity-60" : ""}`} title={STAGE_META[s].help}>
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: STAGE_META[s].color }} />
                 <span className="text-muted-foreground">{STAGE_META[s].label}</span>
                 <span className="ml-auto font-medium tabular-nums">{ms(latency.stages[s])}</span>

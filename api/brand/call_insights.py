@@ -9,6 +9,10 @@ unknown event types):
 - ``oxee-latency-breakdown``: pipecat's per-turn ``LatencyBreakdown`` — named
   contributions (transcription, endpointing, LLM, speech synthesis...) that
   sum to the user-to-bot latency, plus service TTFBs and function calls.
+- ``oxee-voice-stats``: each sentence synthesized by the Local Models voice:
+  time to first audio, total synthesis time, audio length, generation speed
+  (audio seconds per second of synthesis) and gaps heard by the caller (see
+  ``api/brand/tts.py`` ``VoiceStats``).
 
 Bot transcript events also get ``payload.interrupted = true`` when the user
 cut the bot off (see ``transcript_log_coordinator``).
@@ -18,6 +22,7 @@ from typing import Any
 
 RECORDING_STARTED = "oxee-recording-started"
 LATENCY_BREAKDOWN = "oxee-latency-breakdown"
+VOICE_STATS = "oxee-voice-stats"
 
 
 def build_latency_breakdown_event(breakdown: Any) -> dict:
@@ -68,6 +73,39 @@ class LatencyBreakdownFilter:
             return False
         self._greeting_seen = True
         return True
+
+
+def voice_summary(payloads: list[dict]) -> dict | None:
+    """Voice fluency of a call from its ``oxee-voice-stats`` events.
+
+    Replies group the sentences of one context (one agent reply)."""
+    sentences = [p for p in payloads if isinstance(p, dict) and p.get("audio_ms")]
+    if not sentences:
+        return None
+    replies: dict[str, dict] = {}
+    for p in sentences:
+        r = replies.setdefault(
+            str(p.get("context_id")), {"synthesis_ms": 0, "audio_ms": 0, "gaps": 0}
+        )
+        r["synthesis_ms"] += p.get("synthesis_ms") or 0
+        r["audio_ms"] += p.get("audio_ms") or 0
+        r["gaps"] += p.get("gaps") or 0
+    synthesis = sum(p.get("synthesis_ms") or 0 for p in sentences)
+    audio = sum(p.get("audio_ms") or 0 for p in sentences)
+    return {
+        "sentences": len(sentences),
+        "synthesis_ms": synthesis,
+        "audio_ms": audio,
+        "replies": len(replies),
+        "speed": round(audio / synthesis, 2) if synthesis else None,
+        "speed_min": min(
+            (p["speed"] for p in sentences if p.get("speed") is not None), default=None
+        ),
+        "gaps": sum(p.get("gaps") or 0 for p in sentences),
+        "gap_ms": sum(p.get("gap_ms") or 0 for p in sentences),
+        "replies_with_gaps": sum(1 for r in replies.values() if r["gaps"]),
+        "reply_synthesis_ms": sorted(r["synthesis_ms"] for r in replies.values()),
+    }
 
 
 async def mark_recording_started(logs_buffer: Any) -> None:

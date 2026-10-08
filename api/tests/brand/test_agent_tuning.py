@@ -149,3 +149,25 @@ def test_first_clause_setting_swaps_the_aggregator():
     other._text_aggregator = SimpleTextAggregator()
     tuning.tune_services(llm=_Service(), tts=other, configs={})
     assert type(other._text_aggregator) is SimpleTextAggregator
+
+
+def test_local_llm_answers_without_thinking():
+    from pipecat.services.speaches.llm import SpeachesLLMService
+
+    class _Extra:
+        extra = {}
+        temperature = None
+
+    llm = SpeachesLLMService.__new__(SpeachesLLMService)
+    llm._settings = _Extra()
+    tuning.tune_services(llm=llm, tts=None, configs={})
+    assert llm._settings.extra["extra_body"]["chat_template_kwargs"] == {"enable_thinking": False}
+    on = SpeachesLLMService.__new__(SpeachesLLMService)
+    on._settings = _Extra()
+    on._settings.extra = {}
+    tuning.tune_services(llm=on, tts=None, configs={"performance": {"llm_thinking": True}})
+    assert "extra_body" not in on._settings.extra
+    other = _Service()  # not a local LLM: untouched
+    other._settings.extra = {}
+    tuning.tune_services(llm=other, tts=None, configs={})
+    assert other._settings.extra == {}

@@ -140,6 +140,7 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/services/pipecat/agent_runtime_factory.py` — an agent taking over a call (transfer) gets its call-engine settings too (`agent_tuning.tune_services`)
 - `ui/src/app/recordings/page.tsx`, `ui/src/app/recordings/RecordingsList.tsx` — Generate button and "use as greeting" row action (`@/brand/RecordingTools`, `api/brand/recordings.py`)
 - `api/services/pipecat/event_handlers.py` — the test caller's pipeline (phone test calls) ends without logs, artifacts or completion job (`test_calls.tester_of`); `test_runs` deletes its run
+- `api/services/pipecat/run_pipeline.py` — voice statistics of each sentence (`LocalModelsTTSService.oxee_on_voice_stats`) appended to the run logs as `oxee-voice-stats`
 - `ui/src/app/settings/page.tsx` — Call engine settings (`@/brand/EngineSettingsCard`) instead of Telemetry (Langfuse)
 - `ui/src/components/layout/AppSidebar.tsx` — Platform settings and Sign out as menu entries at the bottom, not behind the initials
 - `ui/src/components/workflow/WorkflowTable.tsx`, `ui/src/app/campaigns/page.tsx`, `ui/src/app/usage/page.tsx`, `ui/src/components/workflow-runs/WorkflowRunsTable.tsx` — the whole row opens the page (`@/brand/rowLink`); redundant Edit / View / open buttons hidden

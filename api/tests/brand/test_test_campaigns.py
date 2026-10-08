@@ -674,7 +674,7 @@ def _phone_call(index, totals, llm, status="done", errors=0, interruptions=0, gr
             "latency": {
                 "greeting_ms": greeting,
                 "turn_stages": [
-                    {"total": t, "stages": {"endpointing": 300, "transcriber": 200, "llm": l, "voice": 250, "sentence": 100}}
+                    {"total": t, "perceived": t + 300, "stages": {"endpointing": 300, "transcriber": 200, "llm": l, "voice": 250, "sentence": 100}}
                     for t, l in zip(totals, llm)
                 ],
             },
@@ -720,6 +720,23 @@ def test_technical_report_grades_each_post():
     assert report["worst_calls"][0]["weakest"] == "LLM"
     text = technical_report(calls, DEFAULTS, channel="text")
     assert {p["key"] for p in text["posts"]} == {"tools", "reliability"}
+    # The end-of-turn wait is a setting: shown, not scored, not in the reply.
+    assert "endpointing" not in posts
+    wait = next(i for i in report["info_stages"] if i["key"] == "endpointing")
+    assert wait["counted"] is False and wait["p50"] == 300
+    assert report["perceived_p50"] == 1650
+
+
+def test_latency_of_older_calls_is_upgraded():
+    from api.brand.test_technical import upgrade_latency
+
+    metrics = {"latency": {"turn_stages": [{"total": 1500, "stages": {"endpointing": 400}}]}}
+    upgrade_latency(metrics)
+    turn = metrics["latency"]["turn_stages"][0]
+    assert (turn["total"], turn["perceived"]) == (1100, 1500)
+    assert metrics["latency"]["p50_ms"] == 1100 and metrics["latency"]["perceived_p50_ms"] == 1500
+    upgrade_latency(metrics)  # idempotent
+    assert metrics["latency"]["turn_stages"][0]["total"] == 1100
 
 
 def test_compare_headline_scores():

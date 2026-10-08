@@ -1353,6 +1353,15 @@ async def _run_pipeline_impl(
             except Exception as e:
                 logger.error(f"Failed to append latency breakdown to logs buffer: {e}")
 
+    if BRAND.call_insights and tts is not None and hasattr(tts, "oxee_on_voice_stats"):
+        # OxeePhone: voice fluency of each sentence (generation speed, gaps).
+        from api.brand.call_insights import VOICE_STATS
+
+        async def on_voice_stats(stats: dict) -> None:
+            await in_memory_logs_buffer.append({"type": VOICE_STATS, "payload": stats})
+
+        tts.oxee_on_voice_stats = on_voice_stats
+
     # Register turn log handlers for all call types (WebRTC and telephony)
     register_turn_log_handlers(
         transcript_log_coordinator,
