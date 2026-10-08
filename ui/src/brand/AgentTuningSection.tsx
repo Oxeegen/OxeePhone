@@ -39,6 +39,7 @@ export interface Performance {
   vad_min_volume?: number | null;
   llm_temperature?: number | null;
   llm_max_tokens?: number | null;
+  llm_thinking?: boolean | null;
   mute_during_tools?: boolean | null;
   mute_until_first_reply?: boolean | null;
 }
@@ -432,6 +433,16 @@ export function PerformanceSection({
         max={4000}
         step={16}
         unit="tokens"
+      />
+
+      <TuningSwitch
+        id="perf_thinking"
+        label="Let the model think before answering"
+        help="Reasoning models (e.g. Oxee-flash) can think silently before each reply. Off: they answer at once — thinking delays replies by one to several seconds. Applies to the Local Models LLM."
+        value={value.llm_thinking}
+        fallback={fallback.llm_thinking ?? false}
+        source={source}
+        onChange={(llm_thinking) => set({ llm_thinking })}
       />
 
       <p className="text-xs font-medium text-muted-foreground">Listening</p>

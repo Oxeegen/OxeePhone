@@ -28,7 +28,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from api.brand.call_insights import LATENCY_BREAKDOWN
+from api.brand.call_insights import LATENCY_BREAKDOWN, VOICE_STATS, voice_summary
 from api.brand.insights import _tool_failed, latency_turn
 from api.services.workflow.workflow_graph import transition_tool_name
 
@@ -137,6 +137,7 @@ def digest_run(run: dict, graph: dict | None) -> dict:
     events = (run.get("logs") or {}).get("realtime_feedback_events") or []
     gathered = run.get("gathered_context") or {}
     messages, transitions, tools, turns, errors = [], [], [], [], 0
+    voice_stats: list[dict] = []
     starts: dict[str, dict] = {}
     for e in events:
         etype, payload, at = (
@@ -192,6 +193,8 @@ def digest_run(run: dict, graph: dict | None) -> dict:
             )
         elif etype == LATENCY_BREAKDOWN:
             turns.append(latency_turn(payload))
+        elif etype == VOICE_STATS:
+            voice_stats.append(payload)
         elif etype == "rtf-pipeline-error":
             errors += 1
 
@@ -242,6 +245,7 @@ def digest_run(run: dict, graph: dict | None) -> dict:
         "transitions": transitions,
         "tools": [t for t in tools if t["name"] not in edge_tools],
         "turns": turns,
+        "voice": voice_summary(voice_stats),
         "errors": errors
         + (1 if gathered.get("call_status") == "pipeline_error" else 0),
         "models": {
@@ -254,6 +258,51 @@ def digest_run(run: dict, graph: dict | None) -> dict:
 
 
 # ------------------------------------------------------------------- rules
+
+
+def _voice_rule(f: _Finding, agent: str, calls: list[dict], th: dict) -> None:
+    """Voice generated barely faster than spoken, or gaps inside sentences."""
+    seen: dict[int, dict] = {}
+    for c in calls:
+        if c.get("voice"):
+            seen[c["id"]] = c
+    voices = [c["voice"] for c in seen.values()]
+    replies = sum(v["replies"] for v in voices)
+    if replies < th["min_sample"]:
+        return
+    synthesis = sum(v["synthesis_ms"] for v in voices)
+    speed = sum(v["audio_ms"] for v in voices) / synthesis if synthesis else None
+    with_gaps = [c["id"] for c in seen.values() if c["voice"]["replies_with_gaps"]]
+    gap_replies = sum(v["replies_with_gaps"] for v in voices)
+    if speed is not None and speed < th["voice_speed_warn"]:
+        f.add(
+            rule="voice_speed",
+            severity="critical" if speed < th["voice_speed_crit"] else "warning",
+            category="latency",
+            title=f"Voice generated barely faster than spoken (×{speed:.1f})",
+            detail=(
+                f"The voice model produces {speed:.1f} s of speech per second of synthesis over {replies} replies "
+                f"(threshold ×{th['voice_speed_warn']}). The first audio comes in time, but the rest of a sentence "
+                "can run late: callers hear gaps when the server is loaded."
+            ),
+            agent=agent,
+            calls=with_gaps,
+            metrics={"speed": round(speed, 2), "replies": replies},
+        )
+    if gap_replies:
+        f.add(
+            rule="voice_gaps",
+            severity="warning",
+            category="latency",
+            title=f"Gaps inside the agent's sentences ({gap_replies} of {replies} replies)",
+            detail=(
+                f"The voice arrived later than it was played {sum(v['gaps'] for v in voices)} times "
+                f"({sum(v['gap_ms'] for v in voices)} ms of silence in all): the caller heard the agent stop mid-sentence."
+            ),
+            agent=agent,
+            calls=with_gaps,
+            metrics={"replies_with_gaps": gap_replies, "replies": replies},
+        )
 
 
 def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
@@ -303,20 +352,24 @@ def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
             stats[agent] = {
                 "replies": len(replies),
                 "p50_ms": round(p50),
+                "perceived_p50_ms": round(
+                    median(t.get("perceived_ms", t["total_ms"]) for _, t in replies)
+                ),
                 "stages": {k: round(v) for k, v in stage_avg.items()},
             }
             slow_calls = [
                 c["id"] for c, t in replies if t["total_ms"] > th["reply_p50_warn_ms"]
             ]
             if p50 > th["reply_p50_warn_ms"]:
-                worst = max(stage_avg, key=stage_avg.get)
+                processing = {k: v for k, v in stage_avg.items() if k != "endpointing"}
+                worst = max(processing or stage_avg, key=(processing or stage_avg).get)
                 f.add(
                     rule="reply_latency",
                     severity="critical" if p50 > th["reply_p50_crit_ms"] else "warning",
                     category="latency",
                     title=f"Slow replies: median {p50 / 1000:.1f} s",
                     detail=(
-                        f"Median time from the caller falling silent to the agent speaking is {p50:.0f} ms over "
+                        f"Median reply time (end of the caller's turn to the agent speaking, end-of-turn wait not counted) is {p50:.0f} ms over "
                         f"{len(replies)} replies ({_pct(len(slow_calls and [1 for _, t in replies if t['total_ms'] > th['reply_p50_warn_ms']]) / len(replies))} over "
                         f"{th['reply_p50_warn_ms'] / 1000:.0f} s). Largest stage: {worst} ({stage_avg[worst]:.0f} ms)."
                     ),
@@ -337,11 +390,20 @@ def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
                             f" First token arrives after {mean(first_token):.0f} ms: the rest is spent streaming "
                             "until a complete first sentence (long or verbose openings make it worse)."
                         )
+                    if stage == "endpointing":
+                        extra = (
+                            " This wait is set by the agent (voice detection silence, speaking plan): it is not "
+                            "counted in the reply time, but callers hear it. Shorten it only if callers are not cut off."
+                        )
                     f.add(
                         rule=f"stage_{stage}",
                         severity="warning",
                         category="latency",
-                        title=f"{stage.capitalize()} stage is slow ({stage_avg[stage]:.0f} ms avg)"
+                        title=(
+                            f"Long end-of-turn wait ({stage_avg[stage]:.0f} ms avg)"
+                            if stage == "endpointing"
+                            else f"{stage.capitalize()} stage is slow ({stage_avg[stage]:.0f} ms avg)"
+                        )
                         + (f" — {model}" if model else ""),
                         detail=f"Average {stage} time per reply is {stage_avg[stage]:.0f} ms (threshold {limit} ms).{extra}",
                         agent=agent,
@@ -354,6 +416,7 @@ def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
                             "model": model,
                         },
                     )
+        _voice_rule(f, agent, [c for c, _ in items], th)
         if (
             len(greetings) >= th["min_sample"]
             and mean(greetings) > th["greeting_warn_ms"]

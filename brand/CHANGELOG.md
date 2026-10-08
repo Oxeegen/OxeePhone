@@ -5,6 +5,31 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## 0.9.5 — 2026-10-08
+
+- Call engine › Performance: "Let the model think before answering", off by
+  default. Reasoning models served by Local Models (Oxee-flash and the other
+  Qwen3-style models) thought silently before each reply, which added one to
+  several seconds before the agent could speak; they now answer at once
+  (`chat_template_kwargs.enable_thinking = false`). Turn it on per agent or
+  for the platform when a use case needs the reasoning.
+
+- Latency: the reply time no longer counts the end-of-turn wait (voice
+  detection silence + speaking plan), a setting of the agent rather than
+  processing. The wait is shown apart, greyed, with the time the caller
+  actually hears ("heard" / "perceived") next to the reply time: call detail,
+  Reports, Analysis, test executions and comparisons. In the technical score
+  the wait is no longer a graded post. Default reply thresholds lowered by
+  200 ms (1.8 s / 2.8 s); thresholds an organization has set are kept. Older
+  test executions are converted when their report is computed again.
+- Voice fluency: each sentence spoken by the Local Models voice records its
+  time to first audio, total synthesis time, audio length, generation speed
+  (seconds of speech per second of synthesis) and the gaps heard when the
+  voice runs late. Shown in the call detail (Latency tab), as a graded "Voice
+  fluency" post in test executions (thresholds ×1.5 / ×1.1 in Analysis
+  settings), compared between executions, and flagged by the Analysis
+  ("voice generated barely faster than spoken", "gaps inside sentences").
+
 ## 0.9.4 — 2026-10-06
 
 - Call engine › Performance: the first audio chunk defaults to 250 ms instead

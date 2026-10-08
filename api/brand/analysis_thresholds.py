@@ -23,8 +23,8 @@ SPEC: list[dict[str, Any]] = [
         "group": "Latency",
         "label": "Slow replies (warning)",
         "unit": "ms",
-        "description": "Median time from the caller falling silent to the agent speaking above which replies are flagged.",
-        "default": 2000,
+        "description": "Median reply time above which replies are flagged: from the end of the caller's turn to the agent speaking, without the end-of-turn wait (a setting of the agent, judged on its own).",
+        "default": 1800,
         "min": 500,
         "max": 10000,
         "step": 100,
@@ -34,8 +34,8 @@ SPEC: list[dict[str, Any]] = [
         "group": "Latency",
         "label": "Slow replies (critical)",
         "unit": "ms",
-        "description": "Median reply time above which the finding becomes critical.",
-        "default": 3000,
+        "description": "Median reply time (end-of-turn wait not counted) above which the finding becomes critical.",
+        "default": 2800,
         "min": 800,
         "max": 15000,
         "step": 100,
@@ -74,11 +74,33 @@ SPEC: list[dict[str, Any]] = [
         "step": 50,
     },
     {
+        "key": "voice_speed_warn",
+        "group": "Latency",
+        "label": "Voice generation speed (warning)",
+        "unit": "x real time",
+        "description": "Seconds of speech generated per second of synthesis below which the voice is flagged: close to 1, the voice model barely keeps up and callers may hear gaps inside sentences.",
+        "default": 1.5,
+        "min": 1.0,
+        "max": 5.0,
+        "step": 0.1,
+    },
+    {
+        "key": "voice_speed_crit",
+        "group": "Latency",
+        "label": "Voice generation speed (critical)",
+        "unit": "x real time",
+        "description": "Generation speed below which the voice is critical (gaps are likely).",
+        "default": 1.1,
+        "min": 0.5,
+        "max": 4.0,
+        "step": 0.1,
+    },
+    {
         "key": "endpointing_stage_warn_ms",
         "group": "Latency",
         "label": "End-of-turn detection",
         "unit": "ms",
-        "description": "Average time to decide the caller has finished speaking.",
+        "description": "Average wait before the agent decides the caller has finished (VAD silence + speaking plan). A setting rather than processing: not counted in the reply time.",
         "default": 900,
         "min": 100,
         "max": 5000,
@@ -221,6 +243,8 @@ def normalize(values: dict | None) -> dict:
             result[key] = clamped
     if result["reply_p50_crit_ms"] <= result["reply_p50_warn_ms"]:
         result["reply_p50_crit_ms"] = result["reply_p50_warn_ms"] + 500
+    if result["voice_speed_crit"] >= result["voice_speed_warn"]:
+        result["voice_speed_crit"] = round(max(0.5, result["voice_speed_warn"] - 0.3), 3)
     return result
 
 
@@ -308,7 +332,8 @@ SUGGEST_PROMPT = """You calibrate the detection thresholds of an audit of phone 
 The audit flags configuration problems; thresholds must flag what callers would perceive as a
 problem for THIS use case, not normal behaviour, and stay useful as the agents improve (do not
 simply set them above what is observed). Rely on voice-UX norms (e.g. replies faster than
-~1-1.5 s feel natural on the phone, > 3 s feel broken) and on the agents' purpose (a medical
+~1-1.5 s feel natural on the phone, > 3 s feel broken; the reply time here excludes the
+end-of-turn wait, a setting of 0.2-1 s judged on its own) and on the agents' purpose (a medical
 receptionist and a sales qualifier tolerate different pacing).
 
 You receive: the thresholds (meaning, unit, built-in default, allowed range), the agents

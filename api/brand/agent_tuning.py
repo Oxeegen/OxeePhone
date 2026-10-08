@@ -35,6 +35,9 @@ test-campaign comparisons):
     llm_temperature         sampling temperature (local LLMs get none today:
                             the server's default)
     llm_max_tokens          cap on the length of a reply (none today)
+    llm_thinking            let a reasoning model (Qwen3-style, e.g. Oxee-flash)
+                            think before answering (off: its silent reasoning
+                            delays every reply by seconds)
     mute_during_tools       the caller cannot interrupt while a tool runs (on)
     mute_until_first_reply  the caller is not heard until the agent's first
                             reply has been spoken (on)
@@ -77,6 +80,7 @@ class Performance(BaseModel):
     vad_min_volume: float | None = Field(default=None, ge=0.05, le=0.9)
     llm_temperature: float | None = Field(default=None, ge=0.0, le=1.5)
     llm_max_tokens: int | None = Field(default=None, ge=16, le=4000)
+    llm_thinking: bool | None = None
     mute_during_tools: bool | None = None
     mute_until_first_reply: bool | None = None
 
@@ -109,6 +113,7 @@ def _builtin() -> dict:
             "vad_min_volume": 0.6,
             "llm_temperature": None,  # the model server's default
             "llm_max_tokens": None,  # no limit
+            "llm_thinking": False,
             "mute_during_tools": True,
             "mute_until_first_reply": True,
         },
@@ -343,6 +348,12 @@ def mute_strategies(strategies: list, configs: dict | None) -> list:
     return out
 
 
+def _local_llm(llm: Any) -> bool:
+    """A self-hosted OpenAI-compatible LLM (Local Models), the only kind that
+    takes ``chat_template_kwargs``."""
+    return type(llm).__name__ == "SpeachesLLMService"
+
+
 def tune_services(*, llm: Any, tts: Any, configs: dict | None) -> None:
     """Sampling of the conversation LLM, first audio chunk and first clause
     of the voice."""
@@ -356,6 +367,21 @@ def tune_services(*, llm: Any, tts: Any, configs: dict | None) -> None:
                 if hasattr(settings, key):
                     setattr(settings, key, perf.llm_max_tokens)
                     break
+    thinking = (
+        perf.llm_thinking
+        if perf.llm_thinking is not None
+        else BUILTIN[PERFORMANCE_KEY]["llm_thinking"]
+    )
+    if not thinking and settings is not None and _local_llm(llm):
+        # Qwen3-style chat templates: no reasoning before the answer.
+        extra = dict(getattr(settings, "extra", None) or {})
+        body = dict(extra.get("extra_body") or {})
+        body["chat_template_kwargs"] = {
+            **(body.get("chat_template_kwargs") or {}),
+            "enable_thinking": False,
+        }
+        extra["extra_body"] = body
+        settings.extra = extra
     applied = perf.model_dump(exclude_none=True)
     tts_settings = getattr(tts, "_settings", None)
     if applied or voice_override(configs):

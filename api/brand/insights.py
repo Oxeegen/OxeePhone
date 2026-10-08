@@ -64,7 +64,11 @@ def _percentile(values: list[float], pct: float) -> float | None:
 
 
 def latency_turn(payload: dict) -> dict:
-    """Stages (ms) of one turn; same model as the call-detail Latency tab."""
+    """Stages (ms) of one turn; same model as the call-detail Latency tab.
+
+    ``total_ms`` is the reply time without the end-of-turn wait (a setting,
+    kept in ``stages["endpointing"]``); ``perceived_ms`` includes it.
+    """
     stages = dict.fromkeys(STAGES, 0.0)
     turn_end = 0.0
     for c in payload.get("contributions") or []:
@@ -112,9 +116,14 @@ def latency_turn(payload: dict) -> dict:
     total = _num(payload.get("total_secs")) * 1000
     named = sum(v for k, v in stages.items() if k != "other")
     stages["other"] = max(0.0, total - named)
+    perceived = max(total, named)
     return {
         "greeting": payload.get("measured_from") == "client_connected",
-        "total_ms": max(total, named),
+        # Reply time: processing only. The end-of-turn wait is a setting of
+        # the agent (VAD silence, speaking plan), shown apart and not counted.
+        "total_ms": max(0.0, perceived - stages["endpointing"]),
+        # What the caller hears: silence from the end of their words.
+        "perceived_ms": perceived,
         "first_token_ms": first_token,
         "stages": stages,
     }
@@ -287,6 +296,7 @@ def compute_insights(
             turn_counts.append(len(user_turns))
 
     totals_ms = [t["total_ms"] for t in turns]
+    perceived_ms = [t["perceived_ms"] for t in turns]
     stage_avgs = {
         s: round(mean(t["stages"][s] for t in turns), 1) if turns else 0.0
         for s in STAGES
@@ -314,6 +324,7 @@ def compute_insights(
             if totals_ms
             else None,
             "slow_threshold_ms": SLOW_TURN_MS,
+            "perceived_p50_ms": round(median(perceived_ms)) if perceived_ms else None,
             "greeting_avg_ms": round(mean(greetings)) if greetings else None,
             "llm_first_token_avg_ms": round(mean(first_tokens))
             if first_tokens

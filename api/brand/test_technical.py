@@ -22,7 +22,7 @@ POSTS: list[dict[str, Any]] = [
     {
         "key": "reply",
         "label": "Reply time",
-        "help": "From the caller falling silent to the agent's first audio.",
+        "help": "From the end of the caller's turn to the agent's first audio. The end-of-turn wait is a setting of the agent: shown apart, not counted.",
         "threshold": "reply_p50_warn_ms",
         "critical": "reply_p50_crit_ms",
         "unit": "ms",
@@ -36,16 +36,6 @@ POSTS: list[dict[str, Any]] = [
         "threshold": "greeting_warn_ms",
         "unit": "ms",
         "weight": 1,
-        "phone": True,
-    },
-    {
-        "key": "endpointing",
-        "label": "End-of-turn detection",
-        "help": "Deciding the caller has finished (silence + turn detection, speaking plan).",
-        "threshold": "endpointing_stage_warn_ms",
-        "unit": "ms",
-        "weight": 1,
-        "stage": True,
         "phone": True,
     },
     {
@@ -82,6 +72,16 @@ POSTS: list[dict[str, Any]] = [
         "phone": True,
     },
     {
+        "key": "voice_fluency",
+        "label": "Voice fluency",
+        "help": "Seconds of speech generated per second of synthesis (×1 = just in time) and gaps heard inside the agent's sentences. The voice delay above only covers the first audio.",
+        "threshold": "voice_speed_warn",
+        "critical": "voice_speed_crit",
+        "unit": "x",
+        "weight": 1,
+        "phone": True,
+    },
+    {
         "key": "tools",
         "label": "Tools",
         "help": "Duration and failures of the agent's tool calls.",
@@ -106,8 +106,10 @@ POSTS: list[dict[str, Any]] = [
         "weight": 2,
     },
 ]
-# Stages shown for information (no threshold): their share of the reply time.
+# Stages shown for information (no score): their share of the reply time.
+# The end-of-turn wait is not part of it: its share is of the perceived time.
 INFO_STAGES = {
+    "endpointing": "End-of-turn wait (setting, not counted)",
     "sentence": "First sentence",
     "transport": "Transport",
     "tools": "Tools (in replies)",
@@ -120,6 +122,27 @@ def _percentile(values: list[float], pct: float) -> float | None:
     from api.brand.insights import _percentile as percentile
 
     return percentile([v for v in values if v is not None], pct)
+
+
+def upgrade_latency(metrics: dict | None) -> dict | None:
+    """Latency of a call measured before the reply time excluded the
+    end-of-turn wait: same shape as ``call_metrics`` now (idempotent)."""
+    latency = (metrics or {}).get("latency")
+    turns = (latency or {}).get("turn_stages")
+    if not turns or all("perceived" in t for t in turns):
+        return metrics
+    for t in turns:
+        if "perceived" not in t:
+            t["perceived"] = t["total"]
+            t["total"] = max(0, t["total"] - (t["stages"].get("endpointing") or 0))
+    totals = [t["total"] for t in turns]
+    latency.update(
+        values_ms=totals,
+        p50_ms=_percentile(totals, 0.5),
+        p90_ms=_percentile(totals, 0.9),
+        perceived_p50_ms=_percentile([t["perceived"] for t in turns], 0.5),
+    )
+    return metrics
 
 
 def grade(
@@ -182,6 +205,63 @@ def _post(spec: dict, values: list[float], th: dict, extra: dict | None = None) 
     }
 
 
+def grade_speed(speed: float | None, warn: float, critical: float) -> int | None:
+    """Higher is better: ×2 the warning level and more is 5."""
+    if speed is None or not warn:
+        return None
+    if speed >= warn * 2:
+        return 5
+    if speed >= warn * 1.5:
+        return 4
+    if speed >= warn:
+        return 3
+    if speed >= critical:
+        return 2
+    return 1
+
+
+GAP_REPLIES_WARN = 0.05
+
+
+def voice_fluency_post(spec: dict, metrics: list[dict], th: dict) -> dict | None:
+    voices = [m["voice"] for m in metrics if m.get("voice")]
+    if not voices:
+        return None
+    synthesis = sum(v["synthesis_ms"] for v in voices)
+    speed = round(sum(v["audio_ms"] for v in voices) / synthesis, 2) if synthesis else None
+    replies = sum(v["replies"] for v in voices)
+    with_gaps = sum(v["replies_with_gaps"] for v in voices)
+    gap_rate = with_gaps / replies if replies else 0.0
+    warn = th.get("voice_speed_warn", 1.5)
+    critical = th.get("voice_speed_crit", 1.1)
+    score = grade_speed(speed, warn, critical)
+    if score is not None and with_gaps:
+        score = min(score, 2 if gap_rate > GAP_REPLIES_WARN else 3)
+    synth = sorted(ms for v in voices for ms in v["reply_synthesis_ms"])
+    return {
+        "key": spec["key"],
+        "label": spec["label"],
+        "help": spec["help"],
+        "unit": spec["unit"],
+        "weight": spec["weight"],
+        "samples": replies,
+        "p50": speed,
+        "p90": None,
+        "max": None,
+        "threshold": warn,
+        "critical": critical,
+        "over_rate": round(gap_rate, 4),
+        "score": score,
+        "status": status(score),
+        "speed_min": min((v["speed_min"] for v in voices if v["speed_min"] is not None), default=None),
+        "gaps": sum(v["gaps"] for v in voices),
+        "gap_ms": sum(v["gap_ms"] for v in voices),
+        "replies_with_gaps": with_gaps,
+        "reply_synthesis_p50_ms": _percentile(synth, 0.5),
+        "reply_synthesis_p90_ms": _percentile(synth, 0.9),
+    }
+
+
 def _models(metrics: list[dict], key: str) -> str | None:
     seen = [
         m.get("models", {}).get(key) for m in metrics if m.get("models", {}).get(key)
@@ -194,7 +274,7 @@ def technical_report(
 ) -> dict:
     """Posts and overall score of a set of test calls (an execution)."""
     played = [c for c in calls if c.get("status") in ("done", "error")]
-    metrics = [c["metrics"] for c in played if c.get("metrics")]
+    metrics = [upgrade_latency(c["metrics"]) for c in played if c.get("metrics")]
     turns = [t for m in metrics for t in (m["latency"].get("turn_stages") or [])]
     posts = []
     for spec in POSTS:
@@ -225,6 +305,11 @@ def technical_report(
                 post["score"] = min(post["score"] or 5, failure_score)
                 post["status"] = status(post["score"])
             if tools:
+                posts.append(post)
+            continue
+        elif key == "voice_fluency":
+            post = voice_fluency_post(spec, metrics, thresholds)
+            if post:
                 posts.append(post)
             continue
         elif key == "turn_taking":
@@ -268,19 +353,23 @@ def technical_report(
         posts.append(_post(spec, values, thresholds, extra))
 
     reply_p50 = _percentile([t["total"] for t in turns], 0.5)
+    perceived_p50 = _percentile([t.get("perceived", t["total"]) for t in turns], 0.5)
     for p in posts:  # share of the reply time, for the stages
-        if p["key"] in ("endpointing", "transcriber", "llm", "voice") and reply_p50:
+        if p["key"] in ("transcriber", "llm", "voice") and reply_p50:
             p["share"] = round((p["p50"] or 0) / reply_p50, 4)
     info = []
     if turns and reply_p50:
         for stage, label in INFO_STAGES.items():
             p50 = _percentile([t["stages"].get(stage, 0) for t in turns], 0.5)
+            counted = stage != "endpointing"
+            base = reply_p50 if counted else perceived_p50
             info.append(
                 {
                     "key": stage,
                     "label": label,
                     "p50": p50,
-                    "share": round((p50 or 0) / reply_p50, 4),
+                    "share": round((p50 or 0) / base, 4) if base else None,
+                    "counted": counted,
                 }
             )
     scored = [p for p in posts if p["score"] is not None]
@@ -311,6 +400,7 @@ def technical_report(
         "status": status(score),
         "channel": channel,
         "replies": len(turns),
+        "perceived_p50": perceived_p50,
         "posts": posts,
         "info_stages": info,
         "worst_calls": worst,

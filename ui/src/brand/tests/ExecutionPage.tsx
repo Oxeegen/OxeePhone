@@ -32,7 +32,7 @@ import {
 import { API, ExecutionStatusBadge, LevelChips, MeterRow, ScoreBadge, Section, techStatus, Tile, useTestSettings, VerdictBadge, VerdictSplit } from "./ui";
 
 const STAGE_LABEL: Record<string, string> = {
-  endpointing: "Endpointing",
+  endpointing: "End-of-turn wait",
   transcriber: "Transcriber",
   llm: "LLM",
   tools: "Tools",
@@ -159,13 +159,16 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
                     {p.key === "tools" && p.calls ? ` · ${p.calls} calls, ${pct(p.failure_rate)} failed` : ""}
                     {p.key === "turn_taking" ? ` · ${p.interruptions ?? 0} interruptions` : ""}
                     {p.key === "reliability" ? ` · ${p.failed_calls ?? 0} of ${p.samples} calls` : ""}
+                    {p.key === "voice_fluency"
+                      ? ` · slowest sentence ${postValue("x", p.speed_min)} · full reply synthesized in ${ms(p.reply_synthesis_p50_ms)} (p90 ${ms(p.reply_synthesis_p90_ms)}) · ${p.gaps ?? 0} gap${p.gaps === 1 ? "" : "s"} in ${p.replies_with_gaps ?? 0} of ${p.samples} replies`
+                      : ""}
                   </p>
                 </td>
                 <td className="px-4 py-2.5 text-right font-medium tabular-nums">{postValue(p.unit, p.p50)}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.p90 != null ? postValue(p.unit, p.p90) : "—"}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.max != null ? postValue(p.unit, p.max) : "—"}</td>
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.threshold != null ? postValue(p.unit, p.threshold) : "—"}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{p.over_rate != null ? pct(p.over_rate) : "—"}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground" title={p.key === "voice_fluency" ? "Replies with a gap" : "Values over the threshold"}>{p.over_rate != null ? pct(p.over_rate) : "—"}</td>
                 <td className="w-40 px-4 py-2.5">
                   {p.share != null ? (
                     <div className="flex items-center gap-2" title={`${pct(p.share)} of the median reply time`}>
@@ -182,12 +185,24 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
           </tbody>
         </table>
       </Card>
-      {technical.info_stages.length > 0 && (
+      {technical.info_stages.some((x) => x.counted !== false) && (
         <p className="text-xs text-muted-foreground">
           Rest of the reply time (median, not graded):{" "}
-          {technical.info_stages.map((x) => `${x.label} ${ms(x.p50)} (${pct(x.share)})`).join(" · ")}
+          {technical.info_stages
+            .filter((x) => x.counted !== false)
+            .map((x) => `${x.label} ${ms(x.p50)} (${pct(x.share)})`)
+            .join(" · ")}
         </p>
       )}
+      {technical.info_stages
+        .filter((x) => x.counted === false)
+        .map((x) => (
+          <p key={x.key} className="text-xs text-muted-foreground/70">
+            <span className="rounded bg-muted px-1.5 py-0.5">End-of-turn wait {ms(x.p50)}</span> set by the agent (voice
+            detection silence + speaking plan): not counted in the reply time nor graded. What the caller hears, wait
+            included: {ms(technical.perceived_p50)} median.
+          </p>
+        ))}
       {technical.worst_calls.some((c) => c.score < 4) && (
         <p className="text-xs text-muted-foreground">
           Weakest calls:{" "}
@@ -278,7 +293,13 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
             {s.voice && <span>Voice {s.voice.id}</span>}
             {s.caller_number && <span>From {s.caller_number}</span>}
             {m && <span>Ended: {m.end_status || "?"}{m.end_node ? ` in “${m.end_node}”` : ""}</span>}
-            {m && execution.channel === "phone" && <span>Latency p50 {ms(m.latency.p50_ms)} · {m.interruptions} interruption{m.interruptions === 1 ? "" : "s"}</span>}
+            {m && execution.channel === "phone" && (
+              <span title="Reply time without the end-of-turn wait; perceived: what the caller hears, wait included">
+                Reply p50 {ms(m.latency.p50_ms)}
+                {m.latency.perceived_p50_ms != null ? ` (perceived ${ms(m.latency.perceived_p50_ms)})` : ""} · {m.interruptions} interruption
+                {m.interruptions === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
           <p><span className="text-muted-foreground">Goal:</span> {s.goal}</p>
 
@@ -590,20 +611,28 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
             </Section>
 
             {phone && (
-              <Section title="Latency" subtitle={`${r.latency.turns} agent replies · ${pct(r.latency.slow_turns_rate)} over 2 s · ${r.interruptions.per_call ?? "—"} interruptions per call`}>
+              <Section
+                title="Latency"
+                subtitle={`${r.latency.turns} agent replies · reply p50 ${ms(r.latency.p50_ms)}${r.latency.perceived_p50_ms != null ? ` (perceived ${ms(r.latency.perceived_p50_ms)})` : ""} · ${pct(r.latency.slow_turns_rate)} over 2 s · ${r.interruptions.per_call ?? "—"} interruptions per call`}
+              >
                 <Card className="p-4">
                   {Object.entries(r.latency.stages_p50_ms)
                     .filter(([, v]) => v !== null)
                     .map(([k, v]) => (
-                      <MeterRow
-                        key={k}
-                        label={STAGE_LABEL[k] ?? k}
-                        value={v ?? 0}
-                        max={Math.max(...Object.values(r.latency.stages_p50_ms).map((x) => x ?? 0), 1)}
-                        display={ms(v)}
-                      />
+                      <div key={k} className={k === "endpointing" ? "opacity-50" : undefined}>
+                        <MeterRow
+                          label={STAGE_LABEL[k] ?? k}
+                          sub={k === "endpointing" ? "setting of the agent · not counted" : undefined}
+                          value={v ?? 0}
+                          max={Math.max(...Object.values(r.latency.stages_p50_ms).map((x) => x ?? 0), 1)}
+                          display={ms(v)}
+                        />
+                      </div>
                     ))}
-                  <p className="pt-2 text-[11px] text-muted-foreground">Median per stage over every reply of the agent.</p>
+                  <p className="pt-2 text-[11px] text-muted-foreground">
+                    Median per stage over every reply of the agent. The reply time leaves out the end-of-turn wait, a
+                    setting (voice detection silence + speaking plan); the perceived time includes it.
+                  </p>
                 </Card>
               </Section>
             )}

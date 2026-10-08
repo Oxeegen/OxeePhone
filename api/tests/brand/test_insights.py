@@ -151,7 +151,11 @@ def test_latency_turn_matches_ui_model():
         1000, abs=1
     )  # 0.5 -> 1.6 minus 100 ms sentence
     assert turn["stages"]["voice"] == pytest.approx(400)
-    assert sum(turn["stages"].values()) == pytest.approx(turn["total_ms"], abs=1)
+    # Stages add up to what the caller hears; the reply time leaves out the
+    # end-of-turn wait (a setting).
+    assert sum(turn["stages"].values()) == pytest.approx(turn["perceived_ms"], abs=1)
+    assert turn["perceived_ms"] == pytest.approx(2000, abs=1)
+    assert turn["total_ms"] == pytest.approx(1800, abs=1)
 
 
 def test_pipeline_error_status_counts_as_error_call():

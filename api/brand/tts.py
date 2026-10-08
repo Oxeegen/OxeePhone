@@ -9,6 +9,9 @@ gain is applied to the returned PCM. Transcripts keep the original text since
 only the synthesis request is rewritten. Pipecat itself stays untouched.
 """
 
+import time
+from collections.abc import Awaitable, Callable
+
 import numpy as np
 from loguru import logger
 from openai import BadRequestError
@@ -29,6 +32,61 @@ def apply_gain(pcm: bytes, factor: float) -> bytes:
         return pcm
     samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) * factor
     return np.clip(samples, -32768, 32767).astype("<i2").tobytes()
+
+
+# A chunk arriving this late after the audio already received has been played
+# out means the caller heard a gap.
+GAP_TOLERANCE_SECS = 0.05
+
+
+class VoiceStats:
+    """Synthesis of one sentence, as the caller experiences it.
+
+    Playback starts with the first chunk and runs at real time; a later chunk
+    that arrives after the audio received so far has been played out is a gap
+    (the voice model generated slower than it is spoken).
+    """
+
+    def __init__(self, sample_rate: int):
+        self._bytes_per_sec = sample_rate * 2  # 16-bit mono PCM
+        self._started = time.monotonic()
+        self._first: float | None = None  # first audio received
+        self._playback: float | None = None  # playback start, shifted by gaps
+        self._bytes = 0
+        self.gaps = 0
+        self.gap_secs = 0.0
+
+    def chunk(self, size: int) -> None:
+        if not size:
+            return
+        now = time.monotonic()
+        if self._first is None:
+            self._first = self._playback = now
+        else:
+            late = (now - self._playback) - self._bytes / self._bytes_per_sec
+            if late > GAP_TOLERANCE_SECS:
+                self.gaps += 1
+                self.gap_secs += late
+                # Playback resumes with this chunk: later chunks are timed
+                # against the shifted schedule.
+                self._playback += late
+        self._bytes += size
+
+    def payload(self, **extra) -> dict:
+        end = time.monotonic()
+        audio_secs = self._bytes / self._bytes_per_sec
+        synthesis_secs = end - self._started
+        return {
+            **extra,
+            "first_audio_ms": round((self._first - self._started) * 1000)
+            if self._first is not None
+            else None,
+            "synthesis_ms": round(synthesis_secs * 1000),
+            "audio_ms": round(audio_secs * 1000),
+            "speed": round(audio_secs / synthesis_secs, 2) if synthesis_secs > 0 else None,
+            "gaps": self.gaps,
+            "gap_ms": round(self.gap_secs * 1000),
+        }
 
 
 class LocalModelsTTSService(SpeachesTTSService):
@@ -90,6 +148,10 @@ class LocalModelsTTSService(SpeachesTTSService):
         if buffer:
             yield buffer
 
+    # Call insights (api/brand/call_insights.py): called with the voice
+    # statistics of each synthesized sentence.
+    oxee_on_voice_stats: Callable[[dict], Awaitable[None]] | None = None
+
     @traced_tts
     async def run_tts(self, text: str, context_id: str):
         try:
@@ -110,7 +172,9 @@ class LocalModelsTTSService(SpeachesTTSService):
 
                 # Gain works on whole 16-bit samples: carry an odd trailing byte.
                 carry = b""
+                stats = VoiceStats(self.sample_rate or 24000)
                 async for chunk in self._audio_chunks(response):
+                    stats.chunk(len(chunk))
                     if len(chunk) > 0:
                         await self.stop_ttfb_metrics()
                         data = carry + chunk
@@ -124,5 +188,12 @@ class LocalModelsTTSService(SpeachesTTSService):
                             1,
                             context_id=context_id,
                         )
+                if self.oxee_on_voice_stats is not None:
+                    try:
+                        await self.oxee_on_voice_stats(
+                            stats.payload(context_id=context_id, chars=len(text))
+                        )
+                    except Exception as e:
+                        logger.debug(f"Voice statistics not recorded: {e}")
         except BadRequestError as e:
             yield ErrorFrame(error=f"Unknown error occurred: {e}")

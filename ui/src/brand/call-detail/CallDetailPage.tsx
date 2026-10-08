@@ -24,6 +24,7 @@ import {
   latencyTurns,
   recordingAnchor,
   usageSummary,
+  voiceFluency,
 } from "./model";
 import { RecordingPlayer, type RecordingPlayerHandle } from "./RecordingPlayer";
 import { buildRouting, type RoutingGraphs, transitionToolCallIds } from "./routing";
@@ -117,6 +118,7 @@ export function CallDetailPage() {
     });
   }, [run, anchor, routing]);
   const turns = useMemo(() => (run ? latencyTurns(run) : []), [run]);
+  const voice = useMemo(() => (run ? voiceFluency(run) : null), [run]);
   const rows = useMemo(() => (run ? eventRows(run, anchor) : []), [run, anchor]);
   const usage = useMemo(() => (run ? usageSummary(run, timeline) : null), [run, timeline]);
   const activeId = useMemo(() => activeMessageId(timeline, time), [timeline, time]);
@@ -204,7 +206,7 @@ export function CallDetailPage() {
           <RoutingTab model={routing} onSeek={seek} loading={graphsLoading} />
         </TabsContent>
         <TabsContent value="latency">
-          <LatencyTab turns={turns} />
+          <LatencyTab turns={turns} voice={voice} />
         </TabsContent>
         <TabsContent value="events">
           <EventsTab rows={rows} runId={run.id} onSeek={seek} />

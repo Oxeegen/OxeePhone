@@ -31,6 +31,7 @@ export interface CallRun {
 
 export const RECORDING_STARTED = "oxee-recording-started";
 export const LATENCY_BREAKDOWN = "oxee-latency-breakdown";
+export const VOICE_STATS = "oxee-voice-stats";
 
 const ms = (iso?: string | null): number | null => {
   if (!iso) return null;
@@ -144,7 +145,10 @@ export function buildTimeline(
   const rel = (t: number | null) => (t !== null && anchor ? (t - anchor.epochMs) / 1000 : null);
   const latencyByTurn = new Map<number, number>();
   for (const e of events(run)) {
-    if (e.type === LATENCY_BREAKDOWN && e.turn != null) latencyByTurn.set(e.turn, num(e.payload.total_secs));
+    // Reply time: the end-of-turn wait (a setting) is not counted.
+    if (e.type === LATENCY_BREAKDOWN && e.turn != null) {
+      latencyByTurn.set(e.turn, Math.max(0, num(e.payload.total_secs) - endpointingSecs(e.payload)));
+    }
   }
 
   const items: TimelineItem[] = [];
@@ -240,13 +244,22 @@ export type Stage = (typeof STAGES)[number];
 export interface LatencyTurn {
   turn: number | null;
   greeting: boolean;
+  /** Reply time: processing only, without the end-of-turn wait (a setting). */
   totalMs: number;
+  /** What the caller hears: silence from the end of their words, wait included. */
+  perceivedMs: number;
   stages: Record<Stage, number>;
   /** LLM time to first token (sum over the turn's LLM calls), for reference. */
   llmFirstTokenMs: number;
 }
 
 const ENDPOINTING_KEYS = new Set(["endpointing_wait", "turn_detection", "waiting_for_user"]);
+
+/** End-of-turn wait of a breakdown, in seconds. */
+function endpointingSecs(payload: Record<string, unknown>): number {
+  const contributions = (payload.contributions as Array<Record<string, unknown>>) ?? [];
+  return contributions.filter((c) => ENDPOINTING_KEYS.has(str(c.key))).reduce((sum, c) => sum + num(c.duration_secs), 0);
+}
 
 // Processor names look like "SpeachesSTTService#0" / "LocalModelsTTSService#0";
 // match the service suffix, since "STTS" also contains "TTS".
@@ -319,10 +332,12 @@ export function latencyTurns(run: CallRun): LatencyTurn[] {
       const totalMs = num(p.total_secs) * 1000;
       const named = STAGES.filter((s) => s !== "other").reduce((sum, s) => sum + stages[s], 0);
       stages.other = Math.max(0, totalMs - named);
+      const perceivedMs = Math.max(totalMs, named);
       return {
         turn: e.turn ?? null,
         greeting: p.measured_from === "client_connected",
-        totalMs: Math.max(totalMs, named),
+        totalMs: Math.max(0, perceivedMs - stages.endpointing),
+        perceivedMs,
         stages,
         llmFirstTokenMs,
       };
@@ -334,12 +349,58 @@ export function averageFirstToken(turns: LatencyTurn[]): number {
   return replies.length ? replies.reduce((s, t) => s + t.llmFirstTokenMs, 0) / replies.length : 0;
 }
 
-export function averageStages(turns: LatencyTurn[]): { count: number; totalMs: number; stages: Record<Stage, number> } {
+export function averageStages(turns: LatencyTurn[]): { count: number; totalMs: number; perceivedMs: number; stages: Record<Stage, number> } {
   const replies = turns.filter((t) => !t.greeting);
   const avg = (pick: (t: LatencyTurn) => number) =>
     replies.length ? replies.reduce((s, t) => s + pick(t), 0) / replies.length : 0;
   const stages = Object.fromEntries(STAGES.map((s) => [s, avg((t) => t.stages[s])])) as Record<Stage, number>;
-  return { count: replies.length, totalMs: avg((t) => t.totalMs), stages };
+  return { count: replies.length, totalMs: avg((t) => t.totalMs), perceivedMs: avg((t) => t.perceivedMs), stages };
+}
+
+/** Stages counted in the reply time (all but the end-of-turn wait). */
+export const COUNTED_STAGES: readonly Stage[] = STAGES.filter((s) => s !== "endpointing");
+
+export interface VoiceFluency {
+  sentences: number;
+  replies: number;
+  /** Seconds of speech generated per second of synthesis. */
+  speed: number | null;
+  speedMin: number | null;
+  gaps: number;
+  gapMs: number;
+  repliesWithGaps: number;
+  /** Synthesis time of each whole reply (ms), sorted. */
+  replySynthesisMs: number[];
+}
+
+/** Voice fluency of a call (Local Models voice), from its oxee-voice-stats events. */
+export function voiceFluency(run: CallRun): VoiceFluency | null {
+  const sentences = events(run)
+    .filter((e) => e.type === VOICE_STATS && num(e.payload.audio_ms) > 0)
+    .map((e) => e.payload);
+  if (!sentences.length) return null;
+  const replies = new Map<string, { synthesis: number; gaps: number }>();
+  let synthesis = 0;
+  let audio = 0;
+  for (const p of sentences) {
+    const r = replies.get(str(p.context_id)) ?? { synthesis: 0, gaps: 0 };
+    r.synthesis += num(p.synthesis_ms);
+    r.gaps += num(p.gaps);
+    replies.set(str(p.context_id), r);
+    synthesis += num(p.synthesis_ms);
+    audio += num(p.audio_ms);
+  }
+  const speeds = sentences.map((p) => p.speed).filter((v): v is number => typeof v === "number");
+  return {
+    sentences: sentences.length,
+    replies: replies.size,
+    speed: synthesis ? audio / synthesis : null,
+    speedMin: speeds.length ? Math.min(...speeds) : null,
+    gaps: sentences.reduce((sum, p) => sum + num(p.gaps), 0),
+    gapMs: sentences.reduce((sum, p) => sum + num(p.gap_ms), 0),
+    repliesWithGaps: [...replies.values()].filter((r) => r.gaps > 0).length,
+    replySynthesisMs: [...replies.values()].map((r) => r.synthesis).sort((a, b) => a - b),
+  };
 }
 
 // ------------------------------------------------------------------ events
@@ -367,6 +428,7 @@ const EVENT_LABELS: Record<string, [EventCategory, string]> = {
   "rtf-ttfb-metric": ["latency", "LLM time to first token"],
   "rtf-latency-measured": ["latency", "Response latency"],
   [LATENCY_BREAKDOWN]: ["latency", "Latency breakdown"],
+  [VOICE_STATS]: ["latency", "Voice synthesis"],
   "rtf-pipeline-error": ["error", "Pipeline error"],
   "rtf-interrupt-warning": ["system", "Interruption"],
   [RECORDING_STARTED]: ["system", "Recording started"],
@@ -388,8 +450,12 @@ function eventSummary(e: FeedbackEvent): string {
       return `${Math.round(num(p.ttfb_seconds) * 1000)} ms · ${str(p.model) || str(p.processor)}`;
     case "rtf-latency-measured":
       return `${Math.round(num(p.latency_seconds) * 1000)} ms from user silence to agent speech`;
-    case LATENCY_BREAKDOWN:
-      return `${Math.round(num(p.total_secs) * 1000)} ms total`;
+    case LATENCY_BREAKDOWN: {
+      const wait = endpointingSecs(p);
+      return `${Math.round((num(p.total_secs) - wait) * 1000)} ms reply · ${Math.round(num(p.total_secs) * 1000)} ms heard (end-of-turn wait ${Math.round(wait * 1000)} ms)`;
+    }
+    case VOICE_STATS:
+      return `${num(p.audio_ms)} ms of speech synthesized in ${num(p.synthesis_ms)} ms (×${num(p.speed).toFixed(1)}) · first audio ${num(p.first_audio_ms)} ms${num(p.gaps) ? ` · ${num(p.gaps)} gap(s), ${num(p.gap_ms)} ms` : ""}`;
     case "rtf-pipeline-error":
       return str(p.error);
     default:

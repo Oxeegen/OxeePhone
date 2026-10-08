@@ -127,7 +127,7 @@ export interface CallMetrics {
   caller_turns: number;
   agent_turns: number;
   interruptions: number;
-  latency: { turns: number; p50_ms: number | null; p90_ms: number | null; greeting_ms: number | null };
+  latency: { turns: number; p50_ms: number | null; p90_ms: number | null; perceived_p50_ms?: number | null; greeting_ms: number | null };
   tools: Array<{ name: string; ms: number | null; failed: boolean }>;
   path: string[];
   end_node: string | null;
@@ -199,6 +199,7 @@ export interface Report {
     p50_ms: number | null;
     p90_ms: number | null;
     greeting_p50_ms: number | null;
+    perceived_p50_ms?: number | null;
     slow_turns_rate: number | null;
     stages_p50_ms: Record<string, number | null>;
   };
@@ -227,11 +228,13 @@ export interface Report {
 
 export type TechStatus = "good" | "fair" | "warning" | "critical";
 
+export type PostUnit = "ms" | "rate" | "x";
+
 export interface TechPost {
   key: string;
   label: string;
   help: string;
-  unit: "ms" | "rate";
+  unit: PostUnit;
   weight: number;
   samples: number;
   p50: number | null;
@@ -248,6 +251,13 @@ export interface TechPost {
   calls?: number;
   interruptions?: number;
   failed_calls?: number;
+  // voice fluency
+  speed_min?: number | null;
+  gaps?: number;
+  gap_ms?: number;
+  replies_with_gaps?: number;
+  reply_synthesis_p50_ms?: number | null;
+  reply_synthesis_p90_ms?: number | null;
 }
 
 export interface Technical {
@@ -255,8 +265,11 @@ export interface Technical {
   status: TechStatus | null;
   channel: Channel;
   replies: number;
+  /** Median reply time as the caller hears it (end-of-turn wait included). */
+  perceived_p50?: number | null;
   posts: TechPost[];
-  info_stages: Array<{ key: string; label: string; p50: number | null; share: number }>;
+  /** ``counted: false``: the end-of-turn wait, a setting outside the reply time. */
+  info_stages: Array<{ key: string; label: string; p50: number | null; share: number | null; counted?: boolean }>;
   worst_calls: Array<{ index: number; title: string; score: number; weakest: string | null }>;
 }
 
@@ -286,7 +299,7 @@ export interface Indicator {
 export interface HeadlineRow {
   key: string;
   label: string;
-  unit?: "ms" | "rate";
+  unit?: PostUnit;
   a: number | null;
   b: number | null;
   a_value?: number | null;
@@ -441,6 +454,7 @@ export function speedText(v: number): string {
   return "fast speaker";
 }
 
-export function postValue(unit: "ms" | "rate", value: number | null | undefined): string {
+export function postValue(unit: PostUnit, value: number | null | undefined): string {
+  if (unit === "x") return value == null ? "—" : `×${value.toFixed(1)}`;
   return unit === "rate" ? pct(value, 1) : ms(value);
 }
