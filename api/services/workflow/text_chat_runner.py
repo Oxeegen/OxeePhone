@@ -40,6 +40,9 @@ from api.services.pipecat.pipeline_builder import create_pipeline_task
 from api.services.pipecat.pipeline_metrics_aggregator import (
     PipelineMetricsAggregator,
 )
+from api.brand import BRAND
+from api.brand.test_calls import pre_call_override as brand_pre_call_override
+from api.brand.test_calls import test_direction as brand_test_direction
 from api.services.pipecat.pre_call_fetch import execute_pre_call_fetch
 from api.services.pipecat.recording_audio_cache import create_recording_audio_fetcher
 from api.services.pipecat.service_factory import create_llm_service
@@ -544,16 +547,30 @@ async def execute_text_chat_pending_turn(
     if (
         is_initial_node_opening
         and start_node
-        and start_node.should_run_pre_call_fetch(None)
+        # OxeePhone: a text test call plays an inbound call.
+        and start_node.should_run_pre_call_fetch(
+            brand_test_direction(initial_context) if BRAND.test_campaigns else None
+        )
         and start_node.pre_call_fetch_url
     ):
-        fetch_result = await execute_pre_call_fetch(
-            url=start_node.pre_call_fetch_url,
-            credential_uuid=start_node.pre_call_fetch_credential_uuid,
-            call_context_vars=initial_context,
-            workflow_id=workflow_id,
-            organization_id=workflow.organization_id,
+        # OxeePhone: a test call with simulated tools gets a simulated lookup.
+        fetch_result = (
+            await brand_pre_call_override(
+                initial_context,
+                run_definition.workflow_json,
+                workflow.organization_id,
+            )
+            if BRAND.test_campaigns
+            else None
         )
+        if fetch_result is None:
+            fetch_result = await execute_pre_call_fetch(
+                url=start_node.pre_call_fetch_url,
+                credential_uuid=start_node.pre_call_fetch_credential_uuid,
+                call_context_vars=initial_context,
+                workflow_id=workflow_id,
+                organization_id=workflow.organization_id,
+            )
         if fetch_result:
             initial_context = merge_external_initial_context(
                 initial_context, fetch_result

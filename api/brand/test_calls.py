@@ -268,6 +268,9 @@ SIMULATE_TOOL_PROMPT = """You play the backend of a tool called by a phone
 voice agent during a TEST call. Answer with the JSON result the tool would
 return for these arguments, realistic and consistent with the scenario hints
 (when the hints say something is unavailable, not found or fails, answer so).
+If the tool hands the call over (transfers or forwards the caller to a person,
+the switchboard, a department or another number), the transfer succeeds: add
+"oxee_transfer": true to the result.
 Keep it short. Answer only with JSON."""
 
 
@@ -367,6 +370,150 @@ def _with_test_header(tool: Any) -> Any:
     config["headers"] = {**(config.get("headers") or {}), TEST_HEADER: "1"}
     clone.definition = definition
     return clone
+
+
+PRE_CALL_PROMPT = """You play the system (CRM, ERP, booking software...) that
+answers the pre-call lookup made before a phone voice agent takes a TEST call.
+Return the values this system would hold about the caller for the listed
+variables (identity, customer account, history, preferences...), realistic and
+consistent with the caller and the scenario hints; when the hints say the
+caller is unknown or the lookup fails, return an empty object. Do not reveal
+why the caller is calling unless such a system would know it. Use only the
+listed variable names; leave out those such a system would not know.
+Answer only with JSON: {"initial_context": {"<variable>": <value>}}"""
+PRE_CALL_TIMEOUT = 8.0
+
+
+def template_variables(workflow_json: dict | None, known: dict | None = None) -> list[str]:
+    """Variables the agent's texts use ({{name}}), minus the built-in ones and
+    those already in the call context."""
+    import json
+    import re
+
+    from api.utils.template_renderer import TEMPLATE_VAR_PATTERN, is_builtin_variable
+
+    text = json.dumps((workflow_json or {}).get("nodes") or [], ensure_ascii=False)
+    names = []
+    for match in re.finditer(TEMPLATE_VAR_PATTERN, text):
+        name = match.group(1).strip().split(".")[0]
+        if (
+            name
+            and name not in names
+            and not is_builtin_variable(name)
+            and name not in (known or {})
+            and not name.startswith(("oxee_", "gathered_context"))
+        ):
+            names.append(name)
+    return names
+
+
+async def pre_call_override(
+    context: dict | None, workflow_json: dict | None, organization_id: int | None
+) -> dict | None:
+    """Pre-call fetch of a test call whose tools are simulated: the lookup is
+    answered by a model playing the system; None outside such a call."""
+    from api.brand.analysis import resolve_analysis_model
+    from api.brand.llm import chat_json
+
+    test = test_of(context)
+    if test is None or (test.get("tools_mode") or "simulated") != "simulated":
+        return None
+    variables = template_variables(workflow_json, context)
+    if not variables or not organization_id:
+        return {}
+    try:
+        model = (await _call_model(organization_id)) or (
+            await resolve_analysis_model(organization_id)
+        )
+        if not model:
+            return {}
+        result = await asyncio.wait_for(
+            chat_json(
+                model,
+                PRE_CALL_PROMPT,
+                {
+                    "variables": variables,
+                    "caller": {
+                        "number": (context or {}).get("caller_number"),
+                        **(test.get("caller") or {}),
+                    },
+                    "scenario": test.get("scenario"),
+                    "scenario_hints": test.get("tool_hints"),
+                },
+                max_tokens=500,
+                temperature=0.3,
+                timeout=PRE_CALL_TIMEOUT,
+            ),
+            PRE_CALL_TIMEOUT + 1,
+        )
+    except Exception as e:
+        logger.warning(f"Simulated pre-call fetch failed: {e!r}")
+        return {}
+    values = result.get("initial_context") if isinstance(result, dict) else None
+    if not isinstance(values, dict):
+        values = result if isinstance(result, dict) else {}
+    kept = {k: v for k, v in values.items() if k in variables and v not in (None, "")}
+    logger.info(f"Simulated pre-call fetch for a test call: {sorted(kept)}")
+    return kept
+
+
+def test_direction(context: dict | None) -> str | None:
+    """Direction of a text test call: it plays an inbound call."""
+    return "inbound" if test_of(context) is not None else None
+
+
+async def pre_call_or(real: Any, context: dict | None, workflow_json: dict | None, organization_id: int | None) -> dict:
+    """The simulated lookup of a test call, else the real fetch (awaited only
+    when needed)."""
+    simulated = await pre_call_override(context, workflow_json, organization_id)
+    if simulated is not None:
+        real.close()  # never awaited
+        return simulated
+    return await real
+
+
+TRANSFER_CONTEXT_KEY = "oxee_test_transfer"
+
+
+def simulated_transfer(engine: Any, tool: Any, arguments: dict | None) -> dict | None:
+    """A transfer tool called during a test call: nobody is dialled and the
+    transfer succeeds (the destination "answers"), unless the campaign runs
+    the agent's tools for real. Recorded in the call's context for the judge.
+    """
+    test = test_of(getattr(engine, "_call_context_vars", None))
+    if test is None or (test.get("tools_mode") or "simulated") == "real":
+        return None
+    _record_transfer(engine, tool, arguments)
+    return {
+        "action": "destination_answered",
+        "status": "success",
+        "conference_id": "oxee-test-simulated",
+        "simulated": True,
+    }
+
+
+def _record_transfer(engine: Any, tool: Any, arguments: dict | None) -> None:
+    config = (getattr(tool, "definition", None) or {}).get("config") or {}
+    engine.record_context(
+        {
+            TRANSFER_CONTEXT_KEY: {
+                "tool": getattr(tool, "name", None),
+                "destination": config.get("destination") or config.get("url") or None,
+                "arguments": arguments or {},
+            }
+        }
+    )
+
+
+def transfer_by_tool(engine: Any, tool: Any, arguments: dict | None, result: Any) -> bool:
+    """A simulated HTTP tool that transferred the call (the simulator flagged
+    it): the call is over for the agent, as when the PBX takes it away."""
+    if not isinstance(result, dict) or not result.pop("oxee_transfer", False):
+        return False
+    if test_of(getattr(engine, "_call_context_vars", None)) is None:
+        return False
+    _record_transfer(engine, tool, arguments)
+    return True
 
 
 async def tool_override(

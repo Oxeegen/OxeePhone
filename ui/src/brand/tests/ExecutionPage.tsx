@@ -292,7 +292,15 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
             )}
             {s.voice && <span>Voice {s.voice.id}</span>}
             {s.caller_number && <span>From {s.caller_number}</span>}
-            {m && <span>Ended: {m.end_status || "?"}{m.end_node ? ` in “${m.end_node}”` : ""}</span>}
+            {m &&
+              (m.transfer ? (
+                <span>
+                  Transferred (simulated){m.transfer.tool ? ` by “${m.transfer.tool}”` : ""}
+                  {m.end_node ? ` from “${m.end_node}”` : ""}
+                </span>
+              ) : (
+                <span>Ended: {m.end_status || "?"}{m.end_node ? ` in “${m.end_node}”` : ""}</span>
+              ))}
             {m && execution.channel === "phone" && (
               <span title="Time to first audio without the end-of-turn wait; heard: what the caller hears, wait included">
                 First audio p50 {ms(m.latency.p50_ms)}
