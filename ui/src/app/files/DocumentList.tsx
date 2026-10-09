@@ -4,6 +4,9 @@ import { FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+import { isBranded } from '@/brand/brand';
+import { ClearSearch } from '@/brand/ClearSearch';
+import { FilePreviewButton, hasPreview } from '@/brand/FilePreview';
 import {
   deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete,
   listDocumentsApiV1KnowledgeBaseDocumentsGet,
@@ -161,8 +164,11 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
             placeholder="Search documents..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            onKeyDown={(e) => { if (isBranded && e.key === 'Escape') setSearchQuery(''); }}
+            className={isBranded ? 'pl-10 pr-9' : 'pl-10'}
           />
+          {/* OxeePhone: clear the filter. */}
+          {isBranded && <ClearSearch value={searchQuery} onClear={() => setSearchQuery('')} />}
         </div>
         <Button
           variant="outline"
@@ -226,6 +232,10 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                   )}
                 </div>
               </div>
+              {/* OxeePhone: preview of text files (Markdown rendered) and documents kept whole. */}
+              {isBranded && hasPreview(doc.filename, doc.retrieval_mode) && (
+                <FilePreviewButton documentUuid={doc.document_uuid} filename={doc.filename} />
+              )}
               <Button
                 variant="ghost"
                 size="sm"

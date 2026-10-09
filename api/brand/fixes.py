@@ -49,7 +49,7 @@ MAX_CASES = 3
 # --- What can be fixed --------------------------------------------------------
 
 NOT_FIXABLE_RULES = {
-    "reply_latency": "Reply latency comes from the models and the infrastructure, not from the agent's configuration.",
+    "reply_latency": "The time to first audio comes from the models and the infrastructure, not from the agent's configuration.",
     "greeting_latency": "The greeting delay comes from the models and the infrastructure.",
     "dead_air_agent": "Silences before the agent answers come from model latency.",
     "tool_errors": "The tool itself fails: fix the webhook or the service it calls.",

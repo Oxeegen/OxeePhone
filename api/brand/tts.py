@@ -40,7 +40,8 @@ GAP_TOLERANCE_SECS = 0.05
 
 
 class VoiceStats:
-    """Synthesis of one sentence, as the caller experiences it.
+    """Synthesis of one sentence, as the caller experiences it, timed from
+    the moment the request is sent to the voice model.
 
     Playback starts with the first chunk and runs at real time; a later chunk
     that arrives after the audio received so far has been played out is a gap
@@ -154,6 +155,8 @@ class LocalModelsTTSService(SpeachesTTSService):
 
     @traced_tts
     async def run_tts(self, text: str, context_id: str):
+        # Timed from the request: connection and server wait count.
+        stats = VoiceStats(self.sample_rate or 24000)
         try:
             async with self._client.audio.speech.with_streaming_response.create(
                 **self.speech_params(text)
@@ -172,7 +175,6 @@ class LocalModelsTTSService(SpeachesTTSService):
 
                 # Gain works on whole 16-bit samples: carry an odd trailing byte.
                 carry = b""
-                stats = VoiceStats(self.sample_rate or 24000)
                 async for chunk in self._audio_chunks(response):
                     stats.chunk(len(chunk))
                     if len(chunk) > 0:

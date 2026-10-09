@@ -108,7 +108,7 @@ function LevelGrid({ report, dims, phone }: { report: NonNullable<Execution["rep
 }
 
 const POST_LABEL: Record<string, string> = {
-  reply: "Reply",
+  reply: "First audio",
   greeting: "Greeting",
   endpointing: "End of turn",
   transcriber: "Transcriber",
@@ -171,7 +171,7 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
                 <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground" title={p.key === "voice_fluency" ? "Replies with a gap" : "Values over the threshold"}>{p.over_rate != null ? pct(p.over_rate) : "—"}</td>
                 <td className="w-40 px-4 py-2.5">
                   {p.share != null ? (
-                    <div className="flex items-center gap-2" title={`${pct(p.share)} of the median reply time`}>
+                    <div className="flex items-center gap-2" title={`${pct(p.share)} of the median time to first audio`}>
                       <div className="h-2 flex-1 rounded-full bg-muted">
                         <div className="h-2 rounded-full bg-[var(--viz-series-1)]" style={{ width: `${Math.min(100, p.share * 100)}%` }} />
                       </div>
@@ -187,7 +187,7 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
       </Card>
       {technical.info_stages.some((x) => x.counted !== false) && (
         <p className="text-xs text-muted-foreground">
-          Rest of the reply time (median, not graded):{" "}
+          Rest of the time to first audio (median, not graded):{" "}
           {technical.info_stages
             .filter((x) => x.counted !== false)
             .map((x) => `${x.label} ${ms(x.p50)} (${pct(x.share)})`)
@@ -199,7 +199,7 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
         .map((x) => (
           <p key={x.key} className="text-xs text-muted-foreground/70">
             <span className="rounded bg-muted px-1.5 py-0.5">End-of-turn wait {ms(x.p50)}</span> set by the agent (voice
-            detection silence + speaking plan): not counted in the reply time nor graded. What the caller hears, wait
+            detection silence + speaking plan): not counted in the time to first audio nor graded. What the caller hears, wait
             included: {ms(technical.perceived_p50)} median.
           </p>
         ))}
@@ -294,9 +294,9 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
             {s.caller_number && <span>From {s.caller_number}</span>}
             {m && <span>Ended: {m.end_status || "?"}{m.end_node ? ` in “${m.end_node}”` : ""}</span>}
             {m && execution.channel === "phone" && (
-              <span title="Reply time without the end-of-turn wait; perceived: what the caller hears, wait included">
-                Reply p50 {ms(m.latency.p50_ms)}
-                {m.latency.perceived_p50_ms != null ? ` (perceived ${ms(m.latency.perceived_p50_ms)})` : ""} · {m.interruptions} interruption
+              <span title="Time to first audio without the end-of-turn wait; heard: what the caller hears, wait included">
+                First audio p50 {ms(m.latency.p50_ms)}
+                {m.latency.perceived_p50_ms != null ? ` (heard ${ms(m.latency.perceived_p50_ms)})` : ""} · {m.interruptions} interruption
                 {m.interruptions === 1 ? "" : "s"}
               </span>
             )}
@@ -613,7 +613,7 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
             {phone && (
               <Section
                 title="Latency"
-                subtitle={`${r.latency.turns} agent replies · reply p50 ${ms(r.latency.p50_ms)}${r.latency.perceived_p50_ms != null ? ` (perceived ${ms(r.latency.perceived_p50_ms)})` : ""} · ${pct(r.latency.slow_turns_rate)} over 2 s · ${r.interruptions.per_call ?? "—"} interruptions per call`}
+                subtitle={`${r.latency.turns} agent replies · first audio p50 ${ms(r.latency.p50_ms)}${r.latency.perceived_p50_ms != null ? ` (heard ${ms(r.latency.perceived_p50_ms)})` : ""} · ${pct(r.latency.slow_turns_rate)} after 2 s · ${r.interruptions.per_call ?? "—"} interruptions per call`}
               >
                 <Card className="p-4">
                   {Object.entries(r.latency.stages_p50_ms)
@@ -630,8 +630,8 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
                       </div>
                     ))}
                   <p className="pt-2 text-[11px] text-muted-foreground">
-                    Median per stage over every reply of the agent. The reply time leaves out the end-of-turn wait, a
-                    setting (voice detection silence + speaking plan); the perceived time includes it.
+                    Median per stage over every reply of the agent. The time to first audio leaves out the end-of-turn wait, a
+                    setting (voice detection silence + speaking plan); the time heard by the caller includes it.
                   </p>
                 </Card>
               </Section>

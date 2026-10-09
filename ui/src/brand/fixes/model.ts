@@ -112,7 +112,7 @@ export interface Fix {
 // Mirrors api/brand/fixes.py fixability(): what only the infrastructure or an
 // external service can fix.
 const NOT_FIXABLE_RULES: Record<string, string> = {
-  reply_latency: "Reply latency comes from the models and the infrastructure.",
+  reply_latency: "The time to first audio comes from the models and the infrastructure.",
   greeting_latency: "The greeting delay comes from the models and the infrastructure.",
   dead_air_agent: "Silences before the agent answers come from model latency.",
   tool_errors: "The tool itself fails: fix the webhook or the service it calls.",

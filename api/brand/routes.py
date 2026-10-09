@@ -1016,6 +1016,22 @@ async def recording_greeting(
     return _greeting_result(saved)
 
 
+@router.get("/files/{document_uuid}/preview")
+async def preview_file(
+    document_uuid: str,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Content of a document of the Files page, for the preview."""
+    from api.brand import files
+
+    try:
+        return await files.preview(user.selected_organization_id, document_uuid)
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except files.PreviewUnavailable as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
 class EngineSettingsRequest(BaseModel):
     """Blocks to set; a block set to null goes back to the built-in values."""
 
