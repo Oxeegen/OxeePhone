@@ -5,6 +5,25 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## 0.9.8 — 2026-10-09
+
+- Test campaigns › Scenarios: the campaign's instructions to the scenario
+  writer can be edited. Saving them revises the existing scenarios to follow
+  them (in the background, with progress), keeping each scenario's caller
+  settings, voice, number and enabled state; scenarios edited by hand can be
+  left out. Revised scenarios are marked. Executions already played keep the
+  scenarios as they were.
+- Test campaigns › Scenarios: the search field can be cleared.
+- Test executions: each call has a "Transcript" button opening the call's
+  transcript (as in the Transcript tab of the call detail, with tool calls and
+  node changes) in a dialog, with the recording player for phone calls.
+- Test campaigns, simulated tools: a tool whose own deadline is shorter than
+  the simulation needs gets a few seconds more (it used to time out and the
+  agent heard a failure); "Transfer to agent" tools are simulated like
+  transfers (announcement, then the call ends as transferred; text tests
+  refused them); the simulator of MCP tools gets their description and
+  parameters.
+
 ## 0.9.7 — 2026-10-09
 
 - Test campaigns: transfers are simulated when the campaign's tools are

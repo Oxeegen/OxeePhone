@@ -45,6 +45,9 @@ export interface Persona {
 
 export interface Scenario {
   id: string;
+  /** Edited by hand / revised after new instructions. */
+  edited_at?: string | null;
+  rewritten_at?: string | null;
   title: string;
   intent: string;
   levels: Record<string, number>;
@@ -100,7 +103,7 @@ export interface CampaignSummary {
   workflow_id: number;
   workflow_name: string;
   status: "generating" | "ready" | "failed";
-  generation: { done: number; total: number; error: string | null } | null;
+  generation: { done: number; total: number; error: string | null; mode?: "rewrite" } | null;
   count: number;
   tools_mode: ToolsMode;
   language: string;
