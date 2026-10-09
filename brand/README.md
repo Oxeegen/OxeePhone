@@ -127,6 +127,8 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `api/routes/workflow.py` — records version edits (update, create-draft) and publications in `api/brand/versions.py`
 - `api/mcp_server/tools/save_workflow.py` — records MCP drafts (origin `mcp`)
 - `api/services/workflow/pipecat_engine_custom_tools.py` — HTTP / MCP tools answered by `api/brand/simulation.tool_override` during a fix simulation (never executed)
+- `api/services/workflow/pipecat_engine_custom_tools.py` — test calls: transfer-call tools simulated as answered (`test_calls.simulated_transfer`), and an HTTP tool flagged as a transfer by the simulator ends the agent's part of the call (`test_calls.transfer_by_tool`)
+- `api/services/workflow/text_chat_runner.py`, `api/services/pipecat/run_pipeline.py` — test calls: simulated pre-call fetch (`test_calls.pre_call_override` / `pre_call_or`); a text test call counts as inbound (`test_calls.test_direction`)
 - `api/routes/webrtc_signaling.py` — server-side TURN URIs through `api/brand/webrtc.py`
 - `api/services/workflow/pipecat_engine_custom_tools.py` — the tool hook goes through `api/brand/test_calls.tool_override` (fix simulations, then the campaign's tools mode during a test call: simulated / real / real with `X-Oxee-Test: 1`) when `agent_fixes` or `test_campaigns`
 - `api/services/pipecat/run_pipeline.py` — test caller: per-call voice, voice speed, speaking plan and max duration (`test_calls.tester_configs`, both config resolutions); `FirstSpeechUserMuteStrategy` so it hears the agent's greeting

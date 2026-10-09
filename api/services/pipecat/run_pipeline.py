@@ -874,15 +874,24 @@ async def _run_pipeline_impl(
             f"run {workflow_run_id}, "
             f"firing request to {start_node.pre_call_fetch_url}"
         )
-        pre_call_fetch_task = asyncio.create_task(
-            execute_pre_call_fetch(
-                url=start_node.pre_call_fetch_url,
-                credential_uuid=start_node.pre_call_fetch_credential_uuid,
-                call_context_vars=merged_call_context_vars,
-                workflow_id=workflow_id,
-                organization_id=workflow.organization_id,
-            )
+        real_fetch = execute_pre_call_fetch(
+            url=start_node.pre_call_fetch_url,
+            credential_uuid=start_node.pre_call_fetch_credential_uuid,
+            call_context_vars=merged_call_context_vars,
+            workflow_id=workflow_id,
+            organization_id=workflow.organization_id,
         )
+        if BRAND.test_campaigns:
+            # OxeePhone: a test call with simulated tools gets a simulated lookup.
+            from api.brand.test_calls import pre_call_or
+
+            real_fetch = pre_call_or(
+                real_fetch,
+                merged_call_context_vars,
+                run_workflow_json,
+                workflow.organization_id,
+            )
+        pre_call_fetch_task = asyncio.create_task(real_fetch)
 
     # Create in-memory logs buffer early so it can be used by engine callbacks
     in_memory_logs_buffer = InMemoryLogsBuffer(workflow_run_id)

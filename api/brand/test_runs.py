@@ -455,6 +455,11 @@ def _test_context(execution: dict, call: dict) -> dict:
         "tools_mode": execution["tools_mode"],
         "scenario": scenario.get("title"),
         "tool_hints": scenario.get("tool_hints"),
+        # What a CRM may know about the caller (simulated pre-call fetch).
+        "caller": {
+            "name": (scenario.get("persona") or {}).get("name"),
+            "facts": scenario.get("facts") or {},
+        },
     }
 
 
@@ -586,7 +591,11 @@ async def _play_text(execution: dict, call: dict, ctx: dict) -> dict:
                 )
             },
             gathered_context={
-                **{k: v for k, v in gathered.items() if k == "extracted_variables"},
+                **{
+                    k: v
+                    for k, v in gathered.items()
+                    if k in ("extracted_variables", test_calls.TRANSFER_CONTEXT_KEY)
+                },
                 "call_status": "error" if error else "completed",
                 "oxee_test_ended_by": ended_by,
             },
@@ -781,6 +790,12 @@ Judge the AGENT, not the caller:
   adapted to the caller's mood), resolution (handled the call to its end);
 - "failure_node": the agent node where things went wrong, if any (exact name);
 - "issues": up to 3 short sentences on what the agent should do better;
+- "ended.transfer": when present, the agent handed the caller over with a
+  transfer tool. Transfers are SIMULATED in tests and always succeed: the
+  handover is complete. When transferring is what the scenario expects (or a
+  sound way to serve the caller), the goal and the criteria about putting the
+  caller through are met; never penalise the agent because the call ended
+  with the transfer;
 - "scenario_issue": when the call failed because of the SCENARIO, not the
   agent (the caller lacked information any real caller would have, a
   criterion asks for something the agent is not built to do, contradictory
@@ -883,6 +898,8 @@ def call_metrics(run: dict, index: dict | None) -> dict:
         ],
         "end_node": path[-1] if path else None,
         "end_status": str(gathered.get("call_status") or ""),
+        # Transfer simulated during the test call (test_calls.simulated_transfer).
+        "transfer": gathered.get(test_calls.TRANSFER_CONTEXT_KEY),
         "extracted_variables": gathered.get("extracted_variables") or {},
         "errors": digest["errors"],
         "models": digest["models"],
@@ -897,9 +914,17 @@ def deterministic_checks(scenario: dict, metrics: dict) -> list[dict]:
             {
                 "kind": "end_node",
                 "label": f"Ends in “{expected}”",
-                "pass": _same(metrics.get("end_node"), expected)
-                and _norm(metrics.get("end_node")) == _norm(expected),
-                "detail": f"ended in “{metrics.get('end_node') or '?'}”",
+                # A completed transfer ends the call where it happens.
+                "pass": bool(metrics.get("transfer"))
+                or (
+                    _same(metrics.get("end_node"), expected)
+                    and _norm(metrics.get("end_node")) == _norm(expected)
+                ),
+                "detail": (
+                    f"transferred (simulated) from “{metrics.get('end_node') or '?'}”"
+                    if metrics.get("transfer")
+                    else f"ended in “{metrics.get('end_node') or '?'}”"
+                ),
             }
         )
     called = [t["name"] for t in metrics.get("tools") or []]
@@ -998,6 +1023,7 @@ async def _evaluate(execution: dict, call: dict, ctx: dict) -> None:
                     "status": metrics["end_status"],
                     "by": call.get("ended_by"),
                     "last_node": metrics["end_node"],
+                    "transfer": metrics.get("transfer"),
                 },
             },
             max_tokens=2500,

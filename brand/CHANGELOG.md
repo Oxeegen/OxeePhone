@@ -5,6 +5,25 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## 0.9.7 — 2026-10-09
+
+- Test campaigns: transfers are simulated when the campaign's tools are
+  (simulated or real with the test header). A "Transfer call" tool connects
+  nowhere: its transfer message plays, the destination "answers" and the call
+  ends as transferred. An HTTP tool that hands the call over (to the
+  switchboard, a department, a number) is recognized by the tool simulator:
+  it succeeds and the agent's part of the call ends, as when the PBX takes
+  the call. The judge is told the transfer was simulated and completed, so
+  the goal and the criteria about putting the caller through count as met;
+  an expected end node counts as reached. Shown as "Transferred (simulated)"
+  on the call. Before, a text test refused transfers and a phone test placed
+  a real one.
+- Test campaigns: the start node's pre-call fetch is simulated when the tools
+  are: a model playing the caller's CRM answers with the variables the
+  agent's texts use ({{name}}), consistent with the scenario's caller. Text
+  test calls count as inbound calls, so a fetch set for inbound calls runs
+  there too.
+
 ## 0.9.6 — 2026-10-09
 
 - Latency: "Reply time" is named "Time to first audio" everywhere (call

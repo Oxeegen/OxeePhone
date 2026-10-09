@@ -132,6 +132,8 @@ export interface CallMetrics {
   path: string[];
   end_node: string | null;
   end_status: string;
+  /** Transfer simulated during the test call (the destination "answered"). */
+  transfer?: { tool: string | null; destination: string | null } | null;
   extracted_variables: Record<string, unknown>;
 }
 

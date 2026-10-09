@@ -832,3 +832,81 @@ async def test_caller_side_of_a_phone_test_is_dropped(monkeypatch):
     monkeypatch.setattr(call_concurrency, "unregister_active_call", release)
     await test_runs._drop_caller_run(4, 99)
     assert deleted == [(4, 99)] and released == [99]
+
+
+class _TransferEngine:
+    def __init__(self, tools_mode="simulated", test=True):
+        self._call_context_vars = {"oxee_test": {"tools_mode": tools_mode}} if test else {}
+        self.recorded = {}
+
+    def record_context(self, values):
+        self.recorded.update(values)
+
+
+def test_transfer_tools_are_simulated_in_test_calls():
+    from types import SimpleNamespace
+
+    tool = SimpleNamespace(name="Transfert standard", definition={"config": {"destination": "PJSIP/100"}})
+    engine = _TransferEngine()
+    result = calls.simulated_transfer(engine, tool, {"motif": "facturation"})
+    assert result["action"] == "destination_answered" and result["simulated"] is True
+    assert engine.recorded[calls.TRANSFER_CONTEXT_KEY]["destination"] == "PJSIP/100"
+    assert calls.simulated_transfer(_TransferEngine("real"), tool, {}) is None
+    assert calls.simulated_transfer(_TransferEngine(test=False), tool, {}) is None
+
+
+def test_http_tool_transfer_flagged_by_the_simulator():
+    from types import SimpleNamespace
+
+    tool = SimpleNamespace(name="transfer_to_switchboard", definition={"config": {"url": "https://pbx/transfer"}})
+    engine = _TransferEngine()
+    result = {"status": "success", "oxee_transfer": True}
+    assert calls.transfer_by_tool(engine, tool, {}, result) is True
+    assert "oxee_transfer" not in result  # not shown to the agent
+    assert engine.recorded[calls.TRANSFER_CONTEXT_KEY]["tool"] == "transfer_to_switchboard"
+    assert calls.transfer_by_tool(engine, tool, {}, {"status": "success"}) is False
+
+
+def test_transfer_completes_the_expected_end():
+    checks = runs.deterministic_checks(
+        {"expected_end_node": "Fin d'appel"},
+        {"end_node": "Accueil", "transfer": {"tool": "Transfert standard"}, "tools": []},
+    )
+    assert checks[0]["pass"] is True and "transferred" in checks[0]["detail"]
+
+
+def test_template_variables_for_the_pre_call_lookup():
+    graph = {"nodes": [
+        {"data": {"prompt": "Patient : {{patient_name}} ({{ account_id }}). Il est {{current_time}}.", "greeting": "Bonjour {{patient_name}}"}},
+        {"data": {"prompt": "{{gathered_context.city}} {{caller_number}} {{oxee_tester_prompt}}"}},
+    ]}
+    assert calls.template_variables(graph, {"caller_number": "0600"}) == ["patient_name", "account_id"]
+
+
+@pytest.mark.asyncio
+async def test_pre_call_lookup_is_simulated_in_test_calls(monkeypatch):
+    from api.brand import llm
+
+    async def model(org):
+        return {"base_url": "http://llm", "model": "m"}
+
+    seen = {}
+
+    async def chat_json(model, prompt, payload, **kw):
+        seen.update(payload)
+        return {"initial_context": {"patient_name": "Paul Bernard", "unknown": "x", "account_id": ""}}
+
+    monkeypatch.setattr(calls, "_call_model", model)
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    graph = {"nodes": [{"data": {"prompt": "{{patient_name}} {{account_id}}"}}]}
+    ctx = {"oxee_test": {"tools_mode": "simulated", "caller": {"name": "Paul Bernard"}}, "caller_number": "0612"}
+    assert await calls.pre_call_override(ctx, graph, 1) == {"patient_name": "Paul Bernard"}
+    assert seen["variables"] == ["patient_name", "account_id"] and seen["caller"]["number"] == "0612"
+    assert await calls.pre_call_override({"oxee_test": {"tools_mode": "real"}}, graph, 1) is None
+    assert await calls.pre_call_override({}, graph, 1) is None
+
+    async def real():
+        return {"from": "real"}
+
+    assert await calls.pre_call_or(real(), {}, graph, 1) == {"from": "real"}
+    assert await calls.pre_call_or(real(), ctx, graph, 1) == {"patient_name": "Paul Bernard"}

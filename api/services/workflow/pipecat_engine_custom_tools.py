@@ -18,6 +18,8 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.utils.enums import EndTaskReason
 
 from api.brand import BRAND
+from api.brand.test_calls import simulated_transfer as brand_simulated_transfer
+from api.brand.test_calls import transfer_by_tool as brand_transfer_by_tool
 from api.brand.test_calls import tool_override as brand_tool_override
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
@@ -464,6 +466,18 @@ class CustomToolManager:
                     if BRAND.agent_fixes or BRAND.test_campaigns
                     else None
                 )
+                if result is not None and brand_transfer_by_tool(
+                    self._engine, tool, function_call_params.arguments, result
+                ):
+                    # A transfer simulated during a test call: the caller is
+                    # handed over and the agent's part of the call ends.
+                    await function_call_params.result_callback(
+                        result, properties=FunctionCallResultProperties(run_llm=False)
+                    )
+                    await self._engine.end_call_with_reason(
+                        EndTaskReason.TRANSFER_CALL.value, abort_immediately=False
+                    )
+                    return
                 if result is not None:
                     await function_call_params.result_callback(result)
                     return
@@ -716,6 +730,33 @@ class CustomToolManager:
                 workflow_run = await db_client.get_workflow_run_by_id(
                     self._engine._workflow_run_id
                 )
+                # OxeePhone: a test call transfers nowhere; the transfer
+                # succeeds after the tool's transfer message.
+                simulated = (
+                    brand_simulated_transfer(
+                        self._engine, tool, function_call_params.arguments
+                    )
+                    if BRAND.test_campaigns
+                    else None
+                )
+                if simulated is not None:
+                    self._engine.arm_speech_playback()
+                    message_queued = await self._play_config_message(config)
+                    if (
+                        message_queued
+                        and workflow_run.mode != WorkflowRunMode.TEXTCHAT.value
+                    ):
+                        await self._engine.wait_for_speech_playback(
+                            start_timeout=_TRANSFER_PLAYBACK_START_TIMEOUT_SECS,
+                            playback_timeout=_TRANSFER_PLAYBACK_FINISH_TIMEOUT_SECS,
+                        )
+                    await self._handle_transfer_result(
+                        simulated,
+                        function_call_params,
+                        properties,
+                        success_disposition=configured_call_disposition,
+                    )
+                    return
                 if workflow_run.mode == WorkflowRunMode.TEXTCHAT.value:
                     textchat_error_result = {
                         "status": "failed",
