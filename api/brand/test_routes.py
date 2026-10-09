@@ -270,6 +270,48 @@ async def delete_test_campaign(
     return {"deleted": True}
 
 
+class InstructionsRequest(BaseModel):
+    instructions: str | None = Field(default=None, max_length=2000)
+    # Revise the existing scenarios to follow the new instructions.
+    apply_to_scenarios: bool = True
+    # Leave out the scenarios edited by hand.
+    keep_edited: bool = False
+
+
+@router.put("/campaigns/{campaign_id}/instructions")
+async def update_test_instructions(
+    campaign_id: str,
+    request: InstructionsRequest,
+    background_tasks: BackgroundTasks,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """The campaign's instructions to the scenario writer; the existing
+    scenarios are revised to follow them (in the background)."""
+    org = user.selected_organization_id
+    campaign = await _campaign_or_404(org, campaign_id)
+    if campaign.get("status") == "generating":
+        raise HTTPException(status_code=409, detail="Scenarios are being written")
+    previous = campaign.get("instructions")
+    campaign["instructions"] = (request.instructions or "").strip()[:2000] or None
+    rewrite = request.apply_to_scenarios and bool(
+        campaigns.scenarios_to_rewrite(campaign, request.keep_edited)
+    )
+    if rewrite:
+        campaign["status"] = "generating"
+        campaign["generation"] = {
+            "mode": "rewrite",
+            "done": 0,
+            "total": len(campaigns.scenarios_to_rewrite(campaign, request.keep_edited)),
+            "error": None,
+        }
+    await campaigns.save(org, campaign)
+    if rewrite:
+        background_tasks.add_task(
+            campaigns.rewrite, org, campaign_id, previous, request.keep_edited
+        )
+    return campaign
+
+
 class GenerateMoreRequest(BaseModel):
     count: int = Field(default=5, ge=1, le=campaigns.MAX_SCENARIOS)
 

@@ -910,3 +910,101 @@ async def test_pre_call_lookup_is_simulated_in_test_calls(monkeypatch):
 
     assert await calls.pre_call_or(real(), {}, graph, 1) == {"from": "real"}
     assert await calls.pre_call_or(real(), ctx, graph, 1) == {"patient_name": "Paul Bernard"}
+
+
+@pytest.mark.asyncio
+async def test_new_instructions_revise_the_scenarios(monkeypatch):
+    from types import SimpleNamespace
+
+    from api.brand import analysis, llm
+    from api.brand import db as brand_db
+    from api.db import db_client
+
+    def scenario(sid, edited=False):
+        return {
+            "id": sid, "title": f"Old {sid}", "intent": "rdv", "levels": {"mood": 4}, "speed": 1.1,
+            "voice": {"id": "fr_lea", "gender": "female"}, "caller_number": "0600", "enabled": sid != "b",
+            "persona": {"name": "Léa Martin", "gender": "female"}, "goal": "old", "behaviour": "", "facts": {},
+            "criteria": ["c"], "forbidden": [], "expected_end_node": None, "expected_variables": {},
+            "expected_tools": [], "tool_hints": "", **({"edited_at": "x"} if edited else {}),
+        }
+
+    store = {"c1": {"id": "c1", "workflow_id": 3, "language": "French", "status": "ready", "instructions": "new",
+                    "scenarios": [scenario("a"), scenario("b"), scenario("c", edited=True)]}}
+    seen = {}
+
+    async def get(org, cid):
+        return store.get(cid)
+
+    async def save(org, c):
+        store[c["id"]] = c
+        return c
+
+    async def chat_json(model, prompt, payload, **kw):
+        seen.update(payload)
+        return {"scenarios": [{"id": s["id"], "title": f"New {s['id']}", "goal": "billing", "criteria": ["transfers"],
+                               "persona": {"name": "Léa Martin", "gender": "female"}} for s in payload["scenarios"]]}
+
+    async def model(org):
+        return {"model": "m"}
+
+    async def workflow(wid, organization_id=None):
+        return SimpleNamespace(id=3, name="Agent", released_definition_id=7)
+
+    async def no_draft(wid):
+        return None
+
+    async def version(wid, did):
+        return SimpleNamespace(workflow_json={"nodes": []}, workflow_configurations={})
+
+    async def tool_names(org, uuids):
+        return []
+
+    monkeypatch.setattr(campaigns, "get", get)
+    monkeypatch.setattr(campaigns, "save", save)
+    monkeypatch.setattr(campaigns, "_tool_names", tool_names)
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(analysis, "resolve_analysis_model", model)
+    monkeypatch.setattr(db_client, "get_workflow", workflow)
+    monkeypatch.setattr(db_client, "get_draft_version", no_draft)
+    monkeypatch.setattr(brand_db, "get_workflow_version", version)
+
+    await campaigns.rewrite(1, "c1", "old", keep_edited=True)
+    c = store["c1"]
+    a, b, kept = c["scenarios"]
+    assert seen["new_instructions"] == "new" and seen["previous_instructions"] == "old"
+    assert [s["id"] for s in seen["scenarios"]] == ["a", "b"]  # c was edited by hand
+    assert (a["title"], a["goal"], a["criteria"]) == ("New a", "billing", ["transfers"])
+    assert a["levels"] == {"mood": 4} and a["voice"]["id"] == "fr_lea" and a["caller_number"] == "0600"
+    assert b["enabled"] is False and b["rewritten_at"]
+    assert kept["title"] == "Old c"
+    assert c["status"] == "ready" and c["generation"]["done"] == 2 and not c["generation"]["error"]
+
+
+def test_simulated_tools_get_time_to_answer():
+    engine = _TransferEngine()
+    assert calls.tool_timeout(engine, 1.0) == calls.SIMULATED_TOOL_TIMEOUT + 2.0
+    assert calls.tool_timeout(engine, 30.0) == 30.0
+    assert calls.tool_timeout(_TransferEngine("real_with_header"), 1.0) == 1.0
+    assert calls.tool_timeout(_TransferEngine(test=False), 1.0) == 1.0
+
+
+def test_agent_transfer_is_recorded_with_its_destination():
+    from types import SimpleNamespace
+
+    engine = _TransferEngine()
+    tool = SimpleNamespace(name="Service facturation", definition={"config": {"workflow_id": 7, "message": "Je vous passe le service."}})
+    assert calls.simulated_transfer(engine, tool, {})["status"] == "success"
+    assert engine.recorded[calls.TRANSFER_CONTEXT_KEY]["agent"] == 7
+
+
+def test_mcp_tool_described_for_the_simulator():
+    from types import SimpleNamespace
+
+    from api.services.workflow.pipecat_engine_custom_tools import _mcp_tool_description
+
+    schema = SimpleNamespace(name="mcp__crm__lookup", description="Find a customer", properties={"phone": {"type": "string"}})
+    session = SimpleNamespace(function_schemas=lambda allowed: [schema])
+    tool = _mcp_tool_description(session, "mcp__crm__lookup")
+    assert tool.description == "Find a customer" and tool.definition["config"]["parameters"]["phone"]
+    assert _mcp_tool_description(session, "other") is None

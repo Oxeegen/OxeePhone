@@ -121,6 +121,11 @@ export function ScenarioCard({
           <p className="truncate font-medium">
             {scenario.title}
             {scenario.variant_of && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">variant</span>}
+            {scenario.rewritten_at && (
+              <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground" title="Revised to follow the campaign's instructions">
+                revised
+              </span>
+            )}
           </p>
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">

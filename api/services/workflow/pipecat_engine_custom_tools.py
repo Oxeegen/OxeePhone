@@ -21,6 +21,7 @@ from api.brand import BRAND
 from api.brand.test_calls import simulated_transfer as brand_simulated_transfer
 from api.brand.test_calls import transfer_by_tool as brand_transfer_by_tool
 from api.brand.test_calls import tool_override as brand_tool_override
+from api.brand.test_calls import tool_timeout as brand_tool_timeout
 from api.db import db_client
 from api.enums import ToolCategory, WorkflowRunMode
 from api.services.pipecat.audio_playback import play_audio, play_audio_loop
@@ -48,6 +49,27 @@ _TRANSFER_PLAYBACK_START_TIMEOUT_SECS = 5.0
 _TRANSFER_PLAYBACK_FINISH_TIMEOUT_SECS = 30.0
 _TRANSFER_EXTERNAL_PBX_API_TIMEOUT_SECS = 30.0
 _TRANSFER_POST_HANDOFF_DELAY_SECS = 4.0
+
+
+def _mcp_tool_description(session: Any, function_name: str) -> Any:
+    """Name, description and parameters of an MCP tool, for the tool
+    simulator of test calls (OxeePhone)."""
+    from types import SimpleNamespace
+
+    try:
+        schema = next(
+            (fs for fs in session.function_schemas(None) if fs.name == function_name),
+            None,
+        )
+    except Exception:
+        schema = None
+    if schema is None:
+        return None
+    return SimpleNamespace(
+        name=function_name,
+        description=schema.description,
+        definition={"config": {"parameters": schema.properties}},
+    )
 
 
 def _render_transfer_destination(
@@ -349,6 +371,9 @@ class CustomToolManager:
             )
             timeout_secs = float(timeout_ms) / 1000
             handler = self._create_http_tool_handler(tool, function_name)
+            if BRAND.test_campaigns:
+                # OxeePhone: a simulated tool answers within its deadline.
+                timeout_secs = brand_tool_timeout(self._engine, timeout_secs)
 
         return handler, timeout_secs
 
@@ -517,6 +542,7 @@ class CustomToolManager:
                         self._engine,
                         function_name,
                         function_call_params.arguments,
+                        tool=_mcp_tool_description(session, function_name),
                         organization_id=await self.get_organization_id(),
                     )
                     if BRAND.agent_fixes or BRAND.test_campaigns
@@ -632,6 +658,32 @@ class CustomToolManager:
                 await function_call_params.result_callback(
                     {"status": "transfer_failed", "reason": code, "message": message}
                 )
+
+            # OxeePhone: in a test call the handoff is simulated: the
+            # announcement plays and the call ends as transferred.
+            if BRAND.test_campaigns and brand_simulated_transfer(
+                engine, tool, function_call_params.arguments
+            ):
+                await function_call_params.result_callback(
+                    {"status": "transfer_success", "message": "Caller handed over."},
+                    properties=FunctionCallResultProperties(run_llm=False),
+                )
+                message = config.get("message")
+                if message:
+                    engine.arm_speech_playback()
+                    await engine.queue_text_message(engine._format_prompt(str(message)))
+                    workflow_run = await db_client.get_workflow_run_by_id(
+                        engine._workflow_run_id
+                    )
+                    if workflow_run.mode != WorkflowRunMode.TEXTCHAT.value:
+                        await engine.wait_for_speech_playback(
+                            start_timeout=_TRANSFER_PLAYBACK_START_TIMEOUT_SECS,
+                            playback_timeout=_TRANSFER_PLAYBACK_FINISH_TIMEOUT_SECS,
+                        )
+                await engine.end_call_with_reason(
+                    EndTaskReason.TRANSFER_CALL.value, abort_immediately=False
+                )
+                return
 
             if not engine.agent_transfer_enabled:
                 await refuse(

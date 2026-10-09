@@ -13,6 +13,7 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { TranscriptButton } from "../call-detail/TranscriptDialog";
 import { FixControls, useReportFixes } from "../fixes/FixPanel";
 import { fixForFinding } from "../fixes/model";
 import {
@@ -284,7 +285,15 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
       </div>
       {open && (
         <div className="space-y-4 border-t border-border p-4 text-sm">
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {call.agent_run_id && (
+              <TranscriptButton
+                workflowId={execution.workflow_id}
+                runId={call.agent_run_id}
+                agentName={execution.workflow_name}
+                title={`#${call.index} ${s.title}`}
+              />
+            )}
             {call.agent_run_id && (
               <Link href={`/workflow/${execution.workflow_id}/run/${call.agent_run_id}`} className="inline-flex items-center gap-1 text-foreground hover:underline">
                 Agent side #{call.agent_run_id} <ExternalLink className="h-3 w-3" />

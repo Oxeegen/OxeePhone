@@ -499,10 +499,21 @@ def _record_transfer(engine: Any, tool: Any, arguments: dict | None) -> None:
             TRANSFER_CONTEXT_KEY: {
                 "tool": getattr(tool, "name", None),
                 "destination": config.get("destination") or config.get("url") or None,
+                "agent": config.get("workflow_id"),
                 "arguments": arguments or {},
             }
         }
     )
+
+
+def tool_timeout(engine: Any, timeout_secs: float | None) -> float | None:
+    """Deadline of a tool in a test call whose tools are simulated: long
+    enough for the simulation to answer (a tool's own deadline can be shorter
+    than the model needs)."""
+    test = test_of(getattr(engine, "_call_context_vars", None))
+    if test is None or (test.get("tools_mode") or "simulated") != "simulated":
+        return timeout_secs
+    return max(timeout_secs or 0.0, SIMULATED_TOOL_TIMEOUT + 2.0)
 
 
 def transfer_by_tool(engine: Any, tool: Any, arguments: dict | None, result: Any) -> bool:

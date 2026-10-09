@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { ClearSearch } from "@/brand/ClearSearch";
 import { openRow, ROW_CLASS } from "@/brand/rowLink";
 import { client } from "@/client/client.gen";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+import { InstructionsCard } from "./InstructionsCard";
 import { busy, type Campaign, DIMENSION_ORDER, ms, pct, rangeLabel, TOOLS_MODE_LABEL, versionLabel } from "./model";
 import { RunDialog } from "./RunDialog";
 import { ScenarioCard } from "./ScenarioCard";
@@ -125,7 +127,9 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
       {campaign.status === "generating" && (
         <Card className="flex-row items-center gap-3 p-4 text-sm">
           <Loader2 className="h-4 w-4 animate-spin text-[var(--cta)]" />
-          The analysis model is writing the scenarios: {campaign.generation?.done ?? 0}/{campaign.generation?.total ?? campaign.count}…
+          {campaign.generation?.mode === "rewrite"
+            ? `The analysis model is revising the scenarios to follow the new instructions: ${campaign.generation?.done ?? 0}/${campaign.generation?.total ?? 0}…`
+            : `The analysis model is writing the scenarios: ${campaign.generation?.done ?? 0}/${campaign.generation?.total ?? campaign.count}…`}
         </Card>
       )}
       {campaign.generation?.error && campaign.status !== "generating" && (
@@ -238,10 +242,20 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
         </div>
       ) : (
         <div className="space-y-3">
+          <InstructionsCard key={`${campaign.instructions ?? ""}-${campaign.status}`} campaign={campaign} onSaved={() => void load()} />
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" className="w-64 pl-8" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setQuery("");
+                }}
+                placeholder="Search"
+                className="w-64 pl-8 pr-9"
+              />
+              <ClearSearch value={query} onClear={() => setQuery("")} />
             </div>
             <span className="text-xs text-muted-foreground">
               {campaign.scenarios.filter((s) => s.enabled).length} enabled of {campaign.scenarios.length}

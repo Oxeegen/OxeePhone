@@ -733,6 +733,167 @@ async def generate(organization_id: int, campaign_id: str) -> None:
     await save(organization_id, campaign)
 
 
+REWRITE_PROMPT = """You revise the test scenarios of a phone voice agent: the
+tester changed the campaign's instructions. You receive the agent (nodes,
+transitions, tools, variables), the previous instructions, the NEW
+instructions and the scenarios, each with its id, its caller levels (1 = easy,
+5 = hard: vocabulary, mood, request clarity, request complexity, depth in the
+agent, impatience, dictated data, traps), its caller's voice gender and its
+current content.
+
+Rewrite each scenario so that it follows the NEW instructions:
+- keep its levels and the caller's gender (first name and grammatical gender
+  match it); keep the persona when it still fits;
+- the NEW instructions win over the scenario's current request, goal and
+  persona: when they say what callers want, who they are or how they behave
+  (e.g. "all callers...", "half of the callers..."), every scenario must
+  follow them, even if this changes its whole request; spread a share
+  ("half", "a third") over the scenarios you receive;
+- otherwise change as little as possible: a scenario that already complies
+  comes back unchanged;
+- same rules as when writing: full name; "facts" hold every piece of data the
+  agent may ask for (dates after "today"); 2 to 6 checkable "criteria" about
+  what the AGENT must do, only what its configuration says it should do;
+  "expected_end_node" an exact node name or null; "expected_variables" only
+  values known in advance; "expected_tools" the agent's tool names;
+  "tool_hints" what simulated tools should answer.
+
+Write every text in {language}. Answer only with JSON:
+{"scenarios": [{"id": str, "title": str, "intent": str (2-4 words),
+  "persona": {"name": str, "age": int, "gender": "female"|"male",
+              "situation": str, "personality": str},
+  "goal": str, "behaviour": str, "facts": {str: str},
+  "criteria": [str], "forbidden": [str], "expected_end_node": str|null,
+  "expected_variables": {str: str}, "expected_tools": [str], "tool_hints": str}]}"""
+
+REWRITTEN_FIELDS = (
+    "title",
+    "intent",
+    "persona",
+    "goal",
+    "behaviour",
+    "facts",
+    "criteria",
+    "forbidden",
+    "expected_end_node",
+    "expected_variables",
+    "expected_tools",
+    "tool_hints",
+)
+
+
+def _scenario_for_rewrite(s: dict) -> dict:
+    return {
+        "id": s["id"],
+        "levels": s.get("levels"),
+        "voice_gender": (s.get("voice") or {}).get("gender") or (s.get("persona") or {}).get("gender"),
+        **{k: s.get(k) for k in REWRITTEN_FIELDS},
+    }
+
+
+def scenarios_to_rewrite(campaign: dict, keep_edited: bool) -> list[dict]:
+    return [
+        s
+        for s in campaign["scenarios"]
+        if not (keep_edited and s.get("edited_at") and not s.get("rewritten_at"))
+    ]
+
+
+async def rewrite(
+    organization_id: int,
+    campaign_id: str,
+    previous_instructions: str | None,
+    keep_edited: bool = False,
+) -> None:
+    """Background: adapt the existing scenarios to the campaign's (new)
+    instructions, batch by batch. Ids, levels, voices, numbers and the
+    enabled flag stay; executions already played keep their own copy."""
+    from api.brand.analysis import resolve_analysis_model
+    from api.brand.llm import chat_json
+
+    campaign = await get(organization_id, campaign_id)
+    if campaign is None:
+        return
+    targets = scenarios_to_rewrite(campaign, keep_edited)
+    campaign["generation"] = {
+        "mode": "rewrite",
+        "done": 0,
+        "total": len(targets),
+        "error": None,
+    }
+    rewritten = 0
+    try:
+        model = await resolve_analysis_model(organization_id)
+        if not model:
+            raise CampaignError("no analysis model configured (Models › Analysis)")
+        workflow = await db_client.get_workflow(
+            campaign["workflow_id"], organization_id=organization_id
+        )
+        if workflow is None:
+            raise CampaignError("agent not found")
+        definition = await db_client.get_draft_version(workflow.id) or (
+            await brand_db.get_workflow_version(
+                workflow.id, workflow.released_definition_id
+            )
+        )
+        brief = agent_brief(
+            definition.workflow_json or {}, definition.workflow_configurations or {}
+        )
+        brief["tools"] = await _tool_names(organization_id, brief.pop("tool_uuids"))
+        for start in range(0, len(targets), GENERATION_BATCH):
+            batch = targets[start : start + GENERATION_BATCH]
+            result = await chat_json(
+                model,
+                REWRITE_PROMPT.replace("{language}", campaign["language"]),
+                {
+                    "today": datetime.now(UTC).strftime("%A %d %B %Y"),
+                    "agent": {"name": workflow.name, **brief},
+                    "previous_instructions": previous_instructions,
+                    "new_instructions": campaign.get("instructions"),
+                    "scenarios": [_scenario_for_rewrite(s) for s in batch],
+                },
+                max_tokens=8000,
+                temperature=0.4,
+                timeout=240.0,
+            )
+            by_id = {
+                str(r.get("id")): r
+                for r in result.get("scenarios") or []
+                if isinstance(r, dict)
+            }
+            for s in batch:
+                raw = by_id.get(s["id"])
+                if not raw:
+                    continue
+                fresh = _scenario_from(
+                    raw,
+                    {
+                        "levels": s.get("levels"),
+                        "speed": s.get("speed"),
+                        "voice": s.get("voice"),
+                        "caller_number": s.get("caller_number"),
+                    },
+                )
+                s.update({k: fresh[k] for k in REWRITTEN_FIELDS})
+                s["rewritten_at"] = _now()
+                rewritten += 1
+            campaign["generation"]["done"] = min(start + len(batch), len(targets))
+            await save(organization_id, campaign)
+        if rewritten < len(targets):
+            campaign["generation"]["error"] = (
+                f"the model revised {rewritten} scenarios out of {len(targets)}; "
+                "the others are unchanged"
+            )
+    except Exception as e:
+        logger.warning(f"Test campaign {campaign_id}: rewrite failed: {e}")
+        campaign["generation"] = {
+            **(campaign.get("generation") or {}),
+            "error": f"{e} ({rewritten} scenarios revised)",
+        }
+    campaign["status"] = "ready"
+    await save(organization_id, campaign)
+
+
 # --- Editing ----------------------------------------------------------------------
 
 EDITABLE = (
