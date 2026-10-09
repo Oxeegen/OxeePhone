@@ -251,13 +251,13 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile label="Calls" value={n(calls.total)} hint={`${n(calls.completed)} completed · ${calls.total_minutes} min`} />
         <Tile
-          label="Reply time (median)"
+          label="Time to first audio (median)"
           value={ms(latency.p50_ms)}
           hint={`avg ${ms(latency.avg_ms)} · p90 ${ms(latency.p90_ms)}${latency.perceived_p50_ms != null ? ` · heard ${ms(latency.perceived_p50_ms)}` : ""}`}
-          help="From the end of the caller's turn to the agent speaking, per reply. The end-of-turn wait, a setting of the agent, is not counted; 'heard' includes it."
+          help="From the end of the caller's turn to the agent's first audio, per reply. The end-of-turn wait, a setting of the agent, is not counted; 'heard' includes it."
         />
         <Tile
-          label="Slow replies"
+          label="Late first audio"
           value={pct(latency.slow_share)}
           hint={`over ${n(latency.slow_threshold_ms / 1000)} s · ${n(latency.turns)} replies measured`}
         />
@@ -279,7 +279,7 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
       </div>
       {calls.truncated && <p className="text-xs text-muted-foreground">Computed on the 5,000 most recent calls of the period.</p>}
 
-      <Section title="Latency" subtitle="Where the reply time goes, from the end of the caller's turn to the agent speaking (average per reply). The end-of-turn wait is a setting of the agent, shown apart.">
+      <Section title="Latency" subtitle="Where the time to first audio goes, from the end of the caller's turn to the agent's first audio (average per reply). The end-of-turn wait is a setting of the agent, shown apart.">
         <Card className="space-y-4 p-4">
           <div className="flex h-4 w-full gap-[2px] overflow-hidden rounded-full" role="img" aria-label="Average latency by stage">
             {counted.map((s) => (
@@ -305,7 +305,7 @@ export function CallInsights({ date, timezone, workflowId }: { date: Date; timez
         </Card>
         {showTrends && (
           <Card className="p-4">
-            <p className="mb-2 text-sm font-medium">Response latency per day</p>
+            <p className="mb-2 text-sm font-medium">Time to first audio per day</p>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trend} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>

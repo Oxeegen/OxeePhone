@@ -21,8 +21,8 @@ from typing import Any
 POSTS: list[dict[str, Any]] = [
     {
         "key": "reply",
-        "label": "Reply time",
-        "help": "From the end of the caller's turn to the agent's first audio. The end-of-turn wait is a setting of the agent: shown apart, not counted.",
+        "label": "Time to first audio",
+        "help": "From the end of the caller's turn to the agent's first audio, the delay the caller waits for an answer. The end-of-turn wait is a setting of the agent: shown apart, not counted.",
         "threshold": "reply_p50_warn_ms",
         "critical": "reply_p50_crit_ms",
         "unit": "ms",
@@ -125,7 +125,7 @@ def _percentile(values: list[float], pct: float) -> float | None:
 
 
 def upgrade_latency(metrics: dict | None) -> dict | None:
-    """Latency of a call measured before the reply time excluded the
+    """Latency of a call measured before the time to first audio excluded the
     end-of-turn wait: same shape as ``call_metrics`` now (idempotent)."""
     latency = (metrics or {}).get("latency")
     turns = (latency or {}).get("turn_stages")

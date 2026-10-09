@@ -367,9 +367,9 @@ def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
                     rule="reply_latency",
                     severity="critical" if p50 > th["reply_p50_crit_ms"] else "warning",
                     category="latency",
-                    title=f"Slow replies: median {p50 / 1000:.1f} s",
+                    title=f"Slow first audio: median {p50 / 1000:.1f} s",
                     detail=(
-                        f"Median reply time (end of the caller's turn to the agent speaking, end-of-turn wait not counted) is {p50:.0f} ms over "
+                        f"Median time to first audio (end of the caller's turn to the agent's first audio, end-of-turn wait not counted) is {p50:.0f} ms over "
                         f"{len(replies)} replies ({_pct(len(slow_calls and [1 for _, t in replies if t['total_ms'] > th['reply_p50_warn_ms']]) / len(replies))} over "
                         f"{th['reply_p50_warn_ms'] / 1000:.0f} s). Largest stage: {worst} ({stage_avg[worst]:.0f} ms)."
                     ),
@@ -393,7 +393,7 @@ def _latency_rules(f: _Finding, calls: list[dict], th: dict) -> dict:
                     if stage == "endpointing":
                         extra = (
                             " This wait is set by the agent (voice detection silence, speaking plan): it is not "
-                            "counted in the reply time, but callers hear it. Shorten it only if callers are not cut off."
+                            "counted in the time to first audio, but callers hear it. Shorten it only if callers are not cut off."
                         )
                     f.add(
                         rule=f"stage_{stage}",

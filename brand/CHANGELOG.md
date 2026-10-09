@@ -5,6 +5,20 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## 0.9.6 — 2026-10-09
+
+- Latency: "Reply time" is named "Time to first audio" everywhere (call
+  detail, Reports, Analysis, test executions, comparisons, thresholds): the
+  delay from the end of the caller's turn to the agent's first audio.
+- Voice fluency is timed from the request to the voice model: its first audio
+  now includes the connection and the server wait, and matches the Voice
+  stage of the latency breakdown; the generation speed counts them too.
+- Files: Markdown and text documents open in a preview (Markdown formatted,
+  with tables and task lists, or as source); documents kept whole show the
+  text extracted from them.
+- Tools, Files, Recordings: the search field has a button (and Escape) to
+  clear the filter.
+
 ## 0.9.5 — 2026-10-08
 
 - Call engine › Performance: "Let the model think before answering", off by

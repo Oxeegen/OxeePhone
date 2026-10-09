@@ -10,7 +10,7 @@ const STAGE_META: Record<Stage, { label: string; color: string; icon: ComponentT
     label: "End-of-turn wait",
     color: "var(--viz-endpointing)",
     icon: Timer,
-    help: "Wait before the agent decides the caller has finished: voice detection silence + speaking plan. A setting of the agent, not counted in the reply time (the caller still hears it).",
+    help: "Wait before the agent decides the caller has finished: voice detection silence + speaking plan. A setting of the agent, not counted in the time to first audio (the caller still hears it).",
   },
   transcriber: {
     label: "Transcriber",
@@ -100,8 +100,8 @@ export function LatencyTab({ turns, voice }: { turns: LatencyTurn[]; voice?: Voi
         <div className="mb-3 flex items-baseline justify-between">
           <h3 className="font-semibold">Latency breakdown</h3>
           <span className="text-sm text-muted-foreground">
-            Average reply: <span className="font-semibold text-foreground">{fmt(avg.totalMs)}</span> over {avg.count} turn{avg.count > 1 ? "s" : ""}
-            <span title="What the caller hears: the reply time plus the end-of-turn wait set on the agent">
+            Average time to first audio: <span className="font-semibold text-foreground">{fmt(avg.totalMs)}</span> over {avg.count} turn{avg.count > 1 ? "s" : ""}
+            <span title="What the caller hears: the time to first audio plus the end-of-turn wait set on the agent">
               {" "}· heard {fmt(avg.perceivedMs)}
             </span>
           </span>
@@ -151,7 +151,7 @@ export function LatencyTab({ turns, voice }: { turns: LatencyTurn[]; voice?: Voi
           <div>
             <h3 className="font-semibold">Latency per turn</h3>
             <p className="text-xs text-muted-foreground">
-              Reply: from the end of the caller&apos;s turn to the agent speaking. Heard: what the caller hears, end-of-turn wait included (milliseconds).
+              First audio: from the end of the caller&apos;s turn to the agent&apos;s first audio. Heard: what the caller hears, end-of-turn wait included (milliseconds).
             </p>
           </div>
           <span className="text-sm text-muted-foreground">{turns.length} turns</span>
@@ -161,7 +161,7 @@ export function LatencyTab({ turns, voice }: { turns: LatencyTurn[]; voice?: Voi
             <thead className="border-y border-border/70 bg-muted/40 text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Turn</th>
-                <th className="px-4 py-2 text-right font-medium">Reply</th>
+                <th className="px-4 py-2 text-right font-medium">First audio</th>
                 <th className="px-4 py-2 text-right font-medium">Heard</th>
                 {shown.map((s) => (
                   <th key={s} className="px-4 py-2 text-right font-medium">{STAGE_META[s].label}</th>

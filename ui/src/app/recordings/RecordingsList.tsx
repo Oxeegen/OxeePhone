@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { isBranded } from "@/brand/brand";
+import { ClearSearch } from "@/brand/ClearSearch";
 import { UseAsGreetingButton } from "@/brand/RecordingTools";
 import {
     deleteRecordingApiV1WorkflowRecordingsRecordingIdDelete,
@@ -180,8 +181,11 @@ export default function RecordingsList({ refreshKey }: { refreshKey?: number }) 
                         placeholder="Search by filename, transcript, or ID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
+                        onKeyDown={(e) => { if (isBranded && e.key === "Escape") setSearchQuery(""); }}
+                        className={isBranded ? "pl-10 pr-9" : "pl-10"}
                     />
+                    {/* OxeePhone: clear the filter. */}
+                    {isBranded && <ClearSearch value={searchQuery} onClear={() => setSearchQuery("")} />}
                 </div>
                 <Button
                     variant="outline"
