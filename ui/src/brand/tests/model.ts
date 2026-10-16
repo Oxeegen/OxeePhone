@@ -64,6 +64,9 @@ export interface Scenario {
   expected_variables: Record<string, string>;
   expected_tools: string[];
   tool_hints: string;
+  /** E2E campaigns: the agent handling the call when it ends, and the agents in order. */
+  expected_agent?: string | null;
+  expected_route?: string[];
   variant_of: string | null;
   enabled: boolean;
 }
@@ -95,6 +98,8 @@ export interface ExecutionSummary {
   latency_p50_ms: number | null;
   quality_score?: number | null;
   technical_score?: number | null;
+  routing_score?: number | null;
+  mode?: CampaignMode;
 }
 
 export interface CampaignSummary {
@@ -106,6 +111,7 @@ export interface CampaignSummary {
   generation: { done: number; total: number; error: string | null; mode?: "rewrite" } | null;
   count: number;
   tools_mode: ToolsMode;
+  mode?: CampaignMode;
   language: string;
   created_at: string;
   updated_at: string;
@@ -137,6 +143,9 @@ export interface CallMetrics {
   end_status: string;
   /** Transfer simulated during the test call (the destination "answered"). */
   transfer?: { tool: string | null; destination: string | null } | null;
+  /** E2E: the agents the call went through, with their nodes. */
+  route?: Array<{ agent: string | null; nodes: string[] }> | null;
+  final_agent?: string | null;
   extracted_variables: Record<string, unknown>;
 }
 
@@ -169,6 +178,32 @@ export interface TestCall {
   verdict?: Verdict | null;
   fix_id?: string;
   technical?: { score: number | null; status: TechStatus | null; posts: Record<string, number | null>; weakest: string | null };
+  routing?: Routing | null;
+  /** Text E2E: one run per agent the call went through. */
+  route_runs?: Array<{ run_id: number; workflow_id: number; workflow_name: string; handed_to?: string; handoff_error?: string }>;
+}
+
+export type CampaignMode = "unit" | "e2e";
+
+export const MODE_META: Record<CampaignMode, { label: string; text: string }> = {
+  unit: {
+    label: "Unit",
+    text: "The agent alone: a transfer to another agent is simulated and ends the call. Grades quality and technique.",
+  },
+  e2e: {
+    label: "E2E",
+    text: "The whole journey: calls are handed from agent to agent as in production. Adds a routing score — did the caller reach the right agent?",
+  },
+};
+
+export interface Routing {
+  score: number;
+  route: string[];
+  expected_agent: string | null;
+  reached: boolean | null;
+  loops: boolean;
+  extra_handoffs: number;
+  judge: { score: number | null; evidence: string; handoffs: Array<{ to: string; justified: boolean; evidence: string }> } | null;
 }
 
 export interface ScenarioRow {
@@ -227,6 +262,8 @@ export interface Report {
   checks_failed: Array<{ label: string; count: number }>;
   failure_nodes: Record<string, number>;
   scenario_issues?: Array<{ index: number; scenario_id: string; title: string; issue: string }>;
+  routing_score?: number | null;
+  routing?: { calls: number; reach_rate: number | null; loops_rate: number | null; handoffs_per_call: number; agents: Record<string, number> } | null;
   quality_score?: number | null;
   technical?: Technical;
 }
@@ -320,7 +357,7 @@ export interface Headline {
 }
 
 export interface Comparison {
-  headline?: { quality: Headline; technical: Headline };
+  headline?: { quality: Headline; technical: Headline; routing?: Headline | null };
   a: Partial<Execution>;
   b: Partial<Execution>;
   indicators: Indicator[];

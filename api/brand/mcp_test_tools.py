@@ -71,9 +71,12 @@ async def oxee_create_test_campaign(
     speed: list[float] | None = None,
     max_duration_seconds: int = 300,
     instructions: str | None = None,
+    mode: Literal["unit", "e2e"] = "unit",
 ) -> dict:
     """Create a test campaign for an agent: ``count`` scenarios (one simulated
-    caller each) written by the analysis model in the background. ``ranges``
+    caller each) written by the analysis model in the background. ``mode``:
+    "unit" tests the agent alone (transfers to other agents simulated), "e2e"
+    lets calls be handed from agent to agent and grades the routing. ``ranges``
     sets each caller setting as [min, max] from 1 (easy) to 5 (hard):
     vocabulary, mood, clarity, complexity, depth, impatience, dictation, traps.
     ``speed`` is the caller's voice speed range, e.g. [0.95, 1.15]."""
@@ -94,6 +97,7 @@ async def oxee_create_test_campaign(
             tools_mode=tools_mode,
             max_duration_seconds=max_duration_seconds,
             instructions=instructions,
+            mode=mode,
         )
     except campaigns.CampaignError as e:
         _fail(e)

@@ -88,17 +88,19 @@ export function TranscriptButton({
   runId,
   agentName,
   title,
+  label = "Transcript",
 }: {
   workflowId: number;
   runId: number;
   agentName: string;
   title?: string;
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setOpen(true)}>
-        <MessagesSquare className="h-3.5 w-3.5" /> Transcript
+        <MessagesSquare className="h-3.5 w-3.5" /> {label}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="flex max-h-[90vh] flex-col gap-3 sm:max-w-4xl">

@@ -5,7 +5,25 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
-## Unreleased
+## 0.10.0 — 2026-10-16
+
+- Test campaigns: **Unit** or **E2E**, chosen when the campaign is created.
+  Unit tests the agent alone (a transfer to another agent is simulated and
+  ends the call). E2E follows the whole journey: "Transfer to agent" tools
+  really hand the call over — by phone as in production, and as text the
+  test caller goes on with the destination agent, which reads the
+  conversation so far (one run per agent, up to 3 handoffs). Transfers to a
+  phone number stay simulated.
+- E2E scenarios know the agents the call can reach: each one names the
+  expected route and the agent that must end the call.
+- Routing score (1-5) for E2E executions, next to the quality and technical
+  scores: did the caller reach the expected agent, loops between agents,
+  needless handoffs, and the judge's view of each handoff. Shown per call
+  (route through the agents and their nodes), per execution, in the lists of
+  executions and campaigns and in comparisons; "Ends with agent …" is checked
+  like the end node. In E2E, the quality score grades each agent within its
+  own role and leaves routing out. One transcript per agent in a call's
+  detail. The MCP tool `oxee_create_test_campaign` takes `mode`.
 
 - Test comparisons: the legend names the new colours (violet: better, raspberry:
   worse).

@@ -33,7 +33,8 @@
 - **A call detail worth the name.** Recording with waveform, transcript synchronised with the audio,
   tool calls, per-stage latency, the path through your agent's nodes and why each move happened.
 - **Test campaigns.** Simulated callers, harder or easier at will, play scenarios written from your
-  agent against a draft; quality and technical scores tell whether the change is better.
+  agent against a draft, the agent alone or the whole journey through your agents; quality,
+  technical and routing scores tell whether the change is better.
 - **The platform reviews your agents.** An analysis of the recorded calls finds slow replies, silences,
   stalled conversations, routing loops and misrouting, then proposes a fix, tests it by replaying the
   real calls against a draft, and follows it up once published.
@@ -127,7 +128,9 @@ duration, tool reliability, routing between agents.
 
 ### Test campaigns
 
-Test an agent before publishing a change, with simulated callers.
+Test an agent before publishing a change, with simulated callers. A campaign is **unit** (the agent
+alone) or **end-to-end** (calls are handed from agent to agent as in production, and a routing score
+tells whether each caller reached the right agent).
 
 1. **Write**: pick an agent and set each caller setting as a min / max range: vocabulary, mood,
    request clarity, complexity, depth in the agent, impatience, dictated data, traps, voice speed.
@@ -145,6 +148,8 @@ Test an agent before publishing a change, with simulated callers.
    fluency, tools, turn-taking, reliability, graded against the analysis thresholds). The report shows
    where the agent starts failing as callers get harder, the coverage of its nodes and transitions,
    each call's transcript, and turns a failed call into an automatic fix.
+   **End-to-end** campaigns also get a **routing score**: the route of every call through the agents
+   and their nodes, against the expected one, with the judge's view of each handoff.
 4. **Compare** two executions: both scores, every indicator, the scenarios improved or regressed,
    and the configuration diff between the two versions tested.
 
@@ -152,10 +157,12 @@ Test an agent before publishing a change, with simulated callers.
 
 <img src="/brand/assets/screenshots/11-test-execution.png" alt="Report of a test execution">
 
+<img src="/brand/assets/screenshots/16-test-e2e-route.png" alt="End-to-end test call: route through two agents and routing score">
+
 <img src="/brand/assets/screenshots/12-test-compare.png" alt="Comparison of two executions: published version against a draft">
 
 <details>
-<summary>New test campaign</summary>
+<summary>New test campaign (unit or end-to-end)</summary>
 
 <img src="/brand/assets/screenshots/10-test-campaign-new.png" alt="Caller settings as min / max ranges">
 </details>

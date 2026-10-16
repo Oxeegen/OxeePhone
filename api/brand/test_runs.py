@@ -47,6 +47,8 @@ MAX_EXECUTIONS = 300
 _EXECUTIONS = asyncio.Lock()
 _CANCEL: set[str] = set()
 MAX_TEXT_EXCHANGES = 30
+# Agents a text E2E call may be handed to, one after the other.
+MAX_HANDOFFS = 3
 END_TAG = "<END_CALL>"
 POLL_SECONDS = 3.0
 ANSWER_TIMEOUT = 90.0
@@ -189,6 +191,8 @@ def _snapshot(scenario: dict) -> dict:
             "expected_variables",
             "expected_tools",
             "tool_hints",
+            "expected_agent",
+            "expected_route",
             "variant_of",
         )
     }
@@ -317,6 +321,7 @@ async def create_execution(
         "personas": "fresh" if personas == "fresh" else "frozen",
         "concurrency": max(1, min(10, int(concurrency or settings["concurrency"]))),
         "tools_mode": campaign.get("tools_mode") or "simulated",
+        "mode": campaign.get("mode") or "unit",
         "language": campaign.get("language") or "English",
         "max_duration_seconds": campaign.get("max_duration_seconds") or 300,
         "created_at": _now(),
@@ -453,6 +458,7 @@ def _test_context(execution: dict, call: dict) -> dict:
         "execution": execution["id"],
         "call": call["index"],
         "tools_mode": execution["tools_mode"],
+        "mode": execution.get("mode") or "unit",
         "scenario": scenario.get("title"),
         "tool_hints": scenario.get("tool_hints"),
         # What a CRM may know about the caller (simulated pre-call fetch).
@@ -494,116 +500,185 @@ async def _play_text(execution: dict, call: dict, ctx: dict) -> dict:
 
     scenario = call["scenario"]
     org = ctx["organization_id"]
-    run = await db_client.create_workflow_run(
-        name=test_calls.agent_run_name(execution["id"], call["index"]),
-        workflow_id=execution["workflow_id"],
-        mode=WorkflowRunMode.TEXTCHAT.value,
-        user_id=ctx["user_id"],
-        initial_context={
-            "caller_number": scenario.get("caller_number") or "",
-            "oxee_test": _test_context(execution, call),
-        },
-        organization_id=org,
-        definition_id=execution["definition_id"],
-        use_draft=execution["use_draft"],
-    )
     system = (
         campaigns.tester_prompt(
             scenario, agent_name=ctx["agent_name"], language=execution["language"]
         )
         + TEXT_RULES
     )
-    history: list[dict] = []
-    session = default_text_chat_session_data()
-    checkpoint = default_text_chat_checkpoint()
-    gathered: dict = {}
+    history: list[dict] = []  # the tester's view: the agents speak as "user"
+    segments: list[dict] = []
+    target = {
+        "workflow_id": execution["workflow_id"],
+        "workflow_name": ctx["agent_name"],
+        "definition_id": execution["definition_id"],
+        "use_draft": execution["use_draft"],
+    }
     ended_by, error = "limit", None
     started = time.monotonic()
+    exchanges = 0
     user_text: str | None = None  # the agent opens
     caller_done = False
-    try:
-        for _ in range(MAX_TEXT_EXCHANGES):
-            turn = build_pending_text_chat_turn(user_text=user_text)
-            session["turns"] = [*session["turns"], turn]
-            result = await execute_text_chat_pending_turn(
-                workflow_run_id=run.id,
-                workflow_id=execution["workflow_id"],
-                session_data=session,
-                checkpoint=checkpoint,
-            )
-            turn.update(
-                status="completed",
-                assistant_message=(
-                    {
-                        "text": result.assistant_text,
-                        "created_at": result.assistant_created_at,
-                    }
-                    if result.assistant_text
-                    else None
-                ),
-                events=result.events,
-                usage=result.usage,
-                checkpoint_after_turn=result.checkpoint,
-            )
-            checkpoint = result.checkpoint
-            gathered = result.gathered_context or gathered
-            if result.assistant_text:
-                history.append({"role": "user", "content": result.assistant_text})
-            if result.is_completed:
-                ended_by = "agent"
-                break
-            if caller_done:
-                ended_by = "caller"
-                break
-            if execution["id"] in _CANCEL:
-                ended_by = "cancelled"
-                break
-            reply = await chat_messages(
-                ctx["model"],
-                (
-                    [{"role": "system", "content": system}, *history]
-                    if history
-                    else [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": "(the agent answers the phone)"},
-                    ]
-                ),
-                max_tokens=400,
-                temperature=0.8,
-                timeout=90.0,
-            )
-            user_text, caller_done = _strip_end(reply)
-            if not user_text:
-                ended_by = "caller"
-                break
-            history.append({"role": "assistant", "content": user_text})
-    except Exception as e:  # a broken version must show as a failed call
-        logger.warning(f"Text test call {run.id} failed: {e}")
-        error = str(e)
-    finally:
-        await db_client.update_workflow_run(
-            run.id,
-            is_completed=True,
-            state=WorkflowRunState.COMPLETED.value,
-            logs={
-                "realtime_feedback_events": build_text_chat_realtime_feedback_events(
-                    session
-                )
+    # E2E: when an agent hands the call over, the same conversation goes on
+    # with the destination agent (its own run), as a phone handoff would.
+    for hop in range(MAX_HANDOFFS + 1):
+        name = test_calls.agent_run_name(execution["id"], call["index"])
+        run = await db_client.create_workflow_run(
+            name=name if not hop else f"{name}{hop + 1}",
+            workflow_id=target["workflow_id"],
+            mode=WorkflowRunMode.TEXTCHAT.value,
+            user_id=ctx["user_id"],
+            initial_context={
+                "caller_number": scenario.get("caller_number") or "",
+                "oxee_test": _test_context(execution, call),
             },
-            gathered_context={
-                **{
-                    k: v
-                    for k, v in gathered.items()
-                    if k in ("extracted_variables", test_calls.TRANSFER_CONTEXT_KEY)
-                },
-                "call_status": "error" if error else "completed",
-                "oxee_test_ended_by": ended_by,
-            },
-            usage_info={"call_duration_seconds": round(time.monotonic() - started, 1)},
+            organization_id=org,
+            definition_id=target["definition_id"],
+            use_draft=target["use_draft"],
         )
+        session = default_text_chat_session_data()
+        checkpoint = default_text_chat_checkpoint()
+        if hop:
+            # The destination agent reads the conversation so far.
+            checkpoint["messages"] = [
+                {
+                    "role": "assistant" if m["role"] == "user" else "user",
+                    "content": m["content"],
+                }
+                for m in history
+            ]
+        gathered: dict = {}
+        handoff = None
+        segment_started = time.monotonic()
+        try:
+            while exchanges < MAX_TEXT_EXCHANGES:
+                exchanges += 1
+                turn = build_pending_text_chat_turn(user_text=user_text)
+                session["turns"] = [*session["turns"], turn]
+                result = await execute_text_chat_pending_turn(
+                    workflow_run_id=run.id,
+                    workflow_id=target["workflow_id"],
+                    session_data=session,
+                    checkpoint=checkpoint,
+                )
+                turn.update(
+                    status="completed",
+                    assistant_message=(
+                        {
+                            "text": result.assistant_text,
+                            "created_at": result.assistant_created_at,
+                        }
+                        if result.assistant_text
+                        else None
+                    ),
+                    events=result.events,
+                    usage=result.usage,
+                    checkpoint_after_turn=result.checkpoint,
+                )
+                checkpoint = result.checkpoint
+                gathered = result.gathered_context or gathered
+                if result.assistant_text:
+                    history.append({"role": "user", "content": result.assistant_text})
+                if result.is_completed:
+                    ended_by = "agent"
+                    handoff = gathered.get(test_calls.HANDOFF_CONTEXT_KEY)
+                    break
+                if caller_done:
+                    ended_by = "caller"
+                    break
+                if execution["id"] in _CANCEL:
+                    ended_by = "cancelled"
+                    break
+                reply = await chat_messages(
+                    ctx["model"],
+                    (
+                        [{"role": "system", "content": system}, *history]
+                        if history
+                        else [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": "(the agent answers the phone)"},
+                        ]
+                    ),
+                    max_tokens=400,
+                    temperature=0.8,
+                    timeout=90.0,
+                )
+                user_text, caller_done = _strip_end(reply)
+                if not user_text:
+                    ended_by = "caller"
+                    break
+                history.append({"role": "assistant", "content": user_text})
+        except Exception as e:  # a broken version must show as a failed call
+            logger.warning(f"Text test call {run.id} failed: {e}")
+            error = str(e)
+        finally:
+            await db_client.update_workflow_run(
+                run.id,
+                is_completed=True,
+                state=WorkflowRunState.COMPLETED.value,
+                logs={
+                    "realtime_feedback_events": build_text_chat_realtime_feedback_events(
+                        session
+                    )
+                },
+                gathered_context={
+                    **{
+                        k: v
+                        for k, v in gathered.items()
+                        if k
+                        in (
+                            "extracted_variables",
+                            test_calls.TRANSFER_CONTEXT_KEY,
+                            test_calls.HANDOFF_CONTEXT_KEY,
+                        )
+                    },
+                    "call_status": "error" if error else "completed",
+                    "oxee_test_ended_by": ended_by,
+                },
+                usage_info={
+                    "call_duration_seconds": round(time.monotonic() - segment_started, 1)
+                },
+            )
+        segments.append(
+            {
+                "run_id": run.id,
+                "workflow_id": target["workflow_id"],
+                "workflow_name": target["workflow_name"],
+            }
+        )
+        if error or not handoff or hop == MAX_HANDOFFS:
+            break
+        destination = await _handoff_target(org, handoff)
+        if destination is None:
+            segments[-1]["handoff_error"] = "destination agent not found or not published"
+            break
+        segments[-1]["handed_to"] = destination["workflow_name"]
+        target = destination
+        ended_by, user_text = "limit", None
     if error:
         raise ExecutionError(error)
-    return {"agent_run_id": run.id, "ended_by": ended_by}
+    return {
+        "agent_run_id": segments[0]["run_id"],
+        "route_runs": segments,
+        "ended_by": ended_by,
+        "duration_seconds": round(time.monotonic() - started, 1),
+    }
+
+
+async def _handoff_target(organization_id: int, handoff: dict) -> dict | None:
+    """The published version of the agent a text E2E call is handed to."""
+    workflow_id = handoff.get("destination_workflow_id")
+    if not isinstance(workflow_id, int):
+        return None
+    workflow = await db_client.get_workflow(workflow_id, organization_id=organization_id)
+    if workflow is None or not workflow.released_definition_id:
+        return None
+    return {
+        "workflow_id": workflow.id,
+        "workflow_name": workflow.name,
+        "definition_id": workflow.released_definition_id,
+        "use_draft": False,
+    }
 
 
 # --- Phone channel ----------------------------------------------------------------------
@@ -800,12 +875,24 @@ Judge the AGENT, not the caller:
   agent (the caller lacked information any real caller would have, a
   criterion asks for something the agent is not built to do, contradictory
   facts...), say it in one sentence; otherwise null.
-{channel_note}
+{channel_note}{mode_note}
 Write in {language}. Answer only with JSON:
 {"goal_reached": bool, "criteria": [{"index": int, "pass": bool, "evidence": str}],
  "forbidden": [{"index": int, "violated": bool, "evidence": str}],
  "scores": {"understanding": int, "accuracy": int, "concision": int, "tone": int, "resolution": int},
  "failure_node": str|null, "summary": str, "issues": [str], "scenario_issue": str|null}"""
+
+E2E_NOTE = """
+END-TO-END test: the call may be handed over from agent to agent ("route",
+"agents_on_the_route"); every handoff really happened. Grade the quality
+scores on what each agent does within its own role (follows its instructions,
+uses the caller's data, answers accurately, tone, concision), NOT on where the
+call went: routing is graded on its own. Add to the JSON:
+"routing": {"score": int 1-5, "evidence": str, "handoffs": [{"to": str, "justified": bool, "evidence": str}]}
+— did the caller reach the right agent ("expected_final_agent", "expected_route"
+when given) at the right moment, without needless, wrong or back-and-forth
+handoffs, and without being left where nobody can help them? The goal and
+criteria still judge the call as a whole."""
 
 CHANNEL_NOTES = {
     "phone": "The transcript comes from speech recognition on a real phone "
@@ -927,6 +1014,17 @@ def deterministic_checks(scenario: dict, metrics: dict) -> list[dict]:
                 ),
             }
         )
+    if scenario.get("expected_agent") and metrics.get("route") is not None:
+        final = metrics.get("final_agent")
+        checks.append(
+            {
+                "kind": "route",
+                "label": f"Ends with agent “{scenario['expected_agent']}”",
+                "pass": _same(final, scenario["expected_agent"]),
+                "detail": " → ".join(r.get("agent") or "?" for r in metrics["route"])
+                or "no route",
+            }
+        )
     called = [t["name"] for t in metrics.get("tools") or []]
     for name in scenario.get("expected_tools") or []:
         checks.append(
@@ -976,21 +1074,56 @@ def _transcript(run: dict) -> list[str]:
 async def _evaluate(execution: dict, call: dict, ctx: dict) -> None:
     from api.brand.llm import chat_json
 
+    from api.brand.analysis import _graph_index
+    from api.brand.test_routing import combine_metrics, route_of_run, routing_grade
+
     org = ctx["organization_id"]
-    runs = await brand_db.get_runs_by_ids([call["agent_run_id"]], organization_id=org)
+    e2e = (execution.get("mode") or "unit") == "e2e"
+    segments = call.get("route_runs") or [{"run_id": call["agent_run_id"]}]
+    runs = await brand_db.get_runs_by_ids(
+        [seg["run_id"] for seg in segments], organization_id=org
+    )
     if not runs:
         raise ExecutionError("the agent's call was not found")
     run = runs[0]
-    metrics = call_metrics(run, ctx["index"])
+    route = None
+    if len(runs) > 1:  # text E2E: one run per agent
+        graphs = await brand_db.get_definition_graphs(
+            [r["definition_id"] for r in runs[1:]], organization_id=org
+        )
+        index = _graph_index(graphs)
+        parts = [
+            call_metrics(r, ctx["index"] if i == 0 else index.get(r["definition_id"]))
+            for i, r in enumerate(runs)
+        ]
+        metrics = combine_metrics(parts)
+        route = [
+            {"agent": r["workflow_name"], "workflow_id": r["workflow_id"], "nodes": p["path"]}
+            for r, p in zip(runs, parts, strict=False)
+        ]
+        transcript: list[str] = []
+        for i, r in enumerate(runs):
+            if i:
+                transcript.append(f"--> call handed over to agent “{r['workflow_name']}”")
+            transcript.extend(_transcript(r))
+    else:
+        metrics = call_metrics(run, ctx["index"])
+        transcript = _transcript(run)
+        if e2e:
+            route = route_of_run(run)
+    if e2e:
+        metrics["route"] = route
+        metrics["final_agent"] = route[-1]["agent"] if route else None
     scenario = call["scenario"]
     checks = deterministic_checks(scenario, metrics)
+    agents = await _route_agents(org, runs, route) if e2e else None
     judge, judge_error = None, None
     try:
         judge = await chat_json(
             ctx["model"],
-            JUDGE_PROMPT.replace("{language}", execution["language"]).replace(
-                "{channel_note}", CHANNEL_NOTES[execution["channel"]]
-            ),
+            JUDGE_PROMPT.replace("{language}", execution["language"])
+            .replace("{channel_note}", CHANNEL_NOTES[execution["channel"]])
+            .replace("{mode_note}", E2E_NOTE if e2e else ""),
             {
                 "scenario": {
                     "title": scenario.get("title"),
@@ -1017,7 +1150,19 @@ async def _evaluate(execution: dict, call: dict, ctx: dict) -> None:
                     ],
                     "transitions": ctx["brief"].get("transitions"),
                 },
-                "transcript": _transcript(run)[:120],
+                **(
+                    {
+                        "agents_on_the_route": agents,
+                        "route": [
+                            {"agent": r["agent"], "nodes": r["nodes"]} for r in route or []
+                        ],
+                        "expected_route": scenario.get("expected_route") or [],
+                        "expected_final_agent": scenario.get("expected_agent"),
+                    }
+                    if e2e
+                    else {}
+                ),
+                "transcript": transcript[:160],
                 "extracted_variables": metrics["extracted_variables"],
                 "ended": {
                     "status": metrics["end_status"],
@@ -1095,6 +1240,38 @@ async def _evaluate(execution: dict, call: dict, ctx: dict) -> None:
     call["technical"] = call_technical(
         call, ctx.get("thresholds") or THRESHOLD_DEFAULTS, channel=execution["channel"]
     )
+    call["routing"] = (
+        routing_grade(scenario, route or [], (judge or {}).get("routing"))
+        if e2e
+        else None
+    )
+
+
+async def _route_agents(organization_id: int, runs: list[dict], route: list[dict] | None) -> list[dict]:
+    """The configuration of every agent on an E2E call's route, for the judge."""
+    from api.brand.test_campaigns import agent_brief
+
+    definition_ids = [r["definition_id"] for r in runs]
+    for v in (runs[0].get("gathered_context") or {}).get("agent_visits") or []:
+        if v.get("definition_id"):
+            definition_ids.append(v["definition_id"])
+    graphs = await brand_db.get_definition_graphs(
+        list(dict.fromkeys(definition_ids)), organization_id=organization_id
+    )
+    agents = []
+    for entry in graphs.values():
+        brief = agent_brief(entry.get("workflow_json") or {}, {})
+        agents.append(
+            {
+                "name": entry.get("workflow_name"),
+                "nodes": [
+                    {"name": n.get("name"), "prompt": (n.get("prompt") or "")[:400]}
+                    for n in brief.get("nodes") or []
+                ],
+                "transitions": brief.get("transitions"),
+            }
+        )
+    return agents
 
 
 # --- Report -----------------------------------------------------------------------------
@@ -1116,6 +1293,26 @@ def _p90(values: list[float]) -> float | None:
 
     v = _percentile([x for x in values if x is not None], 0.9)
     return round(v, 1) if v is not None else None
+
+
+def routing_report(calls: list[dict]) -> dict:
+    graded = [c["routing"] for c in calls if c.get("status") == "done" and c.get("routing")]
+    if not graded:
+        return {"routing_score": None, "routing": None}
+    expected = [g for g in graded if g.get("reached") is not None]
+    agents: Counter = Counter(a for g in graded for a in g.get("route") or [])
+    return {
+        "routing_score": round(sum(g["score"] for g in graded) / len(graded), 2),
+        "routing": {
+            "calls": len(graded),
+            "reach_rate": _pct(sum(1 for g in expected if g["reached"]), len(expected)),
+            "loops_rate": _pct(sum(1 for g in graded if g.get("loops")), len(graded)),
+            "handoffs_per_call": round(
+                sum(max(0, len(g.get("route") or []) - 1) for g in graded) / len(graded), 2
+            ),
+            "agents": dict(agents.most_common()),
+        },
+    }
 
 
 def aggregate(
@@ -1283,6 +1480,8 @@ def aggregate(
         "technical_posts": {
             p["key"]: {"p50": p["p50"], "score": p["score"]} for p in technical["posts"]
         },
+        # E2E campaigns: did the callers reach the right agent.
+        **routing_report(calls),
         "calls": len(calls),
         "played": len(played),
         "judged": len(judged),
@@ -1380,6 +1579,9 @@ INDICATORS = (
     ("score", "Score (pass + ½ partial)", "higher", "rate"),
     ("goal_rate", "Goal reached", "higher", "rate"),
     ("quality_score", "Quality score (1-5)", "higher", "score"),
+    ("routing_score", "Routing score (1-5)", "higher", "score"),
+    ("routing.reach_rate", "Reached the expected agent", "higher", "rate"),
+    ("routing.handoffs_per_call", "Handoffs per call", "lower", "number"),
     ("technical.score", "Technical score (1-5)", "higher", "score"),
     ("scores.understanding", "Understanding (1-5)", "higher", "score"),
     ("scores.accuracy", "Accuracy (1-5)", "higher", "score"),
@@ -1419,6 +1621,10 @@ SCORE_LABELS = {
     "tone": "Tone",
     "resolution": "Resolution",
 }
+
+
+def _percent(rate: float | None) -> float | None:
+    return round(rate * 100) if isinstance(rate, (int, float)) else None
 
 
 def _headline(a: float | None, b: float | None, rows: list[dict]) -> dict:
@@ -1540,6 +1746,22 @@ def compare_reports(a: dict, b: dict) -> dict:
             (ra.get("technical") or {}).get("score"),
             (rb.get("technical") or {}).get("score"),
             _post_rows(ra.get("technical") or {}, rb.get("technical") or {}),
+        ),
+        "routing": (
+            _headline(
+                ra.get("routing_score"),
+                rb.get("routing_score"),
+                [
+                    {
+                        "key": "reach_rate",
+                        "label": "Reached the expected agent (%)",
+                        "a": _percent((ra.get("routing") or {}).get("reach_rate")),
+                        "b": _percent((rb.get("routing") or {}).get("reach_rate")),
+                    },
+                ],
+            )
+            if ra.get("routing_score") is not None or rb.get("routing_score") is not None
+            else None
         ),
     }
     order = {

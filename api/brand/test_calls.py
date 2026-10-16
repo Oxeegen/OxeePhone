@@ -472,6 +472,47 @@ async def pre_call_or(real: Any, context: dict | None, workflow_json: dict | Non
     return await real
 
 
+HANDOFF_CONTEXT_KEY = "oxee_test_handoff"
+
+
+def is_e2e(context: dict | None) -> bool:
+    test = test_of(context)
+    return bool(test and test.get("mode") == "e2e")
+
+
+async def agent_transfer_plan(engine: Any) -> str | None:
+    """What a "Transfer to agent" tool does in a test call: "simulate" (unit
+    campaigns: the call ends as transferred), "handoff" (E2E as text: the test
+    runner carries the conversation over to the destination agent), "real"
+    (E2E by phone: the call is handed over), None outside a test call."""
+    from api.db import db_client
+    from api.enums import WorkflowRunMode
+
+    test = test_of(getattr(engine, "_call_context_vars", None))
+    if test is None:
+        return None
+    if test.get("mode") == "e2e":
+        run = await db_client.get_workflow_run_by_id(engine._workflow_run_id)
+        textchat = run is not None and run.mode == WorkflowRunMode.TEXTCHAT.value
+        return "handoff" if textchat else "real"
+    if (test.get("tools_mode") or "simulated") == "real":
+        return None
+    return "simulate"
+
+
+def record_handoff(engine: Any, tool: Any, arguments: dict | None) -> None:
+    config = (getattr(tool, "definition", None) or {}).get("config") or {}
+    engine.record_context(
+        {
+            HANDOFF_CONTEXT_KEY: {
+                "destination_workflow_id": config.get("workflow_id"),
+                "tool": getattr(tool, "name", None),
+                "arguments": arguments or {},
+            }
+        }
+    )
+
+
 TRANSFER_CONTEXT_KEY = "oxee_test_transfer"
 
 

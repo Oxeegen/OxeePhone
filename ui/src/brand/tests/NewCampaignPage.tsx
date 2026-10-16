@@ -15,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
-import { DIMENSION_ORDER, type Range, rangeLabel, speedText, TOOLS_MODE_LABEL, type ToolsMode } from "./model";
+import { type CampaignMode, DIMENSION_ORDER, MODE_META, type Range, rangeLabel, speedText, TOOLS_MODE_LABEL, type ToolsMode } from "./model";
 import { API, RangeSlider, useTestSettings } from "./ui";
 
 /** Texts of the two ends of a range: min on the left, max on the right. */
@@ -103,6 +104,7 @@ export function NewCampaignPage() {
   const [count, setCount] = useState(30);
   const [language, setLanguage] = useState("French");
   const [toolsMode, setToolsMode] = useState<ToolsMode>("simulated");
+  const [mode, setMode] = useState<CampaignMode>("unit");
   const [maxDuration, setMaxDuration] = useState(300);
   const [instructions, setInstructions] = useState("");
   const [ranges, setRanges] = useState<Record<string, Range>>({});
@@ -140,6 +142,7 @@ export function NewCampaignPage() {
         count,
         language,
         tools_mode: toolsMode,
+        mode,
         max_duration_seconds: maxDuration,
         instructions: instructions.trim() || null,
       },
@@ -163,6 +166,25 @@ export function NewCampaignPage() {
       </h1>
 
       <Card className="grid gap-4 p-5 md:grid-cols-2">
+        <div className="space-y-1.5 md:col-span-2">
+          <span className="text-xs text-muted-foreground">Type of test</span>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(Object.keys(MODE_META) as CampaignMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={cn(
+                  "rounded-lg border p-3 text-left transition-colors",
+                  mode === m ? "border-[var(--cta)] bg-[var(--cta)]/10" : "border-border hover:border-[var(--cta)]/40",
+                )}
+              >
+                <span className="block text-sm font-medium">{MODE_META[m].label}</span>
+                <span className="block text-xs text-muted-foreground">{MODE_META[m].text}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <label className="space-y-1">
           <span className="text-xs text-muted-foreground">Agent to test</span>
           <Select value={workflowId} onValueChange={(v) => {

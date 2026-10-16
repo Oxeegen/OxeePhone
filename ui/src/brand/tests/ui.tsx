@@ -300,6 +300,22 @@ export function ScoreBadge({ score, status, compact = false }: { score: number |
   );
 }
 
+/** Unit / E2E badge of a campaign. */
+export function ModeBadge({ mode }: { mode?: "unit" | "e2e" | null }) {
+  const e2e = mode === "e2e";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        e2e ? "border-[var(--cta)]/50 bg-[var(--cta)]/10 text-[var(--cta)]" : "border-border text-muted-foreground",
+      )}
+      title={e2e ? "End-to-end: calls are handed from agent to agent; routing is graded" : "Unit: the agent alone; transfers to other agents are simulated"}
+    >
+      {e2e ? "E2E" : "Unit"}
+    </span>
+  );
+}
+
 export function techStatus(score: number | null | undefined): TechStatus | null {
   if (score === null || score === undefined) return null;
   return score >= 4 ? "good" : score >= 3 ? "fair" : score >= 2 ? "warning" : "critical";

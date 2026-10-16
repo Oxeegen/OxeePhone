@@ -18,6 +18,8 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.utils.enums import EndTaskReason
 
 from api.brand import BRAND
+from api.brand.test_calls import agent_transfer_plan as brand_agent_transfer_plan
+from api.brand.test_calls import record_handoff as brand_record_handoff
 from api.brand.test_calls import simulated_transfer as brand_simulated_transfer
 from api.brand.test_calls import transfer_by_tool as brand_transfer_by_tool
 from api.brand.test_calls import tool_override as brand_tool_override
@@ -659,11 +661,17 @@ class CustomToolManager:
                     {"status": "transfer_failed", "reason": code, "message": message}
                 )
 
-            # OxeePhone: in a test call the handoff is simulated: the
-            # announcement plays and the call ends as transferred.
-            if BRAND.test_campaigns and brand_simulated_transfer(
-                engine, tool, function_call_params.arguments
-            ):
+            # OxeePhone: in a test call the handoff is simulated (unit
+            # campaigns: the call ends as transferred) or carried out (E2E;
+            # as text, the test runner goes on with the destination agent).
+            plan = (
+                await brand_agent_transfer_plan(engine) if BRAND.test_campaigns else None
+            )
+            if plan in ("simulate", "handoff"):
+                if plan == "simulate":
+                    brand_simulated_transfer(engine, tool, function_call_params.arguments)
+                else:
+                    brand_record_handoff(engine, tool, function_call_params.arguments)
                 await function_call_params.result_callback(
                     {"status": "transfer_success", "message": "Caller handed over."},
                     properties=FunctionCallResultProperties(run_llm=False),

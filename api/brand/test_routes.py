@@ -53,6 +53,8 @@ def _execution_summary(e: dict) -> dict:
         "verdicts": report.get("verdicts") or _live_verdicts(calls),
         "latency_p50_ms": (report.get("latency") or {}).get("p50_ms"),
         "quality_score": report.get("quality_score"),
+        "routing_score": report.get("routing_score"),
+        "mode": e.get("mode") or "unit",
         "technical_score": (report.get("technical") or {}).get("score"),
     }
 
@@ -81,6 +83,7 @@ def _campaign_summary(c: dict, executions: list[dict]) -> dict:
                 "generation",
                 "count",
                 "tools_mode",
+                "mode",
                 "language",
                 "created_at",
                 "updated_at",
@@ -186,6 +189,8 @@ class CreateCampaignRequest(BaseModel):
     tools_mode: Literal["simulated", "real", "real_with_header"] = "simulated"
     max_duration_seconds: int = Field(default=300, ge=60, le=900)
     instructions: str | None = None
+    # unit: transfers to other agents are simulated; e2e: they happen.
+    mode: Literal["unit", "e2e"] = "unit"
 
 
 @router.get("/campaigns")
@@ -236,6 +241,7 @@ class UpdateCampaignRequest(BaseModel):
     tools_mode: Literal["simulated", "real", "real_with_header"] | None = None
     max_duration_seconds: int | None = Field(default=None, ge=60, le=900)
     instructions: str | None = None
+    mode: Literal["unit", "e2e"] | None = None
     ranges: dict[str, list[int]] | None = None
     speed: list[float] | None = None
 
