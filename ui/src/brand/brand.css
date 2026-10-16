@@ -57,3 +57,121 @@ a[href*="dograh-community"] {
   --viz-series-2: #d95926;
   --viz-grid: #2e2e2c;
 }
+
+/* Test verdicts (validated for CVD in both modes): success is the primary
+   violet, a partial success pastel apricot, a failure soft raspberry; calls
+   not played yet are neutral. "-ink" variants are for text. */
+:root:root {
+  --verdict-pass: #5e4af5;
+  --verdict-partial: #ea9d60;
+  --verdict-fail: #c8729c;
+  --verdict-pending: #d6d3cc;
+  --verdict-pass-ink: #5e4af5;
+  --verdict-fail-ink: #a24d76;
+}
+
+.dark.dark {
+  --verdict-pass: #7a6bff;
+  --verdict-partial: #c88346;
+  --verdict-fail: #b1537b;
+  --verdict-pending: #3d3c39;
+  --verdict-pass-ink: #a99ff7;
+  --verdict-fail-ink: #e08ab0;
+}
+
+/* App-wide semantic colours: Tailwind's palette entries used for
+   success are remapped to the primary violet, those for errors to soft
+   raspberry, those for warnings and middle grades to pastel apricot (the
+   verdicts' "partial"). Tailwind v4 reads them as --color-* variables, so
+   every screen (upstream ones included) follows without code changes. Steps
+   follow Tailwind's lightness scale; "dark:" utilities use the same steps. */
+:root:root {
+  --color-emerald-50: oklch(0.970 0.029 280.0);
+  --color-emerald-100: oklch(0.935 0.060 280.0);
+  --color-emerald-200: oklch(0.885 0.108 280.0);
+  --color-emerald-300: oklch(0.810 0.168 280.0);
+  --color-emerald-400: oklch(0.710 0.216 280.0);
+  --color-emerald-500: oklch(0.620 0.240 280.0);
+  --color-emerald-600: oklch(0.550 0.240 280.0);
+  --color-emerald-700: oklch(0.480 0.216 280.0);
+  --color-emerald-800: oklch(0.410 0.180 280.0);
+  --color-emerald-900: oklch(0.360 0.144 280.0);
+  --color-emerald-950: oklch(0.270 0.108 280.0);
+  --color-green-50: oklch(0.970 0.029 280.0);
+  --color-green-100: oklch(0.935 0.060 280.0);
+  --color-green-200: oklch(0.885 0.108 280.0);
+  --color-green-300: oklch(0.810 0.168 280.0);
+  --color-green-400: oklch(0.710 0.216 280.0);
+  --color-green-500: oklch(0.620 0.240 280.0);
+  --color-green-600: oklch(0.550 0.240 280.0);
+  --color-green-700: oklch(0.480 0.216 280.0);
+  --color-green-800: oklch(0.410 0.180 280.0);
+  --color-green-900: oklch(0.360 0.144 280.0);
+  --color-green-950: oklch(0.270 0.108 280.0);
+  --color-lime-50: oklch(0.970 0.029 280.0);
+  --color-lime-100: oklch(0.935 0.060 280.0);
+  --color-lime-200: oklch(0.885 0.108 280.0);
+  --color-lime-300: oklch(0.810 0.168 280.0);
+  --color-lime-400: oklch(0.710 0.216 280.0);
+  --color-lime-500: oklch(0.620 0.240 280.0);
+  --color-lime-600: oklch(0.550 0.240 280.0);
+  --color-lime-700: oklch(0.480 0.216 280.0);
+  --color-lime-800: oklch(0.410 0.180 280.0);
+  --color-lime-900: oklch(0.360 0.144 280.0);
+  --color-lime-950: oklch(0.270 0.108 280.0);
+  --color-red-50: oklch(0.970 0.017 350.2);
+  --color-red-100: oklch(0.935 0.035 350.2);
+  --color-red-200: oklch(0.885 0.063 350.2);
+  --color-red-300: oklch(0.820 0.098 350.2);
+  --color-red-400: oklch(0.750 0.126 350.2);
+  --color-red-500: oklch(0.680 0.140 350.2);
+  --color-red-600: oklch(0.600 0.140 350.2);
+  --color-red-700: oklch(0.480 0.126 350.2);
+  --color-red-800: oklch(0.410 0.105 350.2);
+  --color-red-900: oklch(0.360 0.084 350.2);
+  --color-red-950: oklch(0.270 0.063 350.2);
+  --color-rose-50: oklch(0.970 0.017 350.2);
+  --color-rose-100: oklch(0.935 0.035 350.2);
+  --color-rose-200: oklch(0.885 0.063 350.2);
+  --color-rose-300: oklch(0.820 0.098 350.2);
+  --color-rose-400: oklch(0.750 0.126 350.2);
+  --color-rose-500: oklch(0.680 0.140 350.2);
+  --color-rose-600: oklch(0.600 0.140 350.2);
+  --color-rose-700: oklch(0.480 0.126 350.2);
+  --color-rose-800: oklch(0.410 0.105 350.2);
+  --color-rose-900: oklch(0.360 0.084 350.2);
+  --color-rose-950: oklch(0.270 0.063 350.2);
+  --color-amber-50: oklch(0.970 0.016 58.0);
+  --color-amber-100: oklch(0.935 0.033 58.0);
+  --color-amber-200: oklch(0.885 0.059 58.0);
+  --color-amber-300: oklch(0.860 0.091 58.0);
+  --color-amber-400: oklch(0.810 0.117 58.0);
+  --color-amber-500: oklch(0.760 0.130 58.0);
+  --color-amber-600: oklch(0.680 0.130 58.0);
+  --color-amber-700: oklch(0.480 0.117 58.0);
+  --color-amber-800: oklch(0.410 0.098 58.0);
+  --color-amber-900: oklch(0.360 0.078 58.0);
+  --color-amber-950: oklch(0.270 0.059 58.0);
+  --color-yellow-50: oklch(0.970 0.016 58.0);
+  --color-yellow-100: oklch(0.935 0.033 58.0);
+  --color-yellow-200: oklch(0.885 0.059 58.0);
+  --color-yellow-300: oklch(0.860 0.091 58.0);
+  --color-yellow-400: oklch(0.810 0.117 58.0);
+  --color-yellow-500: oklch(0.760 0.130 58.0);
+  --color-yellow-600: oklch(0.680 0.130 58.0);
+  --color-yellow-700: oklch(0.480 0.117 58.0);
+  --color-yellow-800: oklch(0.410 0.098 58.0);
+  --color-yellow-900: oklch(0.360 0.078 58.0);
+  --color-yellow-950: oklch(0.270 0.059 58.0);
+  --color-orange-50: oklch(0.970 0.016 58.0);
+  --color-orange-100: oklch(0.935 0.033 58.0);
+  --color-orange-200: oklch(0.885 0.059 58.0);
+  --color-orange-300: oklch(0.860 0.091 58.0);
+  --color-orange-400: oklch(0.810 0.117 58.0);
+  --color-orange-500: oklch(0.760 0.130 58.0);
+  --color-orange-600: oklch(0.680 0.130 58.0);
+  --color-orange-700: oklch(0.480 0.117 58.0);
+  --color-orange-800: oklch(0.410 0.098 58.0);
+  --color-orange-900: oklch(0.360 0.078 58.0);
+  --color-orange-950: oklch(0.270 0.059 58.0);
+}

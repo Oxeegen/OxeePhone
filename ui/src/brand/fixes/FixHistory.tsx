@@ -16,7 +16,7 @@ import { type Fix, FOLLOW_UP_LABEL, STATUS_LABEL } from "./model";
 const STATUS_STYLE: Partial<Record<Fix["status"], string>> = {
   published: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   rolled_back: "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300",
-  tested: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  tested: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   applied: "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300",
   failed: "border-rose-500/40 text-rose-700 dark:text-rose-300",
 };

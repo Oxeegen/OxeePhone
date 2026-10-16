@@ -114,8 +114,8 @@ export function VerdictBadge({ verdict, compact = false }: { verdict: Verdict | 
   const meta = VERDICT_META[verdict];
   const Icon = VERDICT_ICON[verdict];
   return (
-    <span className={cn("inline-flex items-center gap-1 text-xs font-medium", meta.className)}>
-      <Icon className="h-3.5 w-3.5" /> {meta.label}
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+      <Icon className={cn("h-3.5 w-3.5", meta.className)} /> {meta.label}
     </span>
   );
 }
@@ -126,7 +126,7 @@ export function ExecutionStatusBadge({ status, progress }: { status: ExecutionSt
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
-        status === "failed" || status === "interrupted" ? "border-red-500/40 text-red-700 dark:text-red-300" : "border-border text-muted-foreground",
+        status === "failed" || status === "interrupted" ? "border-[var(--verdict-fail)]/40 text-[var(--verdict-fail-ink)]" : "border-border text-muted-foreground",
       )}
     >
       {running ? <Loader2 className="h-3 w-3 animate-spin" /> : status === "cancelled" ? <CircleSlash className="h-3 w-3" /> : null}
@@ -137,13 +137,23 @@ export function ExecutionStatusBadge({ status, progress }: { status: ExecutionSt
 }
 
 /** Pass / partial / fail split of a set of calls (status colours + labels). */
-export function VerdictSplit({ verdicts, className }: { verdicts: Record<Verdict, number> | null | undefined; className?: string }) {
-  const total = verdicts ? verdicts.pass + verdicts.partial + verdicts.fail : 0;
+export function VerdictSplit({
+  verdicts,
+  pending = 0,
+  className,
+}: {
+  verdicts: Record<Verdict, number> | null | undefined;
+  /** Calls not played or judged yet (execution in progress), shown in gray. */
+  pending?: number;
+  className?: string;
+}) {
+  const judged = verdicts ? verdicts.pass + verdicts.partial + verdicts.fail : 0;
+  const total = judged + Math.max(0, pending);
   if (!verdicts || !total) return <span className="text-xs text-muted-foreground">—</span>;
   const parts: Array<[Verdict, string]> = [
-    ["pass", "bg-emerald-500"],
-    ["partial", "bg-amber-400"],
-    ["fail", "bg-red-500"],
+    ["pass", "bg-[var(--verdict-pass)]"],
+    ["partial", "bg-[var(--verdict-partial)]"],
+    ["fail", "bg-[var(--verdict-fail)]"],
   ];
   return (
     <div className={cn("space-y-1", className)}>
@@ -151,6 +161,7 @@ export function VerdictSplit({ verdicts, className }: { verdicts: Record<Verdict
         {parts.map(([k, color]) =>
           verdicts[k] ? <div key={k} className={cn("h-2", color)} style={{ width: `${(verdicts[k] / total) * 100}%` }} /> : null,
         )}
+        {pending > 0 && <div className="h-2 bg-[var(--verdict-pending)]" style={{ width: `${(pending / total) * 100}%` }} />}
       </div>
       <p className="flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
         {parts.map(([k]) => (
@@ -158,6 +169,7 @@ export function VerdictSplit({ verdicts, className }: { verdicts: Record<Verdict
             {VERDICT_META[k].label} {verdicts[k]}
           </span>
         ))}
+        {pending > 0 && <span>Pending {pending}</span>}
       </p>
     </div>
   );
@@ -204,7 +216,7 @@ export function MeterRow({ label, sub, value, max, display }: { label: ReactNode
         {sub && <div className="truncate text-[11px] text-muted-foreground">{sub}</div>}
       </div>
       <div className="h-2 rounded-full bg-muted">
-        <div className="h-2 rounded-full bg-[var(--viz-series-1)]" style={{ width: `${max ? Math.max(value > 0 ? 3 : 0, (value / max) * 100) : 0}%` }} />
+        <div className="h-2 rounded-full bg-[var(--cta)]" style={{ width: `${max ? Math.max(value > 0 ? 3 : 0, (value / max) * 100) : 0}%` }} />
       </div>
       <span className="text-right tabular-nums">{display}</span>
     </div>
@@ -269,10 +281,10 @@ export function LevelChips({ levels, speed }: { levels: Record<string, number>; 
 }
 
 const TECH_META: Record<TechStatus, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-  good: { label: "Good", className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300", icon: CheckCircle2 },
+  good: { label: "Good", className: "border-[var(--verdict-pass)]/40 text-[var(--verdict-pass-ink)]", icon: CheckCircle2 },
   fair: { label: "Fair", className: "border-border text-muted-foreground", icon: MinusCircle },
-  warning: { label: "Weak", className: "border-amber-500/50 text-amber-800 dark:text-amber-300", icon: MinusCircle },
-  critical: { label: "Critical", className: "border-red-500/40 text-red-700 dark:text-red-300", icon: XCircle },
+  warning: { label: "Weak", className: "border-[var(--verdict-fail)]/40 text-[var(--verdict-fail-ink)]", icon: MinusCircle },
+  critical: { label: "Critical", className: "border-[var(--verdict-fail)] bg-[var(--verdict-fail)]/10 text-[var(--verdict-fail-ink)]", icon: XCircle },
 };
 
 /** A 1-5 technical grade with its status (icon + label, never colour alone). */

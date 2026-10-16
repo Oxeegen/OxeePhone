@@ -98,6 +98,8 @@ class Audio(BaseModel):
     recording_buffer_seconds: float | None = Field(default=None, ge=1, le=30)
     output_packet_ms: int | None = Field(default=None, ge=10, le=100)
     end_silence_secs: float | None = Field(default=None, ge=0, le=3)
+    # What the caller hears while the call is handed to another agent.
+    transfer_hold: Literal["silence", "ring"] | None = None
 
 
 def _builtin() -> dict:
@@ -122,6 +124,7 @@ def _builtin() -> dict:
             "recording_buffer_seconds": 5.0,
             "output_packet_ms": 40,
             "end_silence_secs": 2.0,
+            "transfer_hold": "silence",  # pipecat/Dograh: ring
         },
     }
 
@@ -271,6 +274,11 @@ def tune_transport(transport: Any, configs: dict | None) -> None:
         params.audio_out_10ms_chunks = max(1, round(settings.output_packet_ms / 10))
     if settings.end_silence_secs is not None:
         params.audio_out_end_silence_secs = settings.end_silence_secs
+
+
+def transfer_hold(configs: dict | None) -> str:
+    """Hold sound of an agent transfer: "silence" (default) or "ring"."""
+    return audio(configs).transfer_hold or BUILTIN[AUDIO_KEY]["transfer_hold"]
 
 
 def voice_override(configs: dict | None) -> VoiceOverride | None:

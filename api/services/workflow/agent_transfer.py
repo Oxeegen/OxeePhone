@@ -13,6 +13,7 @@ from enum import Enum
 from loguru import logger
 from pipecat.frames.frames import LLMMessagesAppendFrame
 
+from api.brand import BRAND
 from api.services.pipecat.agent_runtime_factory import AgentBuildError
 from api.services.pipecat.audio_playback import play_hold_audio_loop
 from api.services.workflow.agent_handoff_context import build_handoff_snapshot
@@ -255,6 +256,9 @@ class AgentTransferCoordinator:
 
     async def _begin_hold(self, request, source):
         await self._engine.deactivate_agent(source)
+        # OxeePhone: the hold sound is an agent setting, silence by default.
+        if BRAND.agent_tuning and getattr(self._engine, "oxee_transfer_hold", None) == "silence":
+            return
         self._hold_stop = asyncio.Event()
         self._hold_task = asyncio.create_task(
             play_hold_audio_loop(

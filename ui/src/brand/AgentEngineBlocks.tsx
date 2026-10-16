@@ -157,7 +157,8 @@ export function useAgentEngineSettings(
         platformSummary={
           <>
             Browser calls {((audioFallback.webrtc_sample_rate ?? 16000) / 1000).toString()} kHz · packets{" "}
-            {s(audioFallback.output_packet_ms, " ms")} · silence before hanging up {s(audioFallback.end_silence_secs, " s")}.
+            {s(audioFallback.output_packet_ms, " ms")} · silence before hanging up {s(audioFallback.end_silence_secs, " s")} · agent
+            transfer: {audioFallback.transfer_hold === "ring" ? "ringing tone" : "silence"}.
           </>
         }
       >

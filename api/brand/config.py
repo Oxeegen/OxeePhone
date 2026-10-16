@@ -50,6 +50,7 @@ class BrandConfig:
     # Test campaigns: scenarios played by a simulated caller against an agent
     # version, by phone or as text, judged and compared (brand/test_*.py).
     test_campaigns: bool
+    call_scoring: bool
     # Per-agent voice override and low-level performance settings
     # (brand/agent_tuning.py), versioned with the agent.
     agent_tuning: bool
@@ -61,7 +62,7 @@ class BrandConfig:
 
 BRAND = BrandConfig(
     product_name="OxeePhone",
-    version="0.9.8",
+    version="0.9.9",
     api_description="API for the OxeePhone voice agent platform",
     mcp_server_name="oxeephone",
     disable_dograh_services=_env_flag("OXEE_DISABLE_DOGRAH_SERVICES", True),
@@ -73,6 +74,7 @@ BRAND = BrandConfig(
     agent_fixes=_env_flag("OXEE_AGENT_FIXES", True),
     same_origin=_env_flag("OXEE_SAME_ORIGIN", True),
     test_campaigns=_env_flag("OXEE_TEST_CAMPAIGNS", True),
+    call_scoring=_env_flag("OXEE_CALL_SCORING", True),
     agent_tuning=_env_flag("OXEE_AGENT_TUNING", True),
     cloudflared_tunnel=_env_flag("OXEE_CLOUDFLARED_TUNNEL", True),
 )

@@ -1005,6 +1005,9 @@ async def _run_pipeline_impl(
     # Set the context, audio_config, and audio_buffer after creation
     engine.set_context(context)
     engine.set_audio_config(audio_config)
+    if BRAND.agent_tuning:
+        # OxeePhone: what the caller hears during an agent transfer.
+        engine.oxee_transfer_hold = brand_tuning.transfer_hold(run_configs)
 
     assistant_params = LLMAssistantAggregatorParams(
         correct_aggregation_callback=engine.create_aggregation_correction_callback(),

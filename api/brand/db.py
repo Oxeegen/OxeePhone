@@ -429,6 +429,41 @@ async def delete_test_caller_run(organization_id: int, run_id: int) -> bool:
     return bool(result.rowcount)
 
 
+async def scored_runs_since(organization_id: int, since) -> list[dict]:
+    """Production calls created since ``since`` (UTC) with their score
+    annotation, for the overview (org-scoped)."""
+    from api.db.models import WorkflowRunModel
+
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                select(
+                    WorkflowRunModel.id,
+                    WorkflowRunModel.created_at,
+                    WorkflowRunModel.is_completed,
+                    WorkflowRunModel.annotations,
+                    WorkflowRunModel.usage_info,
+                )
+                .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+                .where(
+                    WorkflowModel.organization_id == organization_id,
+                    WorkflowRunModel.created_at >= since,
+                    production_runs(),
+                )
+            )
+        ).all()
+    return [
+        {
+            "id": r[0],
+            "created_at": r[1],
+            "is_completed": r[2],
+            "score": (r[3] or {}).get("oxee_score"),
+            "duration": (r[4] or {}).get("call_duration_seconds"),
+        }
+        for r in rows
+    ]
+
+
 async def agent_phone_numbers(organization_id: int, workflow_id: int) -> list[dict]:
     """Active numbers routing inbound calls to an agent."""
     from api.db.models import TelephonyPhoneNumberModel

@@ -5,6 +5,37 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## 0.9.9 — 2026-10-16
+
+- Every call is graded when it ends, like the calls of a test campaign: a
+  quality score (the analysis model reviews the agent against its own
+  configuration: understanding, accuracy, concision, tone, resolution, with a
+  summary and what to improve) and a technical score (time to first audio,
+  voice fluency, tools, reliability... against the Analysis thresholds).
+  Shown in the call's header and in a "Call review" card of its Analysis tab
+  ("Grade again" to redo it). Test-campaign calls keep their own grading.
+  Flag `OXEE_CALL_SCORING` (on by default); one analysis-model request per
+  call.
+- Home page: the OxeePhone wordmark, today's calls, average quality and
+  technical scores against yesterday and the last 7 days, a 7-day chart, and
+  shortcuts to agents, test campaigns, analysis and reports. Calls made
+  before grading existed can be graded from there.
+
+- Colours: green, yellow and red are replaced across the application by three
+  colours (validated for colour-blind readers, light and dark themes): what
+  worked is the primary violet, a middle grade (partial, warning) pastel
+  apricot, what failed soft raspberry. Tailwind's green, amber/yellow/orange
+  and red palettes are remapped in the brand theme, so every screen follows;
+  Analysis findings (critical raspberry, warning apricot, info violet), fix
+  and version statuses included. Progress meters of test reports and Reports
+  use the primary violet.
+- Test campaigns: a running execution shows its results bar as it goes, the
+  calls not judged yet in gray ("Pending N").
+- Call engine › Audio & sampling: "Sound during an agent transfer", silence
+  by default (the ringing tone of Dograh is one click away). Set for the
+  platform or overridden per agent (versioned); applies to "Transfer to
+  agent" tools, between the announcement and the new agent's first words.
+
 ## 0.9.8 — 2026-10-09
 
 - Test campaigns › Scenarios: the campaign's instructions to the scenario

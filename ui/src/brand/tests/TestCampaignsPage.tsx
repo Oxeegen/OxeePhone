@@ -26,7 +26,7 @@ function Trend({ last, previous }: { last: CampaignSummary["last_done"]; previou
   if (Math.abs(delta) < 0.005) return <span className="text-xs text-muted-foreground">= previous</span>;
   const Icon = delta > 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={delta > 0 ? "inline-flex items-center gap-0.5 text-xs text-emerald-700 dark:text-emerald-300" : "inline-flex items-center gap-0.5 text-xs text-red-700 dark:text-red-300"}>
+    <span className={delta > 0 ? "inline-flex items-center gap-0.5 text-xs text-[var(--verdict-pass-ink)]" : "inline-flex items-center gap-0.5 text-xs text-[var(--verdict-fail-ink)]"}>
       <Icon className="h-3.5 w-3.5" />
       {delta > 0 ? "+" : "−"}
       {Math.abs(delta * 100).toFixed(0)} pts vs {versionLabel(previous)}
@@ -39,7 +39,7 @@ function ScoreTrend({ last, previous }: { last: number | null | undefined; previ
   const delta = last - previous;
   if (Math.abs(delta) < 0.005) return <span className="block text-[11px] text-muted-foreground">= previous</span>;
   return (
-    <span className={cn("block text-[11px] tabular-nums", delta > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300")}>
+    <span className={cn("block text-[11px] tabular-nums", delta > 0 ? "text-[var(--verdict-pass-ink)]" : "text-[var(--verdict-fail-ink)]")}>
       {delta > 0 ? "+" : "−"}
       {Math.abs(delta).toFixed(2)} vs previous
     </span>

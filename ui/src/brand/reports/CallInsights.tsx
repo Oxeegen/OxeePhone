@@ -124,7 +124,7 @@ function BarRow({ label, sub, value, max }: { label: string; sub?: string; value
         {sub && <p className="truncate text-[11px] text-muted-foreground">{sub}</p>}
       </div>
       <div className="h-2 rounded-full bg-muted">
-        <div className="h-2 rounded-full bg-[var(--viz-series-1)]" style={{ width: `${max ? Math.max(3, (value / max) * 100) : 0}%` }} />
+        <div className="h-2 rounded-full bg-[var(--cta)]" style={{ width: `${max ? Math.max(3, (value / max) * 100) : 0}%` }} />
       </div>
       <span className="text-right tabular-nums">{n(value)}</span>
     </div>

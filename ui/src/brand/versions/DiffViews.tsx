@@ -12,7 +12,7 @@ import { type Change, type FieldChange, formatValue, SCOPE_LABEL, type TextOp } 
 const KIND_STYLE: Record<Change["kind"], string> = {
   added: "text-emerald-700 dark:text-emerald-300",
   removed: "text-rose-700 dark:text-rose-300",
-  changed: "text-sky-700 dark:text-sky-300",
+  changed: "text-amber-700 dark:text-amber-300",
 };
 
 const SCOPE_ICON: Record<Change["scope"], typeof CircleDot> = {

@@ -15,8 +15,8 @@ import { type Comparison, type Execution, formatDelta, formatIndicator, type Hea
 import { API, Section, VerdictSplit } from "./ui";
 
 const CHANGE_META: Record<Comparison["scenarios"][number]["change"], { label: string; className: string }> = {
-  regressed: { label: "Regressed", className: "border-red-500/40 text-red-700 dark:text-red-300" },
-  improved: { label: "Improved", className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300" },
+  regressed: { label: "Regressed", className: "border-[var(--verdict-fail)]/40 text-[var(--verdict-fail-ink)]" },
+  improved: { label: "Improved", className: "border-[var(--verdict-pass)]/40 text-[var(--verdict-pass-ink)]" },
   same: { label: "Same", className: "border-border text-muted-foreground" },
   new: { label: "New", className: "border-border text-muted-foreground" },
   removed: { label: "Not played", className: "border-border text-muted-foreground" },
@@ -28,8 +28,8 @@ function HeadlineCard({ title, subtitle, headline }: { title: string; subtitle: 
     d === null || d === 0
       ? "text-muted-foreground"
       : d > 0
-        ? "text-emerald-700 dark:text-emerald-300"
-        : "text-red-700 dark:text-red-300";
+        ? "text-[var(--verdict-pass-ink)]"
+        : "text-[var(--verdict-fail-ink)]";
   const sign = (d: number | null, digits = 2) => (d === null ? "" : d === 0 ? "=" : `${d > 0 ? "+" : "−"}${Math.abs(d).toFixed(digits)}`);
   const score = (v: number | null) => (v === null ? "—" : v.toFixed(2));
   return (
@@ -179,7 +179,7 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
                       <td
                         className={cn(
                           "px-4 py-2 text-right tabular-nums",
-                          i.trend === "better" ? "text-emerald-700 dark:text-emerald-300" : i.trend === "worse" ? "text-red-700 dark:text-red-300" : "text-muted-foreground",
+                          i.trend === "better" ? "text-[var(--verdict-pass-ink)]" : i.trend === "worse" ? "text-[var(--verdict-fail-ink)]" : "text-muted-foreground",
                         )}
                       >
                         <span className="inline-flex items-center gap-1">

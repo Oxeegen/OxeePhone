@@ -1,6 +1,7 @@
 from loguru import logger
 from pipecat.utils.run_context import set_current_run_id
 
+from api.brand import BRAND
 from api.services.telephony.external_pbx_writeback import (
     sync_external_pbx_call_record,
 )
@@ -34,6 +35,12 @@ async def process_workflow_completion(
         await run_integrations_post_workflow_run(_ctx, workflow_run_id)
     except Exception as e:
         logger.error(f"Error running integrations for workflow {workflow_run_id}: {e}")
+
+    # OxeePhone: quality and technical score of the call.
+    if BRAND.call_scoring:
+        from api.brand.call_scoring import score_after_call
+
+        await score_after_call(workflow_run_id)
 
     # Notify MPS after completion. MPS owns credit accounting.
     try:
