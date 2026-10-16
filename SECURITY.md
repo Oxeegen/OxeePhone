@@ -1,18 +1,60 @@
-# Security Policy
+# Security policy
 
-At Dograh we look forward to working with security researchers across the world to keep Dograh and our users safe. If you have found an issue in any of our services, please reach out to us.
+OxeePhone is Oxeegen's self-hosted voice agent platform. It handles phone
+calls, recordings, transcripts and the keys of your model and telephony
+providers: we take its security seriously and thank everyone who helps keep
+it safe.
 
-## Supported Versions
-We always recommend using the latest versions of services to ensure you get all security updates
+## Supported versions
 
-## Reporting a Vulnerability
+Security fixes are released in the latest OxeePhone version only. Keep your
+servers up to date:
 
-If you believe you have found a security vulnerability within Dograh, please let us know right away. We'll try and fix the problem as soon as possible.
+```bash
+sudo /opt/oxeephone/brand/install.sh update
+```
 
-**Do not report vulnerabilities using public GitHub issues**. Instead, report the issue [here](https://github.com/dograh-hq/dograh/security/advisories/new)
+The running version is shown at the top of the sidebar, and the application
+tells you when a new release is out. See the
+[releases](https://github.com/Oxeegen/OxeePhone/releases) for what changed.
 
-Once we've received your email we'll keep you updated as we fix the vulnerability.
+## Reporting a vulnerability
 
-## Thanks
+**Do not report vulnerabilities in public issues, discussions or pull
+requests.** Report them privately through a
+[GitHub security advisory](https://github.com/Oxeegen/OxeePhone/security/advisories/new).
 
-Thank you for keeping Dograh and our users safe. 🙇
+Please include:
+
+- the OxeePhone version and how it is deployed (`brand/install.sh`, Docker
+  Compose…);
+- the affected area (API route, screen, telephony, MCP server, installer…);
+- the steps to reproduce, and what an attacker could do with it;
+- logs or a proof of concept, **with every key, password and caller's
+  personal data removed**.
+
+We acknowledge the report, keep you informed while we work on a fix, and
+credit you in the release notes if you wish once the fix is published.
+
+## Scope
+
+- **In scope**: the OxeePhone code (`api/brand/`, `ui/src/brand/`, `brand/`,
+  the installer) and the Dograh and Pipecat code as shipped in OxeePhone.
+- **Upstream**: a vulnerability that also affects
+  [Dograh](https://github.com/dograh-hq/dograh) or
+  [Pipecat](https://github.com/pipecat-ai/pipecat) should be reported to them
+  as well; tell us, and we will follow up in OxeePhone.
+- **Out of scope**: your own model servers, telephony provider or PBX, and
+  configurations that publish secrets (for example a `.env` file exposed by a
+  web server).
+
+## Running OxeePhone safely
+
+- Keep `.env` private: it holds the generated secrets and your provider keys.
+- Serve OxeePhone over HTTPS (the installer generates a certificate); do not
+  expose its database, Redis or MinIO ports to the internet.
+- Create one API key per integration or AI agent, and revoke the ones you no
+  longer use (Developers › API keys). Publishing from the MCP server stays off
+  unless `OXEE_MCP_CAN_PUBLISH` is set.
+- Test campaigns simulate tools by default; use "real" tools only against
+  systems that may receive test calls.

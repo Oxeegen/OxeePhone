@@ -1,53 +1,95 @@
-name: "🐞 Bug Report"
-description: "Create a report to help us improve"
+name: "🐞 Bug report"
+description: "Something in OxeePhone does not work as expected"
 title: "[Bug]: "
 labels: [bug]
 assignees: []
 
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Never paste API keys, passwords, `.env` contents or callers' personal data**: replace them with `***`.
+
+  - type: input
+    id: version
+    attributes:
+      label: "OxeePhone version"
+      description: "Shown at the top of the sidebar (e.g. v0.9.9)."
+      placeholder: "v0.9.9"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Area"
+      options:
+        - Agent editor / agent settings
+        - Phone calls (telephony, Asterisk / ARI, transfers)
+        - Web calls (browser, Test Audio)
+        - Call detail (recording, transcript, latency, routing, scores)
+        - Test campaigns
+        - Analysis / automatic fixes / versions
+        - Reports / home page
+        - Models (Local Models, voices, recordings, files)
+        - Platform settings (call engine)
+        - MCP / REST API
+        - Install / update
+        - Other
+    validations:
+      required: true
+
   - type: textarea
     id: description
     attributes:
-      label: "Describe the bug"
-      description: "A clear and concise description of what the bug is."
-      placeholder: "The application crashes when..."
+      label: "What happened"
+      description: "What you saw, and what you expected instead."
+      placeholder: "The test caller stays silent after the agent's greeting; I expected it to answer."
     validations:
       required: true
 
   - type: textarea
     id: reproduce
     attributes:
-      label: "Steps to Reproduce"
-      description: "Step-by-step instructions to reproduce the behavior."
-      placeholder: "1. Go to...\n2. Click...\n3. Scroll...\n4. See error"
+      label: "Steps to reproduce"
+      placeholder: "1. Open Test campaigns › …\n2. Play the campaign by phone\n3. …"
     validations:
       required: true
 
-  - type: textarea
-    id: expected
+  - type: input
+    id: ids
     attributes:
-      label: "Expected behavior"
-      description: "What you expected to happen."
-      placeholder: "The application should..."
+      label: "Call / run / execution IDs"
+      description: "Call ID (call detail header), test execution or campaign ID, agent name — whatever applies."
+      placeholder: "Call #79 · execution 3034caea885b · agent “Accueil”"
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: "Deployment"
+      options:
+        - "Server installed with brand/install.sh"
+        - "Local Docker Compose"
+        - "Other"
     validations:
       required: true
+
+  - type: input
+    id: models
+    attributes:
+      label: "Models and telephony"
+      description: "LLM / speech-to-text / voice models, telephony provider (Asterisk, Twilio…)."
+      placeholder: "Oxee-flash, voxee-stt, voxee-tts-pro · Asterisk ARI"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Logs"
+      description: "API logs around the problem (`docker logs <api container> --since 10m`), secrets removed."
+      render: shell
 
   - type: textarea
     id: screenshots
     attributes:
       label: "Screenshots"
-      description: "If applicable, add screenshots to help explain your problem."
-      placeholder: "Drag & drop images here"
-
-  - type: input
-    id: desktop
-    attributes:
-      label: "Device details"
-      description: "Device, OS, Browser, Version"
-      placeholder: "e.g. Desktop, macOS, Chrome, 119"
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: "Additional context"
-      description: "Add any other context about the problem here."
+      description: "If useful. Drag & drop images here."

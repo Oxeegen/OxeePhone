@@ -1,7 +1,8 @@
+blank_issues_enabled: false
 contact_links:
-  - name: 💡 Feature Request
-    url: https://github.com/orgs/dograh-hq/discussions/new?category=ideas
-    about: Suggest any ideas you have using our discussion forums.
-  - name: "🔒 Report a Security Vulnerability"
-    url: https://github.com/dograh-hq/dograh/security/advisories/new
-    about: "Privately report security vulnerabilities to maintainers (not via public issues)."
+  - name: "🔒 Report a security vulnerability"
+    url: https://github.com/Oxeegen/OxeePhone/security/advisories/new
+    about: "Report it privately to the maintainers, never in a public issue."
+  - name: "🚀 Releases and release notes"
+    url: https://github.com/Oxeegen/OxeePhone/releases
+    about: "What changed in each version, and how to update."
