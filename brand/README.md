@@ -183,6 +183,12 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `ui/src/context/OrgConfigContext.tsx` — registers `@/brand/sessionGuard` (local auth: log out on the first backend 401 instead of leaving every page failing)
 - `ui/next.config.ts` — aliases `@stripe/stripe-js` to `src/brand/stubs/stripe-js.ts` (Stack Auth would otherwise load js.stripe.com + fingerprinting on `/`, `/after-sign-in`, `/workflow`)
 
+## Upstream files removed
+
+- `CONTRIBUTING.md` (Dograh's contribution guide): GitHub showed it as a
+  "Contributing" tab on the OxeePhone repository. When an upstream merge
+  brings it back or changes it, keep it deleted (`git rm CONTRIBUTING.md`).
+
 ## Do not rename
 
 Internal identifiers stay as upstream so data and integrations keep working:
