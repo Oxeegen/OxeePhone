@@ -76,9 +76,9 @@ interface Report extends ReportSummary {
 
 // Status palette (reserved, always with icon + label).
 const SEVERITY: Record<Severity, { label: string; color: string; icon: typeof AlertOctagon }> = {
-  critical: { label: "Critical", color: "#d03b3b", icon: AlertOctagon },
-  warning: { label: "Warning", color: "#fab219", icon: AlertTriangle },
-  info: { label: "Info", color: "#3987e5", icon: Info },
+  critical: { label: "Critical", color: "var(--verdict-fail)", icon: AlertOctagon },
+  warning: { label: "Warning", color: "var(--verdict-partial)", icon: AlertTriangle },
+  info: { label: "Info", color: "var(--verdict-pass)", icon: Info },
 };
 
 const PERIODS = [

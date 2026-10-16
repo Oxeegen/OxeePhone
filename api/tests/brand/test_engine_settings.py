@@ -93,3 +93,10 @@ def test_engine_changes_between_executions():
     changes = runs.engine_changes({"performance": {"vad_stop_secs": 0.3}}, {})
     assert changes == [{"block": "performance", "key": "vad_stop_secs", "a": 0.3, "b": 0.2}]
     assert runs.engine_changes({}, {}) == []
+
+
+def test_agent_transfer_is_silent_unless_set():
+    assert tuning.BUILTIN["audio"]["transfer_hold"] == "silence"
+    assert tuning.transfer_hold({}) == "silence"
+    assert tuning.transfer_hold({"audio": {"transfer_hold": "ring"}}) == "ring"
+    assert tuning.transfer_hold({"audio": {"transfer_hold": "music"}}) == "silence"  # invalid: default

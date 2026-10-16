@@ -224,7 +224,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                         <ExecutionStatusBadge status={e.status} progress={e.progress} />
                         {e.error && <p className="mt-1 max-w-[220px] truncate text-[11px] text-destructive" title={e.error}>{e.error}</p>}
                       </td>
-                      <td className="w-52 px-4 py-3"><VerdictSplit verdicts={e.verdicts} /></td>
+                      <td className="w-52 px-4 py-3"><VerdictSplit verdicts={e.verdicts} pending={busy(e.status) ? e.progress.total - e.progress.finished : 0} /></td>
                       <td className="px-4 py-3 font-semibold tabular-nums">{pct(e.pass_rate)}</td>
                       <td className="px-4 py-3">
                         <ScoreBadge score={e.quality_score ?? null} status={techStatus(e.quality_score)} compact />

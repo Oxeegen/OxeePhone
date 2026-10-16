@@ -29,6 +29,7 @@ export interface AudioSettings {
   recording_buffer_seconds?: number | null;
   output_packet_ms?: number | null;
   end_silence_secs?: number | null;
+  transfer_hold?: "silence" | "ring" | null;
 }
 
 export interface Performance {
@@ -475,6 +476,8 @@ const AUDIO_HELP = {
   output_packet_ms:
     "Size of the audio packets sent to the caller. Smaller packets reach the caller sooner and stop faster when the caller interrupts, at the cost of more packets.",
   end_silence_secs: "Silence sent after the agent's last words before the call is closed.",
+  transfer_hold:
+    "What the caller hears while the call is handed to another agent (Transfer to agent tool), between the announcement and the new agent's first words.",
 };
 
 export function AudioSection({
@@ -514,6 +517,39 @@ export function AudioSection({
               className={cn("rounded-md border px-3 py-1.5 text-xs", rate === r ? "border-[var(--cta)] bg-[var(--cta)]/10 font-medium" : "border-border")}
             >
               {r / 1000} kHz
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs">Sound during an agent transfer</Label>
+          {value.transfer_hold != null ? (
+            <button type="button" onClick={() => set({ transfer_hold: null })} className="ml-auto inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+              <RotateCcw className="h-3 w-3" /> {source} ({fallback.transfer_hold ?? "silence"})
+            </button>
+          ) : (
+            <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{source}</span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">{AUDIO_HELP.transfer_hold}</p>
+        <div className={cn("flex gap-2", value.transfer_hold == null && "opacity-60")}>
+          {(
+            [
+              ["silence", "Silence"],
+              ["ring", "Ringing tone"],
+            ] as const
+          ).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => set({ transfer_hold: v })}
+              className={cn(
+                "rounded-md border px-3 py-1.5 text-xs",
+                (value.transfer_hold ?? fallback.transfer_hold ?? "silence") === v ? "border-[var(--cta)] bg-[var(--cta)]/10 font-medium" : "border-border",
+              )}
+            >
+              {label}
             </button>
           ))}
         </div>

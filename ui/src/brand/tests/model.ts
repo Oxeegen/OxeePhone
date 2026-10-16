@@ -376,9 +376,9 @@ export const STATUS_LABEL: Record<ExecutionStatus, string> = {
 };
 
 export const VERDICT_META: Record<Verdict, { label: string; className: string }> = {
-  pass: { label: "Pass", className: "text-emerald-700 dark:text-emerald-300" },
-  partial: { label: "Partial", className: "text-amber-700 dark:text-amber-300" },
-  fail: { label: "Fail", className: "text-red-700 dark:text-red-300" },
+  pass: { label: "Pass", className: "text-[var(--verdict-pass)]" },
+  partial: { label: "Partial", className: "text-[var(--verdict-partial)]" },
+  fail: { label: "Fail", className: "text-[var(--verdict-fail)]" },
 };
 
 export const busy = (status: ExecutionStatus | undefined) => status === "queued" || status === "running";

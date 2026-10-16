@@ -174,7 +174,7 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
                   {p.share != null ? (
                     <div className="flex items-center gap-2" title={`${pct(p.share)} of the median time to first audio`}>
                       <div className="h-2 flex-1 rounded-full bg-muted">
-                        <div className="h-2 rounded-full bg-[var(--viz-series-1)]" style={{ width: `${Math.min(100, p.share * 100)}%` }} />
+                        <div className="h-2 rounded-full bg-[var(--cta)]" style={{ width: `${Math.min(100, p.share * 100)}%` }} />
                       </div>
                       <span className="w-10 text-right text-xs tabular-nums">{pct(p.share)}</span>
                     </div>
@@ -257,7 +257,7 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
             {running ? (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {call.status === "judging" ? "Judging" : "In call"}</span>
             ) : call.status === "error" ? (
-              <span className="inline-flex items-center gap-1 text-xs text-red-700 dark:text-red-300"><AlertTriangle className="h-3.5 w-3.5" /> Error</span>
+              <span className="inline-flex items-center gap-1 text-xs text-[var(--verdict-fail-ink)]"><AlertTriangle className="h-3.5 w-3.5" /> Error</span>
             ) : call.status === "done" ? (
               <VerdictBadge verdict={call.verdict} />
             ) : (
@@ -326,7 +326,7 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
                 <p className="text-xs font-medium text-muted-foreground">Criteria · goal {j.goal_reached ? "reached" : "not reached"}</p>
                 {j.criteria.map((c, i) => (
                   <p key={i} className="flex items-start gap-1.5">
-                    {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />}
+                    {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--verdict-pass)]" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-[var(--verdict-fail)]" />}
                     <span>
                       {c.text}
                       {c.evidence && <span className="block text-xs text-muted-foreground">{c.evidence}</span>}
@@ -335,7 +335,7 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
                 ))}
                 {j.forbidden.map((f, i) => (
                   <p key={`f${i}`} className="flex items-start gap-1.5">
-                    {f.violated ? <X className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /> : <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />}
+                    {f.violated ? <X className="mt-0.5 h-4 w-4 shrink-0 text-[var(--verdict-fail)]" /> : <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--verdict-pass)]" />}
                     <span>
                       Never: {f.text}
                       {f.violated && f.evidence && <span className="block text-xs text-muted-foreground">{f.evidence}</span>}
@@ -344,7 +344,7 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
                 ))}
                 {(call.checks ?? []).map((c, i) => (
                   <p key={`c${i}`} className="flex items-start gap-1.5" title="Checked from the call data">
-                    {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />}
+                    {c.pass ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--verdict-pass)]" /> : <X className="mt-0.5 h-4 w-4 shrink-0 text-[var(--verdict-fail)]" />}
                     <span>
                       {c.label}
                       <span className="block text-xs text-muted-foreground">{c.detail}</span>

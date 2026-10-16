@@ -1032,6 +1032,67 @@ async def preview_file(
         raise HTTPException(status_code=422, detail=str(e)) from e
 
 
+@router.post("/runs/{run_id}/score")
+async def score_call(
+    run_id: int,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Grade a call again (quality and technical scores)."""
+    from api.brand import call_scoring
+    from api.brand import db as brand_db
+
+    if not await brand_db.get_runs_by_ids([run_id], organization_id=user.selected_organization_id):
+        raise HTTPException(status_code=404, detail="Call not found")
+    result = await call_scoring.score_run(run_id, force=True)
+    if result is None:
+        raise HTTPException(
+            status_code=422,
+            detail="This call is not graded (test call or no conversation)",
+        )
+    return result
+
+
+class ScoreMissingRequest(BaseModel):
+    days: int = Field(default=7, ge=1, le=90)
+
+
+@router.post("/runs/score-missing")
+async def score_missing_calls(
+    request: ScoreMissingRequest,
+    background_tasks: BackgroundTasks,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Grade, in the background, the finished calls of the last days that
+    have no score yet."""
+    from datetime import UTC, timedelta
+
+    from api.brand import call_scoring
+    from api.brand import db as brand_db
+
+    since = datetime.now(UTC) - timedelta(days=request.days)
+    runs = await brand_db.scored_runs_since(user.selected_organization_id, since)
+    todo = [r["id"] for r in runs if r["is_completed"] and not r["score"]]
+
+    async def grade_all() -> None:
+        for run_id in todo:
+            await call_scoring.score_after_call(run_id)
+
+    background_tasks.add_task(grade_all)
+    return {"queued": len(todo)}
+
+
+@router.get("/overview")
+async def overview(
+    tz: str = Query(default="UTC", max_length=64),
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Home page KPIs: calls of the day and average scores, against the day
+    before and the last 7 days."""
+    from api.brand.call_overview import overview_kpis
+
+    return await overview_kpis(user.selected_organization_id, tz)
+
+
 class EngineSettingsRequest(BaseModel):
     """Blocks to set; a block set to null goes back to the built-in values."""
 

@@ -49,11 +49,21 @@ def _execution_summary(e: dict) -> dict:
         },
         "pass_rate": report.get("pass_rate"),
         "score": report.get("score"),
-        "verdicts": report.get("verdicts"),
+        # While it plays: the verdicts so far (the rest shows as pending).
+        "verdicts": report.get("verdicts") or _live_verdicts(calls),
         "latency_p50_ms": (report.get("latency") or {}).get("p50_ms"),
         "quality_score": report.get("quality_score"),
         "technical_score": (report.get("technical") or {}).get("score"),
     }
+
+
+def _live_verdicts(calls: list[dict]) -> dict | None:
+    counts = {"pass": 0, "partial": 0, "fail": 0}
+    for c in calls:
+        # Same count as the finished report: judged calls only.
+        if c.get("status") == "done" and c.get("verdict") in counts:
+            counts[c["verdict"]] += 1
+    return counts if calls else None
 
 
 def _campaign_summary(c: dict, executions: list[dict]) -> dict:

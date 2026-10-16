@@ -588,3 +588,59 @@ export function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
+
+// ------------------------------------------------------------- call score
+
+/** Quality and technical score of the call (api/brand/call_scoring.py). */
+export interface ScorePost {
+  key: string;
+  label: string;
+  unit: string;
+  p50: number | null;
+  threshold: number | null;
+  score: number | null;
+}
+
+export interface CallScore {
+  scoredAt: string | null;
+  quality: {
+    score: number | null;
+    scores: Record<string, number>;
+    resolved: boolean;
+    summary: string;
+    issues: string[];
+    error?: string;
+  } | null;
+  technical: {
+    score: number | null;
+    weakest: string | null;
+    posts: ScorePost[];
+  } | null;
+}
+
+export function callScore(run: CallRun): CallScore | null {
+  const raw = (run.annotations ?? {}).oxee_score as Record<string, unknown> | undefined;
+  if (!raw || typeof raw !== "object") return null;
+  const q = raw.quality as Record<string, unknown> | null | undefined;
+  const t = raw.technical as Record<string, unknown> | null | undefined;
+  return {
+    scoredAt: str(raw.scored_at) || null,
+    quality: q
+      ? {
+          score: typeof q.score === "number" ? q.score : null,
+          scores: (q.scores as Record<string, number>) ?? {},
+          resolved: q.resolved === true,
+          summary: str(q.summary),
+          issues: Array.isArray(q.issues) ? (q.issues as unknown[]).map(String) : [],
+          error: q.error ? str(q.error) : undefined,
+        }
+      : null,
+    technical: t
+      ? {
+          score: typeof t.score === "number" ? t.score : null,
+          weakest: str(t.weakest) || null,
+          posts: Array.isArray(t.posts) ? (t.posts as ScorePost[]) : [],
+        }
+      : null,
+  };
+}

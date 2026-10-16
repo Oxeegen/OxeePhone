@@ -20,6 +20,7 @@ import {
   activeMessageId,
   buildTimeline,
   type CallRun,
+  callScore,
   eventRows,
   latencyTurns,
   recordingAnchor,
@@ -29,6 +30,7 @@ import {
 import { RecordingPlayer, type RecordingPlayerHandle } from "./RecordingPlayer";
 import { buildRouting, type RoutingGraphs, transitionToolCallIds } from "./routing";
 import { RoutingTab } from "./RoutingTab";
+import { CallScoreBadges, CallScoreCard } from "./ScoreCard";
 import { TranscriptTab } from "./TranscriptTab";
 import { UsageTab } from "./UsageTab";
 
@@ -73,6 +75,7 @@ export function CallDetailPage() {
   const [graphs, setGraphs] = useState<RoutingGraphs | null>(null);
   const [graphsLoading, setGraphsLoading] = useState(true);
   const player = useRef<RecordingPlayerHandle>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!auth.loading && !auth.isAuthenticated) auth.redirectToLogin();
@@ -103,7 +106,7 @@ export function CallDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [auth.loading, auth.isAuthenticated, workflowId, runId]);
+  }, [auth.loading, auth.isAuthenticated, workflowId, runId, reloadKey]);
 
   const anchor = useMemo(() => (run ? recordingAnchor(run, agentOnset) : null), [run, agentOnset]);
   const routing = useMemo(() => (run ? buildRouting(run, graphs, anchor) : null), [run, graphs, anchor]);
@@ -119,6 +122,7 @@ export function CallDetailPage() {
   }, [run, anchor, routing]);
   const turns = useMemo(() => (run ? latencyTurns(run) : []), [run]);
   const voice = useMemo(() => (run ? voiceFluency(run) : null), [run]);
+  const score = useMemo(() => (run ? callScore(run) : null), [run]);
   const rows = useMemo(() => (run ? eventRows(run, anchor) : []), [run, anchor]);
   const usage = useMemo(() => (run ? usageSummary(run, timeline) : null), [run, timeline]);
   const activeId = useMemo(() => activeMessageId(timeline, time), [timeline, time]);
@@ -158,6 +162,7 @@ export function CallDetailPage() {
                 <Link href={`/workflow/${workflowId}`} className="font-medium text-[var(--cta)] hover:underline">{agentName}</Link>
               </span>
               <span>Ended: <span className="text-foreground">{disposition || (run.is_completed ? "completed" : "in progress")}</span></span>
+              <CallScoreBadges score={score} />
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm">
@@ -212,7 +217,10 @@ export function CallDetailPage() {
           <EventsTab rows={rows} runId={run.id} onSeek={seek} />
         </TabsContent>
         <TabsContent value="analysis">
-          <AnalysisTab run={run} />
+          <div className="space-y-4">
+            <CallScoreCard runId={run.id} score={score} onScored={() => setReloadKey((k) => k + 1)} />
+            <AnalysisTab run={run} />
+          </div>
         </TabsContent>
         <TabsContent value="usage">{usage && <UsageTab usage={usage} />}</TabsContent>
       </Tabs>
