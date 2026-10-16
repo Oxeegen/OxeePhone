@@ -1,52 +1,31 @@
-name: "📖 Documentation Change Request"
-description: "Suggest improvements, corrections, or additions to the documentation"
+name: "📖 Documentation"
+description: "Fix or complete the OxeePhone documentation (README, brand/ docs, release notes)"
 title: "[Docs]: "
 labels: [documentation]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for helping improve our documentation!  
-        Please fill out the details below so we can make updates faster.
-        
   - type: dropdown
     id: type-of-change
     attributes:
-      label: "Type of Documentation Change"
+      label: "Type of change"
       options:
-        - Fix typo or grammar
+        - Fix a mistake
         - Update outdated content
         - Add missing content
-        - Improve clarity or formatting
+        - Improve clarity
         - Other
     validations:
       required: true
 
   - type: input
-    id: page-url
+    id: page
     attributes:
-      label: "Affected Page/Section"
-      description: "Link to the page or file that needs an update (if applicable)"
-      placeholder: "docs/installation.md or https://project/docs/installation"
-
-  - type: textarea
-    id: current
-    attributes:
-      label: "Current Content"
-      description: "What does the documentation currently say?"
-      placeholder: "Paste or summarize the current content here"
+      label: "Page or file"
+      placeholder: ".github/README.md · brand/README.md · brand/agent-vm/README.md · release notes v0.9.9"
 
   - type: textarea
     id: suggested
     attributes:
-      label: "Suggested Change"
-      description: "What should it say instead? Suggest edits or improvements."
-      placeholder: "Propose corrected text, examples, or explanation here"
+      label: "What it should say"
+      description: "The correction or the missing content, and why."
     validations:
       required: true
-
-  - type: textarea
-    id: additional-context
-    attributes:
-      label: "Additional Context"
-      description: "Add any extra details, screenshots, or references"

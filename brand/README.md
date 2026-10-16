@@ -188,6 +188,9 @@ Re-check each of these after an upstream merge (grep for `BRAND` / `brand`).
 - `CONTRIBUTING.md` (Dograh's contribution guide): GitHub showed it as a
   "Contributing" tab on the OxeePhone repository. When an upstream merge
   brings it back or changes it, keep it deleted (`git rm CONTRIBUTING.md`).
+- `.github/ISSUE_TEMPLATE/*` and `.github/PULL_REQUEST_TEMPLATE.md` are
+  OxeePhone's own (Dograh's pointed at its repository and discussions); on a
+  conflict, keep the OxeePhone versions.
 
 ## Do not rename
 

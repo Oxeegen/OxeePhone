@@ -1,0 +1,44 @@
+name: "💡 Feature request"
+description: "Suggest an improvement or a new capability for OxeePhone"
+title: "[Feature]: "
+labels: [enhancement]
+assignees: []
+
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: "Need"
+      description: "What you are trying to do, and what gets in the way today."
+      placeholder: "When a test call transfers to the switchboard, I want…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposal"
+      description: "How you see it working: screen, setting, behaviour."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: "Area"
+      options:
+        - Agents and call engine
+        - Calls (phone, web)
+        - Test campaigns
+        - Analysis / fixes / versions
+        - Reports / home page
+        - Models, voices, recordings, files
+        - MCP / REST API / AI agent
+        - Install / deployment
+        - Other
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Context"
+      description: "Use case, volume, examples, screenshots."
