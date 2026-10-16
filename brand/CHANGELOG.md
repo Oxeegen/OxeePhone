@@ -5,6 +5,11 @@ OxeePhone versions are independent of the Dograh base version
 version lives in `ui/src/brand/brand.ts` and `api/brand/config.py` (a test
 keeps them equal).
 
+## Unreleased
+
+- Test comparisons: the legend names the new colours (violet: better, raspberry:
+  worse).
+
 ## 0.9.9 — 2026-10-16
 
 - Every call is graded when it ends, like the calls of a test campaign: a
