@@ -155,7 +155,7 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
         </div>
       )}
 
-      <Section title="Indicators" subtitle="B against A. Green: better, red: worse.">
+      <Section title="Indicators" subtitle="B against A. Violet: better, raspberry: worse.">
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[560px] text-sm">
             <thead className="border-b border-border text-left text-xs text-muted-foreground">
