@@ -29,6 +29,9 @@ SETTINGS_KEY = "OXEE_TEST_SETTINGS"
 PREFIX = "OXEE_TESTCAMP:"
 MAX_CAMPAIGNS = 200
 MAX_SCENARIOS = 100
+# unit: the agent alone (transfers to other agents simulated); e2e: the call
+# goes through every agent it is handed to.
+MODES = ("unit", "e2e")
 GENERATION_BATCH = 6
 TESTER_NAME = "OxeePhone test caller"
 
@@ -445,6 +448,7 @@ async def create(
     tools_mode: str,
     max_duration_seconds: int,
     instructions: str | None = None,
+    mode: str = "unit",
 ) -> dict:
     from api.brand import versions
 
@@ -474,12 +478,27 @@ async def create(
         "tools_mode": tools_mode,
         "max_duration_seconds": max(60, min(900, int(max_duration_seconds or 300))),
         "instructions": (instructions or "").strip()[:2000] or None,
+        "mode": mode if mode in MODES else "unit",
         "seed": random.randrange(1, 10**9),
         "status": "generating",
         "generation": {"done": 0, "total": count, "error": None},
         "scenarios": [],
     }
     return await save(organization_id, campaign)
+
+
+E2E_RULES = """END-TO-END campaign: the call really goes from agent to agent. The
+agent's "Transfer to agent" tools ("hands_the_call_to_agent") lead to the
+"other_agents" (their nodes and their own handoffs). Spread the scenarios over
+the routes a real caller can take: callers who stay with the agent, callers
+who must be handed over (once, or further), callers who ask for the wrong
+service. "expected_agent" is the agent that must be handling the call when it
+ends (the agent under test when no handoff is expected); "expected_route" the
+agents in order, starting with the agent under test; "expected_end_node" a
+node of the expected agent. Criteria judge the agents' behaviour; whether the
+caller reached the right agent is graded on its own (routing)."""
+
+UNIT_RULES = """Leave "expected_agent" null and "expected_route" empty."""
 
 
 GENERATE_PROMPT = """You write test scenarios for a phone voice agent. A
@@ -522,13 +541,15 @@ For each slot write a realistic scenario that matches ALL its levels:
 - "tool_hints": when tools are simulated, what they should answer in this
   scenario (e.g. "no availability before Thursday", "customer not found").
 
+{mode_rules}
 Write every text in {language}. Answer only with JSON:
 {"scenarios": [{"slot": <number>, "title": str, "intent": str (2-4 words),
   "persona": {"name": str, "age": int, "gender": "female"|"male",
               "situation": str, "personality": str},
   "goal": str, "behaviour": str, "facts": {str: str},
   "criteria": [str], "forbidden": [str], "expected_end_node": str|null,
-  "expected_variables": {str: str}, "expected_tools": [str], "tool_hints": str}]}"""
+  "expected_variables": {str: str}, "expected_tools": [str], "tool_hints": str,
+  "expected_agent": str|null, "expected_route": [str]}]}"""
 
 
 def agent_brief(workflow_json: dict, configurations: dict) -> dict:
@@ -574,9 +595,96 @@ async def _tool_names(organization_id: int, uuids: list[str]) -> list[dict]:
         {
             "name": getattr(t, "name", None),
             "description": (getattr(t, "description", None) or "")[:300],
+            **(
+                {
+                    "hands_the_call_to_agent": (
+                        ((getattr(t, "definition", None) or {}).get("config") or {}).get(
+                            "workflow_id"
+                        )
+                    )
+                }
+                if getattr(t, "category", None) == "transfer_agent"
+                else {}
+            ),
         }
         for t in tools or []
     ]
+
+
+async def reachable_agents(
+    organization_id: int, tools: list[dict], depth: int = 2
+) -> list[dict]:
+    """The agents a call can be handed to (Transfer to agent tools), with
+    their nodes, for E2E scenarios; follows their own transfers ``depth``
+    levels down."""
+    seen: dict[int, dict] = {}
+    frontier = [t["hands_the_call_to_agent"] for t in tools if t.get("hands_the_call_to_agent")]
+    for _ in range(depth):
+        next_frontier = []
+        for workflow_id in frontier:
+            if not isinstance(workflow_id, int) or workflow_id in seen:
+                continue
+            workflow = await db_client.get_workflow(
+                workflow_id, organization_id=organization_id
+            )
+            if workflow is None or not workflow.released_definition_id:
+                continue
+            definition = await brand_db.get_workflow_version(
+                workflow.id, workflow.released_definition_id
+            )
+            brief = agent_brief(
+                definition.workflow_json or {}, definition.workflow_configurations or {}
+            )
+            their_tools = await _tool_names(organization_id, brief.pop("tool_uuids"))
+            seen[workflow_id] = {
+                "workflow_id": workflow_id,
+                "name": workflow.name,
+                "nodes": [
+                    {
+                        "name": n.get("name"),
+                        "type": n.get("type"),
+                        "prompt": (n.get("prompt") or "")[:300],
+                    }
+                    for n in brief.get("nodes") or []
+                ],
+                "hands_over_to": [
+                    t["hands_the_call_to_agent"]
+                    for t in their_tools
+                    if t.get("hands_the_call_to_agent")
+                ],
+            }
+            next_frontier.extend(seen[workflow_id]["hands_over_to"])
+        frontier = next_frontier
+    names = {wid: a["name"] for wid, a in seen.items()}
+    for a in seen.values():
+        a["hands_over_to"] = [names.get(w, f"agent {w}") for w in a["hands_over_to"]]
+    return list(seen.values())
+
+
+async def _brief_for(
+    organization_id: int, campaign: dict, definition: Any
+) -> dict:
+    """The agent as the scenario writer sees it; E2E campaigns add the agents
+    its calls can be handed to."""
+    brief = agent_brief(
+        definition.workflow_json or {}, definition.workflow_configurations or {}
+    )
+    brief["tools"] = await _tool_names(organization_id, brief.pop("tool_uuids"))
+    if campaign.get("mode") == "e2e":
+        agents = await reachable_agents(organization_id, brief["tools"])
+        names = {a["workflow_id"]: a["name"] for a in agents}
+        for t in brief["tools"]:
+            if t.get("hands_the_call_to_agent"):
+                t["hands_the_call_to_agent"] = names.get(
+                    t["hands_the_call_to_agent"], f"agent {t['hands_the_call_to_agent']}"
+                )
+        brief["other_agents"] = [
+            {k: v for k, v in a.items() if k != "workflow_id"} for a in agents
+        ]
+    else:
+        for t in brief["tools"]:
+            t.pop("hands_the_call_to_agent", None)
+    return brief
 
 
 def _assign_pools(scenarios: list[dict], settings: dict, seed: int) -> None:
@@ -640,6 +748,8 @@ def _scenario_from(raw: dict, slot: dict) -> dict:
             :8
         ],
         "tool_hints": str(raw.get("tool_hints") or "")[:500],
+        "expected_agent": (str(raw["expected_agent"])[:120] if raw.get("expected_agent") else None),
+        "expected_route": [str(a)[:120] for a in raw.get("expected_route") or [] if a][:6],
         "variant_of": None,
         "enabled": True,
     }
@@ -667,10 +777,7 @@ async def generate(organization_id: int, campaign_id: str) -> None:
                 workflow.id, workflow.released_definition_id
             )
         )
-        brief = agent_brief(
-            definition.workflow_json or {}, definition.workflow_configurations or {}
-        )
-        brief["tools"] = await _tool_names(organization_id, brief.pop("tool_uuids"))
+        brief = await _brief_for(organization_id, campaign, definition)
         settings = await get_settings(organization_id)
         missing = campaign["count"] - len(campaign["scenarios"])
         seed = campaign["seed"] + len(campaign["scenarios"])
@@ -703,7 +810,9 @@ async def generate(organization_id: int, campaign_id: str) -> None:
             }
             result = await chat_json(
                 model,
-                GENERATE_PROMPT.replace("{language}", campaign["language"]),
+                GENERATE_PROMPT.replace("{language}", campaign["language"]).replace(
+                    "{mode_rules}", E2E_RULES if campaign.get("mode") == "e2e" else UNIT_RULES
+                ),
                 payload,
                 max_tokens=8000,
                 temperature=0.7,
@@ -758,15 +867,19 @@ Rewrite each scenario so that it follows the NEW instructions:
   values known in advance; "expected_tools" the agent's tool names;
   "tool_hints" what simulated tools should answer.
 
+{mode_rules}
 Write every text in {language}. Answer only with JSON:
 {"scenarios": [{"id": str, "title": str, "intent": str (2-4 words),
   "persona": {"name": str, "age": int, "gender": "female"|"male",
               "situation": str, "personality": str},
   "goal": str, "behaviour": str, "facts": {str: str},
   "criteria": [str], "forbidden": [str], "expected_end_node": str|null,
-  "expected_variables": {str: str}, "expected_tools": [str], "tool_hints": str}]}"""
+  "expected_variables": {str: str}, "expected_tools": [str], "tool_hints": str,
+  "expected_agent": str|null, "expected_route": [str]}]}"""
 
 REWRITTEN_FIELDS = (
+    "expected_agent",
+    "expected_route",
     "title",
     "intent",
     "persona",
@@ -836,15 +949,14 @@ async def rewrite(
                 workflow.id, workflow.released_definition_id
             )
         )
-        brief = agent_brief(
-            definition.workflow_json or {}, definition.workflow_configurations or {}
-        )
-        brief["tools"] = await _tool_names(organization_id, brief.pop("tool_uuids"))
+        brief = await _brief_for(organization_id, campaign, definition)
         for start in range(0, len(targets), GENERATION_BATCH):
             batch = targets[start : start + GENERATION_BATCH]
             result = await chat_json(
                 model,
-                REWRITE_PROMPT.replace("{language}", campaign["language"]),
+                REWRITE_PROMPT.replace("{language}", campaign["language"]).replace(
+                    "{mode_rules}", E2E_RULES if campaign.get("mode") == "e2e" else UNIT_RULES
+                ),
                 {
                     "today": datetime.now(UTC).strftime("%A %d %B %Y"),
                     "agent": {"name": workflow.name, **brief},
@@ -909,6 +1021,8 @@ EDITABLE = (
     "expected_variables",
     "expected_tools",
     "tool_hints",
+    "expected_agent",
+    "expected_route",
     "levels",
     "speed",
     "voice",
@@ -933,7 +1047,7 @@ def update_scenario(campaign: dict, scenario_id: str, changes: dict) -> dict:
             }
         elif key == "speed":
             value = round(max(SPEED_LIMITS[0], min(SPEED_LIMITS[1], float(value))), 2)
-        elif key in ("criteria", "forbidden", "expected_tools"):
+        elif key in ("criteria", "forbidden", "expected_tools", "expected_route"):
             value = [str(v) for v in value or [] if str(v).strip()]
         elif key in ("facts", "expected_variables"):
             value = {str(k): str(v) for k, v in (value or {}).items() if str(k).strip()}
@@ -941,6 +1055,8 @@ def update_scenario(campaign: dict, scenario_id: str, changes: dict) -> dict:
             value = (_clean_voices([value]) or [None])[0]
         elif key == "enabled":
             value = bool(value)
+        elif key == "expected_agent":
+            value = str(value).strip()[:120] or None if value else None
         scenario[key] = value
     scenario["edited_at"] = _now()
     return scenario

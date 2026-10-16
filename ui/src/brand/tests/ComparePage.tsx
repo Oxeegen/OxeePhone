@@ -152,6 +152,13 @@ export function ComparePage({ a, b }: { a: string; b: string }) {
             subtitle="Latency post by post, tools, turn-taking, reliability (1–5 against the Analysis thresholds)."
             headline={data.headline.technical}
           />
+          {data.headline.routing && (
+            <HeadlineCard
+              title="Routing score"
+              subtitle="E2E: did the callers reach the right agent, without needless or back-and-forth handoffs (1–5)."
+              headline={data.headline.routing}
+            />
+          )}
         </div>
       )}
 

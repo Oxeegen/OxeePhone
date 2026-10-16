@@ -44,7 +44,9 @@ export function ScenarioCard({
   voices,
   onChanged,
   index,
+  e2e = false,
 }: {
+  e2e?: boolean;
   campaignId: string;
   scenario: Scenario;
   dimensions: Record<string, DimensionInfo>;
@@ -60,6 +62,7 @@ export function ScenarioCard({
     forbidden: scenario.forbidden.join("\n"),
     variables: unpairs(scenario.expected_variables),
     tools: scenario.expected_tools.join("\n"),
+    route: (scenario.expected_route ?? []).join("\n"),
   }));
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -71,6 +74,7 @@ export function ScenarioCard({
       forbidden: scenario.forbidden.join("\n"),
       variables: unpairs(scenario.expected_variables),
       tools: scenario.expected_tools.join("\n"),
+      route: (scenario.expected_route ?? []).join("\n"),
     });
   };
 
@@ -101,6 +105,7 @@ export function ScenarioCard({
       criteria: lines(texts.criteria),
       forbidden: lines(texts.forbidden),
       expected_end_node: draft.expected_end_node?.trim() || null,
+      ...(e2e ? { expected_agent: draft.expected_agent?.trim() || null, expected_route: lines(texts.route) } : {}),
       expected_variables: pairs(texts.variables),
       expected_tools: lines(texts.tools),
       tool_hints: draft.tool_hints,
@@ -121,6 +126,11 @@ export function ScenarioCard({
           <p className="truncate font-medium">
             {scenario.title}
             {scenario.variant_of && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">variant</span>}
+            {e2e && (scenario.expected_route?.length || scenario.expected_agent) && (
+              <span className="ml-2 rounded bg-[var(--cta)]/10 px-1.5 py-0.5 text-[10px] font-normal text-[var(--cta)]" title="Expected route">
+                {(scenario.expected_route?.length ? scenario.expected_route : [scenario.expected_agent]).join(" → ")}
+              </span>
+            )}
             {scenario.rewritten_at && (
               <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground" title="Revised to follow the campaign's instructions">
                 revised
@@ -225,6 +235,16 @@ export function ScenarioCard({
             <Field label="Expected variables (one “name: value” per line)">
               <Textarea rows={3} value={texts.variables} onChange={(e) => setTexts({ ...texts, variables: e.target.value })} className="font-mono text-xs" />
             </Field>
+            {e2e && (
+              <>
+                <Field label="Expected agent at the end of the call">
+                  <Input value={draft.expected_agent ?? ""} onChange={(e) => setDraft({ ...draft, expected_agent: e.target.value })} />
+                </Field>
+                <Field label="Expected route (agents in order, one per line)">
+                  <Textarea rows={2} value={texts.route} onChange={(e) => setTexts({ ...texts, route: e.target.value })} />
+                </Field>
+              </>
+            )}
             <Field label="Expected end node">
               <Input value={draft.expected_end_node ?? ""} onChange={(e) => setDraft({ ...draft, expected_end_node: e.target.value })} />
             </Field>

@@ -21,7 +21,7 @@ import { InstructionsCard } from "./InstructionsCard";
 import { busy, type Campaign, DIMENSION_ORDER, ms, pct, rangeLabel, TOOLS_MODE_LABEL, versionLabel } from "./model";
 import { RunDialog } from "./RunDialog";
 import { ScenarioCard } from "./ScenarioCard";
-import { API, ExecutionStatusBadge, ScoreBadge, techStatus, useTestSettings, VerdictSplit } from "./ui";
+import { API, ExecutionStatusBadge, ModeBadge, ScoreBadge, techStatus, useTestSettings, VerdictSplit } from "./ui";
 
 export function CampaignPage({ campaignId }: { campaignId: string }) {
   const auth = useAuth();
@@ -68,6 +68,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
   }
 
   const dims = settings.data.dimensions;
+  const e2e = campaign.mode === "e2e";
   const scenarios = campaign.scenarios.filter((s) => {
     const q = query.trim().toLowerCase();
     return !q || `${s.title} ${s.intent} ${s.persona.name} ${s.goal}`.toLowerCase().includes(q);
@@ -85,6 +86,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-3xl font-bold">
             <FlaskConical className="h-7 w-7 text-[var(--cta)]" /> {campaign.name}
+            <ModeBadge mode={campaign.mode} />
           </h1>
           <p className="text-sm text-muted-foreground">
             <Link href={`/workflow/${campaign.workflow_id}`} className="hover:underline">{campaign.workflow_name}</Link> · {campaign.language} · tools:{" "}
@@ -189,6 +191,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                     <th className="px-4 py-2 font-medium">Pass rate</th>
                     <th className="px-4 py-2 font-medium">Quality</th>
                     <th className="px-4 py-2 font-medium">Technical</th>
+                    {e2e && <th className="px-4 py-2 font-medium">Routing</th>}
                     <th className="px-4 py-2 font-medium">Latency p50</th>
                   </tr>
                 </thead>
@@ -232,6 +235,11 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
                       <td className="px-4 py-3" title={e.channel === "text" ? "Text: tools and reliability only" : undefined}>
                         <ScoreBadge score={e.technical_score ?? null} status={techStatus(e.technical_score)} compact />
                       </td>
+                      {e2e && (
+                        <td className="px-4 py-3" title="Routing score: did the callers reach the right agent">
+                          <ScoreBadge score={e.routing_score ?? null} status={techStatus(e.routing_score)} compact />
+                        </td>
+                      )}
                       <td className="px-4 py-3 tabular-nums">{e.channel === "phone" ? ms(e.latency_p50_ms) : "—"}</td>
                     </tr>
                   ))}
@@ -282,6 +290,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
               key={s.id}
               index={campaign.scenarios.indexOf(s) + 1}
               campaignId={campaign.id}
+              e2e={e2e}
               scenario={s}
               dimensions={dims}
               voices={settings.data!.settings.voices}

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 import { busy, type CampaignSummary, pct, versionLabel } from "./model";
 import { TestSettingsDialog } from "./TestSettingsDialog";
-import { API, ExecutionStatusBadge, ScoreBadge, techStatus, useTestSettings, VerdictSplit } from "./ui";
+import { API, ExecutionStatusBadge, ModeBadge, ScoreBadge, techStatus, useTestSettings, VerdictSplit } from "./ui";
 
 // Manage › Test campaigns: scenarios played by a simulated caller against an
 // agent, replayed on each version to compare (api/brand/test_*.py).
@@ -123,6 +123,7 @@ export function TestCampaignsPage() {
                 <th className="px-4 py-2 font-medium">Pass rate</th>
                 <th className="px-4 py-2 font-medium">Quality</th>
                 <th className="px-4 py-2 font-medium">Technical</th>
+                <th className="px-4 py-2 font-medium">Routing</th>
               </tr>
             </thead>
             <tbody>
@@ -132,7 +133,9 @@ export function TestCampaignsPage() {
                 return (
                   <tr key={c.id} className={`border-b border-border last:border-0 hover:bg-muted/30 ${ROW_CLASS}`} onClick={openRow(`/test-campaigns/${c.id}`, router.push)}>
                     <td className="px-4 py-3">
-                      <span className="font-medium">{c.name}</span>
+                      <span className="flex items-center gap-1.5 font-medium">
+                        {c.name} <ModeBadge mode={c.mode} />
+                      </span>
                       <p className="text-xs text-muted-foreground">{format(new Date(c.created_at), "MMM d, yyyy")}</p>
                     </td>
                     <td className="px-4 py-3">{c.workflow_name}</td>
@@ -176,6 +179,16 @@ export function TestCampaignsPage() {
                     <td className="px-4 py-3" title={done?.channel === "text" ? "Text: tools and reliability only" : undefined}>
                       <ScoreBadge score={done?.technical_score ?? null} status={techStatus(done?.technical_score)} compact />
                       <ScoreTrend last={done?.technical_score} previous={c.previous_done?.technical_score} />
+                    </td>
+                    <td className="px-4 py-3" title="Routing score (E2E campaigns)">
+                      {c.mode === "e2e" ? (
+                        <>
+                          <ScoreBadge score={done?.routing_score ?? null} status={techStatus(done?.routing_score)} compact />
+                          <ScoreTrend last={done?.routing_score} previous={c.previous_done?.routing_score} />
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </td>
                   </tr>
                 );

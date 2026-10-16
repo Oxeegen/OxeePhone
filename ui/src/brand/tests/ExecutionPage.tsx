@@ -217,6 +217,49 @@ function TechnicalReport({ technical, phone }: { technical: Technical; phone: bo
   );
 }
 
+/** E2E: the agents a call went through, against the expected route. */
+function RouteView({ call }: { call: TestCall }) {
+  const route = call.metrics?.route ?? [];
+  const routing = call.routing;
+  const expected = call.scenario.expected_route?.length ? call.scenario.expected_route : call.scenario.expected_agent ? [call.scenario.expected_agent] : [];
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium">Route</span>
+        {routing && <ScoreBadge score={routing.score} status={techStatus(routing.score)} />}
+        {routing?.reached === true && <span className="text-[var(--verdict-pass-ink)]">reached the expected agent</span>}
+        {routing?.reached === false && <span className="text-[var(--verdict-fail-ink)]">did not reach “{routing.expected_agent}”</span>}
+        {routing?.loops && <span className="text-[var(--verdict-fail-ink)]">back-and-forth between agents</span>}
+        {expected.length > 0 && <span className="text-muted-foreground">expected: {expected.join(" → ")}</span>}
+      </div>
+      <div className="flex flex-wrap items-stretch gap-2">
+        {route.map((r, i) => (
+          <div key={i} className="flex items-center gap-2">
+            {i > 0 && <span className="text-muted-foreground">→</span>}
+            <div className="rounded-md bg-muted/50 px-2.5 py-1.5">
+              <p className="text-xs font-medium">{r.agent ?? "?"}</p>
+              <p className="text-[11px] text-muted-foreground">{r.nodes.join(" › ") || "—"}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {routing?.judge && (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          {routing.judge.evidence && <p>{routing.judge.evidence}</p>}
+          {routing.judge.handoffs.map((h, i) => (
+            <p key={i} className="flex items-start gap-1.5">
+              {h.justified ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--verdict-pass)]" /> : <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--verdict-fail)]" />}
+              <span>
+                Handoff to {h.to}: {h.evidence}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The agent-side run of a test call (the inbound call, as recorded). */
 function RunLink({ workflowId, runId, verdict, className }: { workflowId: number; runId?: number | null; verdict?: string | null; className?: string }) {
   if (!runId) return null;
@@ -273,6 +316,11 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
             </span>
           </span>
           <LevelChips levels={s.levels} speed={execution.channel === "phone" ? s.speed : null} />
+          {call.routing && (
+            <span title={`Routing score${call.routing.route.length ? ` · ${call.routing.route.join(" → ")}` : ""}`}>
+              <ScoreBadge score={call.routing.score} status={techStatus(call.routing.score)} compact />
+            </span>
+          )}
           {execution.channel === "phone" && call.technical?.score != null && (
             <span title={call.technical.weakest ? `Technical score · weakest: ${call.technical.weakest}` : "Technical score"}>
               <ScoreBadge score={call.technical.score} status={call.technical.status} compact />
@@ -286,14 +334,27 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
       {open && (
         <div className="space-y-4 border-t border-border p-4 text-sm">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {call.agent_run_id && (
-              <TranscriptButton
-                workflowId={execution.workflow_id}
-                runId={call.agent_run_id}
-                agentName={execution.workflow_name}
-                title={`#${call.index} ${s.title}`}
-              />
-            )}
+            {call.route_runs && call.route_runs.length > 1
+              ? call.route_runs.map((seg, i) => (
+                  <span key={seg.run_id} className="flex items-center gap-1">
+                    {i > 0 && <span className="text-muted-foreground">→</span>}
+                    <TranscriptButton
+                      workflowId={seg.workflow_id}
+                      runId={seg.run_id}
+                      agentName={seg.workflow_name}
+                      title={`#${call.index} ${s.title} · ${seg.workflow_name}`}
+                      label={seg.workflow_name}
+                    />
+                  </span>
+                ))
+              : call.agent_run_id && (
+                  <TranscriptButton
+                    workflowId={execution.workflow_id}
+                    runId={call.agent_run_id}
+                    agentName={execution.workflow_name}
+                    title={`#${call.index} ${s.title}`}
+                  />
+                )}
             {call.agent_run_id && (
               <Link href={`/workflow/${execution.workflow_id}/run/${call.agent_run_id}`} className="inline-flex items-center gap-1 text-foreground hover:underline">
                 Agent side #{call.agent_run_id} <ExternalLink className="h-3 w-3" />
@@ -319,6 +380,7 @@ function CallRow({ execution, call, fixReport, fixes, onFixChanged }: {
             )}
           </div>
           <p><span className="text-muted-foreground">Goal:</span> {s.goal}</p>
+          {m?.route && m.route.length > 0 && <RouteView call={call} />}
 
           {j && (
             <div className="grid gap-4 md:grid-cols-2">
@@ -528,7 +590,7 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
 
       {r && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className={cn("grid gap-3 sm:grid-cols-2", r.routing_score != null ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
             <Tile label="Pass rate" value={pct(r.pass_rate)} hint={<VerdictSplit verdicts={r.verdicts} />} help="Calls whose goal was reached with every criterion and check passed, out of the judged calls." />
             <Tile label="Goal reached" value={pct(r.goal_rate)} hint={`score ${pct(r.score)} (pass + ½ partial)`} />
             <Tile
@@ -543,6 +605,18 @@ export function ExecutionPage({ campaignId, executionId }: { campaignId: string;
               hint={r.technical?.status ? <ScoreBadge score={r.technical.score} status={r.technical.status} /> : phone ? "" : "text: tools and reliability only"}
               help="Latency post by post, tools, turn-taking and reliability, graded 1-5 against the thresholds of Analysis › Thresholds."
             />
+            {r.routing_score != null && (
+              <Tile
+                label="Routing score"
+                value={`${r.routing_score.toFixed(2)}/5`}
+                hint={
+                  r.routing
+                    ? `${pct(r.routing.reach_rate)} reached the expected agent · ${r.routing.handoffs_per_call} handoff${r.routing.handoffs_per_call === 1 ? "" : "s"} per call`
+                    : ""
+                }
+                help="E2E: did each caller reach the right agent at the right moment — the agent ending the call, loops between agents, needless handoffs, and the judge's view of each handoff."
+              />
+            )}
             <Tile
               label="Graph coverage"
               value={pct(r.coverage.nodes_rate)}
